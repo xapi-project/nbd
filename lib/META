@@ -1,0 +1,33 @@
+# OASIS_START
+# DO NOT EDIT (digest: a36468a46a149364f3261ddd024f0163)
+version = "0.1.0"
+description = "Nbd library"
+requires = "bitstring.syntax"
+archive(byte) = "nbd.cma"
+archive(byte, plugin) = "nbd.cma"
+archive(native) = "nbd.cmxa"
+archive(native, plugin) = "nbd.cmxs"
+exists_if = "nbd.cma"
+package "unix" (
+ version = "0.1.0"
+ description = "Nbd library"
+ requires = "nbd stdext threads"
+ archive(byte) = "nbd-unix.cma"
+ archive(byte, plugin) = "nbd-unix.cma"
+ archive(native) = "nbd-unix.cmxa"
+ archive(native, plugin) = "nbd-unix.cmxs"
+ exists_if = "nbd-unix.cma"
+)
+
+package "lwt" (
+ version = "0.1.0"
+ description = "Nbd library"
+ requires = "lwt nbd lwt.syntax"
+ archive(byte) = "nbd-lwt.cma"
+ archive(byte, plugin) = "nbd-lwt.cma"
+ archive(native) = "nbd-lwt.cmxa"
+ archive(native, plugin) = "nbd-lwt.cmxs"
+ exists_if = "nbd-lwt.cma"
+)
+# OASIS_STOP
+

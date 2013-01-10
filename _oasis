@@ -1,0 +1,38 @@
+OASISFormat: 0.3
+Name:        nbd
+Version:     0.1.0
+Synopsis:    Nbd library
+Authors:     Various
+License:     LGPL-2.0 with OCaml linking exception
+Plugins:     META (0.3)
+BuildTools:  ocamlbuild
+
+Flag lwt
+  Description: build the Lwt library
+  Default: false
+
+Library "nbd"
+  CompiledObject:     best
+  Path: lib
+  Findlibname: nbd
+  Modules: Nbd
+  BuildDepends: bitstring.syntax
+
+Library "nbd-unix"
+  CompiledObject:     best
+  Path: unix
+  Findlibparent: nbd
+  Findlibname: unix
+  Modules: Nbd_unix
+  BuildDepends: nbd, stdext, threads
+
+Library "nbd-lwt"
+  CompiledObject:     best
+  Build$: flag(lwt)
+  Install$: flag(lwt)
+  Path: lwt
+  Findlibparent: nbd
+  Findlibname: lwt
+  Modules: Lwt_mux, Nbd_lwt
+  BuildDepends:	lwt, nbd, lwt.syntax
+
