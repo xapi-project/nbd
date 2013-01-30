@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: a36468a46a149364f3261ddd024f0163)
+# DO NOT EDIT (digest: 3e99b180cdd71546048e1d0daf4a964f)
 version = "0.1.0"
 description = "Nbd library"
-requires = "bitstring.syntax"
+requires = "bitstring bitstring.syntax"
 archive(byte) = "nbd.cma"
 archive(byte, plugin) = "nbd.cma"
 archive(native) = "nbd.cmxa"

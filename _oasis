@@ -16,7 +16,7 @@ Library "nbd"
   Path: lib
   Findlibname: nbd
   Modules: Nbd
-  BuildDepends: bitstring.syntax
+  BuildDepends: bitstring, bitstring.syntax
 
 Library "nbd-unix"
   CompiledObject:     best
