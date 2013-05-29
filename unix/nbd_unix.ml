@@ -1,5 +1,11 @@
 open Nbd
 
+type error = int32
+
+type handle = int64
+
+type size = int64
+
 let rec really_read fd string off n =
 	if n=0 then () else
 	let m = Unix.read fd string off n in
