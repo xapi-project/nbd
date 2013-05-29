@@ -1,5 +1,7 @@
 open Nbd
 
+type size = int64
+
 let global_id = ref 0L
 let global_mutex = Lwt_mutex.create ()
 let get_id () = Lwt_mutex.with_lock global_mutex
