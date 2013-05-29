@@ -24,7 +24,7 @@ Library "nbd-unix"
   Findlibparent: nbd
   Findlibname: unix
   Modules: Nbd_unix
-  BuildDepends: nbd, stdext, threads
+  BuildDepends: nbd, unix, threads
 
 Library "nbd-lwt"
   CompiledObject:     best

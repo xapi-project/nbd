@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3e99b180cdd71546048e1d0daf4a964f)
+# DO NOT EDIT (digest: 6a68db920986510650c39c4256cbf116)
 version = "0.1.0"
 description = "Nbd library"
 requires = "bitstring bitstring.syntax"
@@ -11,7 +11,7 @@ exists_if = "nbd.cma"
 package "unix" (
  version = "0.1.0"
  description = "Nbd library"
- requires = "nbd stdext threads"
+ requires = "nbd unix threads"
  archive(byte) = "nbd-unix.cma"
  archive(byte, plugin) = "nbd-unix.cma"
  archive(native) = "nbd-unix.cmxa"
