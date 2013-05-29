@@ -1,4 +1,5 @@
 
+module Nbd = Nbd_unix
 
 let test host port =
 	try
