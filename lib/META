@@ -1,6 +1,4 @@
-# OASIS_START
-# DO NOT EDIT (digest: 3e99b180cdd71546048e1d0daf4a964f)
-version = "0.1.0"
+version = "0.9.0"
 description = "Nbd library"
 requires = "bitstring bitstring.syntax"
 archive(byte) = "nbd.cma"
@@ -9,25 +7,24 @@ archive(native) = "nbd.cmxa"
 archive(native, plugin) = "nbd.cmxs"
 exists_if = "nbd.cma"
 package "unix" (
- version = "0.1.0"
+ version = "0.9.0"
  description = "Nbd library"
- requires = "nbd stdext threads"
- archive(byte) = "nbd-unix.cma"
- archive(byte, plugin) = "nbd-unix.cma"
- archive(native) = "nbd-unix.cmxa"
- archive(native, plugin) = "nbd-unix.cmxs"
- exists_if = "nbd-unix.cma"
+ requires = "nbd unix threads"
+ archive(byte) = "nbd_unix.cma"
+ archive(byte, plugin) = "nbd_unix.cma"
+ archive(native) = "nbd_unix.cmxa"
+ archive(native, plugin) = "nbd_unix.cmxs"
+ exists_if = "nbd_unix.cma"
 )
 
 package "lwt" (
- version = "0.1.0"
+ version = "0.9.0"
  description = "Nbd library"
  requires = "lwt nbd lwt.syntax"
- archive(byte) = "nbd-lwt.cma"
- archive(byte, plugin) = "nbd-lwt.cma"
- archive(native) = "nbd-lwt.cmxa"
- archive(native, plugin) = "nbd-lwt.cmxs"
- exists_if = "nbd-lwt.cma"
+ archive(byte) = "nbd_lwt.cma"
+ archive(byte, plugin) = "nbd_lwt.cma"
+ archive(native) = "nbd_lwt.cmxa"
+ archive(native, plugin) = "nbd_lwt.cmxs"
+ exists_if = "nbd_lwt.cma"
 )
-# OASIS_STOP
 

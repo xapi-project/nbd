@@ -1,0 +1,17 @@
+To build you need the following packages:
+
+  * ocaml
+  * ocaml-findlib
+  * bitstring  
+
+and then you can type:
+
+  make
+
+To install, type:
+
+  make install
+
+Alternatively you can also install via OPAM using:
+
+  opam install nbd
