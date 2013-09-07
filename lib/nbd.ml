@@ -30,10 +30,6 @@ let nbd_flag_send_fua = 8
 let nbd_flag_rotational = 16
 let nbd_flag_send_trim = 32
 
-let init_passwd = "NBDMAGIC"
-let opts_magic = 0x49484156454F5054L
-let cliserv_magic = 0x00420281861253L
-
 module Flag = struct
   type t =
     | Read_only
@@ -43,7 +39,8 @@ module Flag = struct
     | Send_trim
 
 
-  let of_flags flags =
+  let of_int32 x =
+    let flags = Int32.to_int x in
     let is_set i mask = i land mask = mask in
       List.map snd 
         (List.filter (fun (mask,_) -> is_set flags mask)
@@ -79,9 +76,26 @@ module Command = struct
 
 end
 
+module Negotiate = struct
+  cstruct t {
+    uint8_t passwd[8];
+    uint64_t magic;
+    uint64_t size;
+    uint32_t flags;
+    uint8_t padding[124]
+  } as big_endian
+
+  let sizeof = sizeof_t
+
+  let expected_passwd = "NBDMAGIC"
+
+  let opts_magic = 0x49484156454F5054L
+  let cliserv_magic = 0x00420281861253L
+end
+
 module Request = struct
   type t = {
-    ty : cmd;
+    ty : Command.t;
     handle : int64;
     from : int64;
     len : int32
@@ -99,7 +113,7 @@ module Request = struct
     let open Result in
     let magic = get_t_magic buf in
     ( if nbd_request_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad request magic: expected %s, got %s" magic nbd_request_magic))
+      then fail (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
       else return () ) >>= fun () ->
     let ty = Command.of_int32 (get_t_ty buf) in
     let handle = get_t_handle buf in
@@ -133,7 +147,7 @@ module Reply = struct
     let open Result in
     let magic = get_t_magic buf in
     ( if nbd_reply_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad reply magic: expected %s, got %s" magic nbd_reply_magic))
+      then fail (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
       else return () ) >>= fun () ->
     let error = get_t_error buf in
     let handle = get_t_handle buf in

@@ -15,15 +15,15 @@ library nbd_lwt
   build-deps: nbd, lwt, lwt.unix, lwt.syntax
   pp: camlp4o
 
-library nbd_unix
-  src-dir: unix
-  modules: Nbd_unix
-  build-deps: nbd, unix
+#library nbd_unix
+#  src-dir: unix
+#  modules: Nbd_unix
+#  build-deps: nbd, unix
 
-executable nbd_test
-  src-dir: lib_test
-  main: nbd_test.ml
-  build-deps: nbd_unix
+#executable nbd_test
+#  src-dir: lib_test
+#  main: nbd_test.ml
+#  build-deps: nbd_unix
 
 executable nbd_test_lwt
   src-dir: lib_test

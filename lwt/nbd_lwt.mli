@@ -18,20 +18,20 @@ type t
 type size = int64
 (** The size of a remote disk *)
 
-val connect : string -> int -> (t * size * Nbd.flag list) Lwt.t
+val connect : string -> int -> (t * size * Nbd.Flag.t list) Lwt.t
 (** [connect hostname port] connects to an NBD server and performs
     the initial protocol negotiation. Returns
     (connected Unix.file_descr * remote disk size * flags) *)
 
-val negotiate : Lwt_unix.file_descr -> (t * size * Nbd.flag list) Lwt.t
+val negotiate : Lwt_unix.file_descr -> (t * size * Nbd.Flag.t list) Lwt.t
 (** [negotiate fd] takes an already-connected Unix.file_descr and
     performs the initial protocol negotiation. Returns
     (remote disk size * flags) *)
 
-val write : t -> string -> int64 -> unit Lwt.t
+val write : t -> Lwt_bytes.t -> int64 -> unit Lwt.t
 (** [write t buf dst_offset] writes the whole string [buf] to
     [dst_offset] in the remote disk. *)
 
-val read : t -> int64 -> int32 -> string Lwt.t
+val read : t -> int64 -> int32 -> Lwt_bytes.t Lwt.t
 (** [read t offset len] reads [len] bytes from the remote disk starting
     at [offset] *)
