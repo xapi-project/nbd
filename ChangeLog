@@ -1,6 +1,7 @@
 trunk (unreleased):
 * switch to using out-of-heap bigarrays for data payloads
 * removed the plain-old-unix support
+* added support for writing NBD servers
 
 0.9.0 (29-May-2013):
 * first public release
