@@ -1,6 +1,6 @@
 version = "0.9.0"
 description = "Nbd library"
-requires = "bitstring bitstring.syntax"
+requires = "cstruct cstruct.syntax"
 archive(byte) = "nbd.cma"
 archive(byte, plugin) = "nbd.cma"
 archive(native) = "nbd.cmxa"
@@ -20,7 +20,7 @@ package "unix" (
 package "lwt" (
  version = "0.9.0"
  description = "Nbd library"
- requires = "lwt nbd lwt.syntax"
+ requires = "lwt nbd lwt.syntax lwt.unix"
  archive(byte) = "nbd_lwt.cma"
  archive(byte, plugin) = "nbd_lwt.cma"
  archive(native) = "nbd_lwt.cmxa"
