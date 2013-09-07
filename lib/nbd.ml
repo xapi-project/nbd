@@ -38,6 +38,12 @@ module Flag = struct
     | Rotational
     | Send_trim
 
+  let to_string = function
+  | Read_only -> "Read_only"
+  | Send_flush -> "Send_flush"
+  | Send_fua -> "Send_fua"
+  | Rotational -> "Rotational"
+  | Send_trim -> "Send_trim"
 
   let of_int32 x =
     let flags = Int32.to_int x in
@@ -68,6 +74,13 @@ module Command = struct
     | Flush
     | Trim
 
+  let to_string = function
+  | Read -> "Read"
+  | Write -> "Write"
+  | Disc -> "Disc"
+  | Flush -> "Flush"
+  | Trim -> "Trim"
+
   let of_int32 = function 
   | 0l -> Read 
   | 1l -> Write 
@@ -89,6 +102,10 @@ module Negotiate = struct
     size: int64;
     flags: Flag.t list;
   }
+
+  let to_string t =
+    Printf.sprintf "{ size = %Ld; flags = [ %s ] }"
+    t.size (String.concat ", " (List.map Flag.to_string t.flags))
 
   cstruct t {
     uint8_t passwd[8];
@@ -136,6 +153,10 @@ module Request = struct
     len : int32
   }
 
+  let to_string t =
+    Printf.sprintf "{ Command = %s; handle = %Ld; from = %Ld; len = %ld }"
+      (Command.to_string t.ty) t.handle t.from t.len
+
   cstruct t {
     uint32_t magic;
     uint32_t ty;
@@ -171,6 +192,9 @@ module Reply = struct
     error : int32;
     handle : int64;
   }
+
+  let to_string t =
+    Printf.sprintf "{ handle = %Ld; error = %ld }" t.handle t.error
 
   cstruct t {
     uint32_t magic;

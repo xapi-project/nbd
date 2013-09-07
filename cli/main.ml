@@ -65,16 +65,26 @@ module Impl = struct
         let _ =
           lwt server = Nbd_lwt_server.negotiate fd size flags in
           try_lwt
+            let block_size = 32768 in
+            let block = Lwt_bytes.create block_size in
             while_lwt true do
               lwt request = Nbd_lwt_server.next server in
+              Printf.fprintf stderr "%s\n%!" (Request.to_string request);
               match request.Request.ty with
+              | Command.Write ->
+                let rec loop remaining =
+                  let n = min block_size remaining in
+                  lwt () = Nbd_lwt_common.really_read fd block n in
+                  let remaining = remaining - n in
+                  if remaining > 0 then loop remaining else return () in
+                loop (Int32.to_int request.Request.len)
               | Command.Read 
-              | Command.Write
               | _ ->
                 Nbd_lwt_server.error server request.Request.handle 1l
             done
           with e ->
             Printf.fprintf stderr "Caught %s; closing connection\n%!" (Printexc.to_string e);
+            lwt () = Nbd_lwt_server.close server in
             return () in
         return ()
       done in

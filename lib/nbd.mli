@@ -19,6 +19,8 @@ module Command: sig
   | Disc
   | Flush
   | Trim
+
+  val to_string: t -> string
 end
 
 module Flag: sig
@@ -28,6 +30,8 @@ module Flag: sig
   | Send_fua
   | Rotational
   | Send_trim
+
+  val to_string: t -> string
 
   val of_int32: int32 -> t list
   val to_int32: t list -> int32
@@ -39,6 +43,8 @@ module Negotiate: sig
     size: int64;
     flags: Flag.t list;
   }
+
+  val to_string: t -> string
 
   val sizeof: int
 
@@ -55,6 +61,8 @@ module Request: sig
     len : int32;
   }
 
+  val to_string: t -> string
+
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
@@ -66,6 +74,8 @@ module Reply: sig
     error : int32;
     handle : int64;
   }
+
+  val to_string: t -> string
 
   val sizeof: int
 
