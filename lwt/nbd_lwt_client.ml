@@ -12,8 +12,9 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Nbd
 open Lwt
+open Nbd
+open Nbd_lwt_common
 
 type size = int64
 
@@ -94,20 +95,11 @@ let negotiate sock =
   let buf = Lwt_bytes.create Negotiate.sizeof in
   lwt () = really_read sock buf Negotiate.sizeof in
   let buf = Cstruct.of_bigarray buf in
-  let passwd = Cstruct.to_string (Negotiate.get_t_passwd buf) in
-  if passwd <> Negotiate.expected_passwd
-  then fail (Failure "Bad magic in negotiate")
-  else
-    let magic = Negotiate.get_t_magic buf in
-    if magic = Negotiate.opts_magic
-    then fail (Failure "Unhandled opts_magic")
-    else if magic <> Negotiate.cliserv_magic
-    then fail (Failure (Printf.sprintf "Bad magic; expected %Ld got %Ld" Negotiate.cliserv_magic magic))
-    else
-      let size = Negotiate.get_t_size buf in
-      let flags = Flag.of_int32 (Negotiate.get_t_flags buf) in
-      lwt t = Mux.create sock in
-      return (t, size, flags)
+  match Negotiate.unmarshal buf with
+  | Result.Error e -> fail e
+  | Result.Ok x ->
+    lwt t = Mux.create sock in
+    return (t, x.Negotiate.size, x.Negotiate.flags)
 
 let connect hostname port =
   let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in

@@ -30,20 +30,20 @@ module Flag: sig
   | Send_trim
 
   val of_int32: int32 -> t list
+  val to_int32: t list -> int32
 end
 
 module Negotiate: sig
 
-  val get_t_passwd: Cstruct.t -> Cstruct.t
-  val get_t_magic: Cstruct.t -> int64
-  val get_t_size: Cstruct.t -> int64
-  val get_t_flags: Cstruct.t -> int32
+  type t = {
+    size: int64;
+    flags: Flag.t list;
+  }
 
   val sizeof: int
 
-  val expected_passwd: string
-  val opts_magic: int64
-  val cliserv_magic: int64
+  val marshal: Cstruct.t -> t -> unit
+  val unmarshal: Cstruct.t -> (t, exn) Result.t
 end
 
 

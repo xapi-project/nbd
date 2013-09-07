@@ -49,7 +49,15 @@ module Flag = struct
             nbd_flag_send_fua, Send_fua;
             nbd_flag_rotational, Rotational;
             nbd_flag_send_trim, Send_trim; ])
-		
+
+  let to_int32 flags =
+    let one = function
+      | Read_only -> nbd_flag_read_only
+      | Send_flush -> nbd_flag_send_flush
+      | Send_fua -> nbd_flag_send_fua
+      | Rotational -> nbd_flag_rotational
+      | Send_trim -> nbd_flag_send_trim in
+    Int32.of_int (List.fold_left (lor) 0 (List.map one flags))
 end
 
 module Command = struct
@@ -77,6 +85,11 @@ module Command = struct
 end
 
 module Negotiate = struct
+  type t = {
+    size: int64;
+    flags: Flag.t list;
+  }
+
   cstruct t {
     uint8_t passwd[8];
     uint64_t magic;
@@ -91,6 +104,28 @@ module Negotiate = struct
 
   let opts_magic = 0x49484156454F5054L
   let cliserv_magic = 0x00420281861253L
+
+  let marshal buf t =
+    set_t_passwd expected_passwd 0 buf;
+    set_t_magic buf cliserv_magic;
+    set_t_size buf t.size;
+    set_t_flags buf (Flag.to_int32 t.flags)
+
+  let unmarshal buf =
+    let open Result in
+    let passwd = Cstruct.to_string (get_t_passwd buf) in
+    if passwd <> expected_passwd
+    then Error (Failure "Bad magic in negotiate")
+    else
+      let magic = get_t_magic buf in
+      if magic =opts_magic
+      then Error (Failure "Unhandled opts_magic")
+      else if magic <> cliserv_magic
+      then Error (Failure (Printf.sprintf "Bad magic; expected %Ld got %Ld" cliserv_magic magic))
+      else
+        let size = get_t_size buf in
+        let flags = Flag.of_int32 (get_t_flags buf) in
+        return { size; flags }
 end
 
 module Request = struct

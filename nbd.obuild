@@ -11,7 +11,7 @@ library nbd
 
 library nbd_lwt
   src-dir: lwt
-  modules: Nbd_lwt
+  modules: Nbd_lwt_client, Nbd_lwt_server
   build-deps: nbd, lwt, lwt.unix, lwt.syntax
   pp: camlp4o
 
