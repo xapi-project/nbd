@@ -6,7 +6,7 @@ obuild-ver: 1
 library nbd
   src-dir: lib
   modules: Nbd
-  build-deps: bitstring, bitstring.syntax
+  build-deps: cstruct, cstruct.syntax
   pp: camlp4o
 
 library nbd_lwt
