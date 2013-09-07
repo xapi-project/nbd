@@ -25,6 +25,12 @@ library nbd_lwt
 #  main: nbd_test.ml
 #  build-deps: nbd_unix
 
+executable nbd-tool
+  src-dir: cli
+  main: main.ml
+  build-deps: nbd_lwt, cmdliner, lwt, lwt.unix, lwt.syntax
+  pp: camlp4o
+
 executable nbd_test_lwt
   src-dir: lib_test
   main: nbd_test_lwt.ml
