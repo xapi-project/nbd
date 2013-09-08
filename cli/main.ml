@@ -82,7 +82,8 @@ module Impl = struct
                   lwt () = Nbd_lwt_common.really_read fd subblock in
                   let remaining = remaining - n in
                   if remaining > 0 then loop remaining else return () in
-                loop (Int32.to_int request.Request.len)
+                lwt () = loop (Int32.to_int request.Request.len) in
+                Nbd_lwt_server.ok server request.Request.handle None
               | Command.Read 
               | _ ->
                 Nbd_lwt_server.error server request.Request.handle 1l
