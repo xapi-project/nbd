@@ -55,8 +55,12 @@ module Impl = struct
     let size = stats.Unix.LargeFile.st_size in
     let flags = [] in
     let t =
+(*
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 1 in
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
+*)
+      let sock = Lwt_unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 1 in
+      let sockaddr = Lwt_unix.ADDR_UNIX "socket" in
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
       while_lwt true do
@@ -66,7 +70,7 @@ module Impl = struct
           lwt server = Nbd_lwt_server.negotiate fd size flags in
           try_lwt
             let block_size = 32768 in
-            let block = Lwt_bytes.create block_size in
+            let block = Cstruct.create block_size in
             while_lwt true do
               lwt request = Nbd_lwt_server.next server in
               Printf.fprintf stderr "%s\n%!" (Request.to_string request);
@@ -74,7 +78,8 @@ module Impl = struct
               | Command.Write ->
                 let rec loop remaining =
                   let n = min block_size remaining in
-                  lwt () = Nbd_lwt_common.really_read fd block n in
+                  let subblock = Cstruct.sub block 0 n in
+                  lwt () = Nbd_lwt_common.really_read fd subblock in
                   let remaining = remaining - n in
                   if remaining > 0 then loop remaining else return () in
                 loop (Int32.to_int request.Request.len)

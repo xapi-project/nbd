@@ -25,37 +25,18 @@ let get_handle =
     next := Int64.succ !next;
     this
 
-let really_read sock buf n =
-  let rec loop acc sock buf ofs len = 
-    lwt n = Lwt_bytes.read sock buf ofs len in
-    let len = len - n in
-    let acc = acc + n in
-    if len = 0 || n = 0
-    then return acc
-    else loop acc sock buf (ofs + n) len in
-  lwt actual = loop 0 sock buf 0 n in
-  if actual <> n
-  then fail (Failure (Printf.sprintf "Short read; expected %d, got %d" n actual))
-  else return ()
-
-let really_write sock buf expected =
-  lwt actual = Lwt_bytes.write sock buf 0 expected in
-  if expected <> actual
-  then fail (Failure (Printf.sprintf "Short write; expected %d got %d" expected actual))
-  else return ()
-
 module NbdRpc = struct
   type transport = Lwt_unix.file_descr
   type id = int64
   type request_hdr = Request.t
-  type request_body = Lwt_bytes.t option
+  type request_body = Cstruct.t option
   type response_hdr = Reply.t
-  type response_body = Lwt_bytes.t option
+  type response_body = Cstruct.t option
 
   let recv_hdr sock =
-    let buf = Lwt_bytes.create 16 in
-    lwt () = really_read sock buf 16 in
-    match Reply.unmarshal (Cstruct.of_bigarray buf) with
+    let buf = Cstruct.create 16 in
+    lwt () = really_read sock buf in
+    match Reply.unmarshal buf with
     | Result.Ok x -> return (Some x.Reply.handle, x)
     | Result.Error e -> fail e
 
@@ -66,20 +47,20 @@ module NbdRpc = struct
     | Command.Read -> 
       (* TODO: use a page-aligned memory allocator *)
       let expected = Int32.to_int req_hdr.Request.len in
-      let data = Lwt_bytes.create expected in
-      lwt () = really_read sock data expected in
+      let data = Cstruct.create expected in
+      lwt () = really_read sock data in
       return (Some data)
    | _ -> return None
 
   let send_one sock req_hdr req_body =
-    let buf = Lwt_bytes.create Request.sizeof in
-    Request.marshal (Cstruct.of_bigarray buf) req_hdr;
-    lwt () = really_write sock buf Request.sizeof in
+    let buf = Cstruct.create Request.sizeof in
+    Request.marshal buf req_hdr;
+    lwt () = really_write sock buf in
     match req_body with
     | None -> return ()
     | Some data ->
-      let expected = Bigarray.Array1.dim data in
-      really_write sock data expected
+      let expected = Cstruct.len data in
+      really_write sock data
 
   let id_of_request req = req.Request.handle
 
@@ -92,9 +73,8 @@ module Mux = Lwt_mux.Mux(NbdRpc)
 type t = Mux.client
 
 let negotiate sock =
-  let buf = Lwt_bytes.create Negotiate.sizeof in
-  lwt () = really_read sock buf Negotiate.sizeof in
-  let buf = Cstruct.of_bigarray buf in
+  let buf = Cstruct.create Negotiate.sizeof in
+  lwt () = really_read sock buf in
   match Negotiate.unmarshal buf with
   | Result.Error e -> fail e
   | Result.Ok x ->
@@ -113,7 +93,7 @@ let write t data from =
   let req_hdr = {
     Request.ty = Command.Write;
     handle; from;
-    len = Int32.of_int (Bigarray.Array1.dim data)
+    len = Int32.of_int (Cstruct.len data)
   } in
   lwt _ = Mux.rpc req_hdr (Some data) t in
   return ()

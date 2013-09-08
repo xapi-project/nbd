@@ -29,7 +29,7 @@ val close: t -> unit Lwt.t
 val next : t -> Nbd.Request.t Lwt.t
 (** [next t] returns the next RBD request *)
 
-val ok : t -> int64 -> Lwt_bytes.t option -> unit Lwt.t
+val ok : t -> int64 -> Cstruct.t option -> unit Lwt.t
 (** [ok t handle data] replies affirmatively to the request identified
     by [handle] with optional response payload [data] *)
 

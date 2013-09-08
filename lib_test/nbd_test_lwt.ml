@@ -13,10 +13,9 @@
  *)
 
 let make len char =
-  let buf = Lwt_bytes.create len in
-  let buf' = Cstruct.of_bigarray buf in
+  let buf = Cstruct.create len in
   for i = 0 to len - 1 do
-    Cstruct.set_char buf' i char
+    Cstruct.set_char buf i char
   done;
   buf
 
@@ -47,7 +46,7 @@ let test host port =
     lwt () = Lwt.join [t1; t2; t3; t4; t5; t6; t7; t8] in
     Printf.printf "Written\n";
     lwt str2 = read sock 0L 4096l in
-    Printf.printf "%s\n" (Lwt_bytes.to_string str2);
+    Printf.printf "%s\n" (Cstruct.to_string str2);
     Lwt.return ()
   with e -> 
     Printf.printf "Caught exception: %s" (Printexc.to_string e);

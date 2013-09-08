@@ -18,8 +18,8 @@ open Nbd_lwt_common
 
 type t = {
   fd: Lwt_unix.file_descr;
-  request: Lwt_bytes.t; (* buffer used to read the request headers *)
-  reply: Lwt_bytes.t;   (* buffer used to write the response headers *)
+  request: Cstruct.t; (* buffer used to read the request headers *)
+  reply: Cstruct.t;   (* buffer used to write the response headers *)
   m: Lwt_mutex.t; (* prevents partial message interleaving *)
 }
 
@@ -28,34 +28,34 @@ type size = int64
 let close t = Lwt_unix.close t.fd
 
 let negotiate fd size flags =
-  let buf = Lwt_bytes.create Negotiate.sizeof in
-  Negotiate.(marshal (Cstruct.of_bigarray buf) { size; flags });
-  lwt () = really_write fd buf Negotiate.sizeof in
-  let request = Lwt_bytes.create Request.sizeof in
-  let reply = Lwt_bytes.create Reply.sizeof in
+  let buf = Cstruct.create Negotiate.sizeof in
+  Negotiate.(marshal buf { size; flags });
+  lwt () = really_write fd buf in
+  let request = Cstruct.create Request.sizeof in
+  let reply = Cstruct.create Reply.sizeof in
   let m = Lwt_mutex.create () in
   return { fd; request; reply; m }
 
 let next t =
-  lwt () = really_read t.fd t.request Request.sizeof in
-  match Request.unmarshal (Cstruct.of_bigarray t.request) with
+  lwt () = really_read t.fd t.request in
+  match Request.unmarshal t.request with
   | Result.Ok r -> return r
   | Result.Error e -> fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal (Cstruct.of_bigarray t.reply) { Reply.handle; error = 0l };
-      lwt () = really_write t.fd t.reply Reply.sizeof in
+      Reply.marshal t.reply { Reply.handle; error = 0l };
+      lwt () = really_write t.fd t.reply in
       match payload with
       | None -> return ()
-      | Some data -> really_write t.fd data (Bigarray.Array1.dim data)
+      | Some data -> really_write t.fd data
     )
 
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal (Cstruct.of_bigarray t.reply) { Reply.handle; error = code };
-      really_write t.fd t.reply Reply.sizeof
+      Reply.marshal t.reply { Reply.handle; error = code };
+      really_write t.fd t.reply
     )
 

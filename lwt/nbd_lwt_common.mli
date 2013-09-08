@@ -14,10 +14,10 @@
 
 open Lwt
 
-val really_read: Lwt_unix.file_descr -> Lwt_bytes.t -> int -> unit Lwt.t
-(** [really_read fd buffer num] reads exactly [num] bytes into [buffer]
-    from [fd] or fails *)
+val really_read: Lwt_unix.file_descr -> Cstruct.t -> unit Lwt.t
+(** [really_read fd buffer] fills the [buffer] with data from [fd]
+    or fails with Failure *)
 
-val really_write: Lwt_unix.file_descr -> Lwt_bytes.t -> int -> unit Lwt.t
-(** [really_write fd buffer num] writes exactly [num] bytes from [buffer]
-    to [fd] or fails *)
+val really_write: Lwt_unix.file_descr -> Cstruct.t -> unit Lwt.t
+(** [really_write fd buffer] writes the contents of [buffer] to
+    [fd] *)

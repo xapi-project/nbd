@@ -28,10 +28,10 @@ val negotiate : Lwt_unix.file_descr -> (t * size * Nbd.Flag.t list) Lwt.t
     performs the initial protocol negotiation. Returns
     (remote disk size * flags) *)
 
-val write : t -> Lwt_bytes.t -> int64 -> unit Lwt.t
+val write : t -> Cstruct.t -> int64 -> unit Lwt.t
 (** [write t buf dst_offset] writes the whole string [buf] to
     [dst_offset] in the remote disk. *)
 
-val read : t -> int64 -> int32 -> Lwt_bytes.t Lwt.t
+val read : t -> int64 -> int32 -> Cstruct.t Lwt.t
 (** [read t offset len] reads [len] bytes from the remote disk starting
     at [offset] *)
