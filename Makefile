@@ -10,10 +10,10 @@ endif
 
 all: build
 
-configure:
+dist/setup:
 	obuild $(OBUILDOPTS) configure $(CONFOPTS)
 
-build: configure
+build: dist/setup
 	obuild $(OBUILDOPTS) build
 
 install: build

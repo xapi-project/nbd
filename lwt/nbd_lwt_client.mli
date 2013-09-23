@@ -18,13 +18,17 @@ type t
 type size = int64
 (** The size of a remote disk *)
 
-val connect : string -> int -> (t * size * Nbd.Flag.t list) Lwt.t
-(** [connect hostname port] connects to an NBD server and performs
-    the initial protocol negotiation. Returns
-    (connected Unix.file_descr * remote disk size * flags) *)
+type channel = {
+  read:  Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+}
 
-val negotiate : Lwt_unix.file_descr -> (t * size * Nbd.Flag.t list) Lwt.t
-(** [negotiate fd] takes an already-connected Unix.file_descr and
+val open_channel: string -> int -> channel Lwt.t
+(** [open_channel hostname port] connects to host:port and returns
+    a channel. *)
+
+val negotiate: channel -> (t * size * Nbd.Flag.t list) Lwt.t
+(** [negotiate channel] takes an already-connected channel and
     performs the initial protocol negotiation. Returns
     (remote disk size * flags) *)
 

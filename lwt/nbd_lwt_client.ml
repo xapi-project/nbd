@@ -18,6 +18,38 @@ open Nbd_lwt_common
 
 type size = int64
 
+type channel = {
+  read: Cstruct.t -> unit Lwt.t;
+  write:  Cstruct.t -> unit Lwt.t;
+}
+
+let complete op fd buffer =
+  let ofs = buffer.Cstruct.off in
+  let len = buffer.Cstruct.len in
+  let buf = buffer.Cstruct.buffer in
+  let rec loop acc fd buf ofs len =
+    op fd buf ofs len >>= fun n ->
+    let len' = len - n in
+    if len' = 0 || n = 0
+    then return acc
+    else loop (acc + n) fd buf (ofs + n) len' in
+  loop 0 fd buf ofs len >>= fun n ->
+  if n = 0 && len <> 0
+  then fail End_of_file
+  else return ()
+
+let really_write = complete Lwt_bytes.write
+let really_read = complete Lwt_bytes.read
+
+let open_channel hostname port =
+  let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
+  lwt host_info = Lwt_unix.gethostbyname hostname in
+  let server_address = host_info.Lwt_unix.h_addr_list.(0) in
+  lwt () = Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)) in
+  let read = complete Lwt_bytes.read socket in
+  let write = complete Lwt_bytes.write socket in
+  return { read; write }
+
 let get_handle =
   let next = ref 0L in
   fun () ->
@@ -26,7 +58,7 @@ let get_handle =
     this
 
 module NbdRpc = struct
-  type transport = Lwt_unix.file_descr
+  type transport = channel
   type id = int64
   type request_hdr = Request.t
   type request_body = Cstruct.t option
@@ -35,7 +67,7 @@ module NbdRpc = struct
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
-    lwt () = really_read sock buf in
+    lwt () = sock.read buf in
     match Reply.unmarshal buf with
     | Result.Ok x -> return (Some x.Reply.handle, x)
     | Result.Error e -> fail e
@@ -48,19 +80,19 @@ module NbdRpc = struct
       (* TODO: use a page-aligned memory allocator *)
       let expected = Int32.to_int req_hdr.Request.len in
       let data = Cstruct.create expected in
-      lwt () = really_read sock data in
+      lwt () = sock.read data in
       return (Some data)
    | _ -> return None
 
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
     Request.marshal buf req_hdr;
-    lwt () = really_write sock buf in
+    lwt () = sock.write buf in
     match req_body with
     | None -> return ()
     | Some data ->
       let expected = Cstruct.len data in
-      really_write sock data
+      sock.write data
 
   let id_of_request req = req.Request.handle
 
@@ -74,19 +106,12 @@ type t = Mux.client
 
 let negotiate sock =
   let buf = Cstruct.create Negotiate.sizeof in
-  lwt () = really_read sock buf in
+  lwt () = sock.read buf in
   match Negotiate.unmarshal buf with
   | Result.Error e -> fail e
   | Result.Ok x ->
     lwt t = Mux.create sock in
     return (t, x.Negotiate.size, x.Negotiate.flags)
-
-let connect hostname port =
-  let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
-  lwt host_info = Lwt_unix.gethostbyname hostname in
-  let server_address = host_info.Lwt_unix.h_addr_list.(0) in
-  lwt () = Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)) in
-  negotiate socket
 
 let write t data from =
   let handle = get_handle () in
