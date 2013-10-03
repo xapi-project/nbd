@@ -68,9 +68,9 @@ module Mux = functor (R : RPC) -> struct
 		then raise_lwt Shutdown
 		else begin
 			let id = R.id_of_request req_hdr in
+		    Hashtbl.add t.id_to_wakeup id (req_hdr, waker);
 			lwt () = Lwt_mutex.with_lock t.outgoing_mutex
 					(fun () -> R.send_one t.transport req_hdr req_body) in
-		    Hashtbl.add t.id_to_wakeup id (req_hdr, waker);
 		    sleeper
         end
 
