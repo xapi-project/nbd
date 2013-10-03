@@ -97,7 +97,7 @@ module NbdRpc = struct
   let id_of_request req = req.Request.handle
 
   let handle_unrequested_packet t reply =
-    return ()
+    fail (Failure (Printf.sprintf "Unexpected response from server, error = %ld handle = %Ld" reply.Reply.error reply.Reply.handle))
 end
 
 module Mux = Lwt_mux.Mux(NbdRpc)
