@@ -2,7 +2,8 @@ To build you need the following packages:
 
   * ocaml
   * ocaml-findlib
-  * bitstring  
+  * cstruct
+  * cmdliner
 
 and then you can type:
 

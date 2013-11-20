@@ -1,3 +1,9 @@
+0.9.1 (23-Sep-2013):
+* switch to using out-of-heap bigarrays for data payloads
+* removed the plain-old-unix support
+* added support for writing NBD servers
+* removed plain-old-unix in favour of Lwt
+
 0.9.0 (29-May-2013):
 * first public release
 
