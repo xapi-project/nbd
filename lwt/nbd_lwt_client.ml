@@ -69,8 +69,8 @@ module NbdRpc = struct
     let buf = Cstruct.create 16 in
     lwt () = sock.read buf in
     match Reply.unmarshal buf with
-    | Result.Ok x -> return (Some x.Reply.handle, x)
-    | Result.Error e -> fail e
+    | `Ok x -> return (Some x.Reply.handle, x)
+    | `Error e -> fail e
 
   let recv_body sock req_hdr res_hdr =
     if res_hdr.Reply.error <> 0l
@@ -100,7 +100,7 @@ module NbdRpc = struct
     fail (Failure (Printf.sprintf "Unexpected response from server, error = %ld handle = %Ld" reply.Reply.error reply.Reply.handle))
 end
 
-module Mux = Lwt_mux.Mux(NbdRpc)
+module Mux = Nbd_lwt_mux.Mux(NbdRpc)
 
 type t = Mux.client
 
@@ -108,8 +108,8 @@ let negotiate sock =
   let buf = Cstruct.create Negotiate.sizeof in
   lwt () = sock.read buf in
   match Negotiate.unmarshal buf with
-  | Result.Error e -> fail e
-  | Result.Ok x ->
+  | `Error e -> fail e
+  | `Ok x ->
     lwt t = Mux.create sock in
     return (t, x.Negotiate.size, x.Negotiate.flags)
 
