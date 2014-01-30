@@ -58,3 +58,4 @@
 <lib_test/*.ml{,i}>: pkg_cstruct
 <lib_test/*.ml{,i}>: pkg_cstruct.syntax
 # OASIS_STOP
+true: annot, bin_annot, principal, debug, strict_sequence
