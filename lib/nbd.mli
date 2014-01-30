@@ -19,6 +19,7 @@ module Command: sig
   | Disc
   | Flush
   | Trim
+  | Unknown of int32
 
   val to_string: t -> string
 end
