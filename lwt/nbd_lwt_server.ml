@@ -39,8 +39,8 @@ let negotiate fd size flags =
 let next t =
   lwt () = really_read t.fd t.request in
   match Request.unmarshal t.request with
-  | Result.Ok r -> return r
-  | Result.Error e -> fail e
+  | `Ok r -> return r
+  | `Error e -> fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m

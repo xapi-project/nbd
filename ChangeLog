@@ -1,4 +1,8 @@
-1.0.0 (trunk):
+1.0.1 (30-Jan-2014):
+* Switch to a polymorphic variant type for results
+* Include modules missing from 1.0.0
+
+1.0.0 (30-Jan-2014):
 * Switch build to OASIS.
 
 0.9.1 (23-Sep-2013):

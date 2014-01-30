@@ -50,7 +50,7 @@ module Negotiate: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> (t, exn) Result.t
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
 end
 
 
@@ -67,7 +67,7 @@ module Request: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> (t, exn) Result.t
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
 end
 
 module Reply: sig
@@ -81,6 +81,6 @@ module Reply: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> (t, exn) Result.t
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
 
 end

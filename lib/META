@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: be985745cfef6f310d101e1720975a08)
-version = "1.0.0"
+# DO NOT EDIT (digest: 67185930232510a8c703a5b128c03890)
+version = "1.0.1"
 description = "Pure OCaml implementation of the Network Block Device"
 requires = "cstruct cstruct.syntax"
 archive(byte) = "nbd.cma"
@@ -9,7 +9,7 @@ archive(native) = "nbd.cmxa"
 archive(native, plugin) = "nbd.cmxs"
 exists_if = "nbd.cma"
 package "lwt" (
- version = "1.0.0"
+ version = "1.0.1"
  description = "Pure OCaml implementation of the Network Block Device"
  requires = "nbd lwt lwt.unix lwt.syntax"
  archive(byte) = "nbd-lwt.cma"

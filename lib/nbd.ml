@@ -133,16 +133,16 @@ module Negotiate = struct
     set_t_flags buf (Flag.to_int32 t.flags)
 
   let unmarshal buf =
-    let open Result in
+    let open Nbd_result in
     let passwd = Cstruct.to_string (get_t_passwd buf) in
     if passwd <> expected_passwd
-    then Error (Failure "Bad magic in negotiate")
+    then `Error (Failure "Bad magic in negotiate")
     else
       let magic = get_t_magic buf in
       if magic =opts_magic
-      then Error (Failure "Unhandled opts_magic")
+      then `Error (Failure "Unhandled opts_magic")
       else if magic <> cliserv_magic
-      then Error (Failure (Printf.sprintf "Bad magic; expected %Ld got %Ld" cliserv_magic magic))
+      then `Error (Failure (Printf.sprintf "Bad magic; expected %Ld got %Ld" cliserv_magic magic))
       else
         let size = get_t_size buf in
         let flags = Flag.of_int32 (get_t_flags buf) in
@@ -170,7 +170,7 @@ module Request = struct
   } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
-    let open Result in
+    let open Nbd_result in
     let magic = get_t_magic buf in
     ( if nbd_request_magic <> magic
       then fail (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
@@ -207,7 +207,7 @@ module Reply = struct
   } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
-    let open Result in
+    let open Nbd_result in
     let magic = get_t_magic buf in
     ( if nbd_reply_magic <> magic
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
