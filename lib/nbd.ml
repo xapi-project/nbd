@@ -73,6 +73,7 @@ module Command = struct
     | Disc
     | Flush
     | Trim
+    | Unknown of int32
 
   let to_string = function
   | Read -> "Read"
@@ -80,6 +81,7 @@ module Command = struct
   | Disc -> "Disc"
   | Flush -> "Flush"
   | Trim -> "Trim"
+  | Unknown code -> "Unknown " ^ (Int32.to_string code)
 
   let of_int32 = function 
   | 0l -> Read 
@@ -87,6 +89,7 @@ module Command = struct
   | 2l -> Disc 
   | 3l -> Flush 
   | 4l -> Trim
+  | c  -> Unknown c
 
   let to_int32 = function 
   | Read -> 0l 
@@ -94,6 +97,7 @@ module Command = struct
   | Disc -> 2l 
   | Flush -> 3l 
   | Trim -> 4l
+  | Unknown c -> c
 
 end
 
