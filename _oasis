@@ -28,9 +28,11 @@ Library "nbd-lwt"
 Executable "nbd-tool"
   Path: cli
   MainIs: main.ml
+  Install: true
   BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
 
 Executable "nbd-test-lwt"
   Path: lib_test
   MainIs: nbd_test_lwt.ml
   BuildDepends: nbd.lwt
+  Install: false

@@ -1,3 +1,6 @@
+1.0.0 (trunk):
+* Switch build to OASIS.
+
 0.9.1 (23-Sep-2013):
 * switch to using out-of-heap bigarrays for data payloads
 * removed the plain-old-unix support
