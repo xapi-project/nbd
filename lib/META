@@ -1,30 +1,22 @@
-version = "0.9.0"
-description = "Nbd library"
+# OASIS_START
+# DO NOT EDIT (digest: 67185930232510a8c703a5b128c03890)
+version = "1.0.1"
+description = "Pure OCaml implementation of the Network Block Device"
 requires = "cstruct cstruct.syntax"
 archive(byte) = "nbd.cma"
 archive(byte, plugin) = "nbd.cma"
 archive(native) = "nbd.cmxa"
 archive(native, plugin) = "nbd.cmxs"
 exists_if = "nbd.cma"
-package "unix" (
- version = "0.9.0"
- description = "Nbd library"
- requires = "nbd unix threads"
- archive(byte) = "nbd_unix.cma"
- archive(byte, plugin) = "nbd_unix.cma"
- archive(native) = "nbd_unix.cmxa"
- archive(native, plugin) = "nbd_unix.cmxs"
- exists_if = "nbd_unix.cma"
-)
-
 package "lwt" (
- version = "0.9.0"
- description = "Nbd library"
- requires = "lwt nbd lwt.syntax lwt.unix"
- archive(byte) = "nbd_lwt.cma"
- archive(byte, plugin) = "nbd_lwt.cma"
- archive(native) = "nbd_lwt.cmxa"
- archive(native, plugin) = "nbd_lwt.cmxs"
- exists_if = "nbd_lwt.cma"
+ version = "1.0.1"
+ description = "Pure OCaml implementation of the Network Block Device"
+ requires = "nbd lwt lwt.unix lwt.syntax"
+ archive(byte) = "nbd-lwt.cma"
+ archive(byte, plugin) = "nbd-lwt.cma"
+ archive(native) = "nbd-lwt.cmxa"
+ archive(native, plugin) = "nbd-lwt.cmxs"
+ exists_if = "nbd-lwt.cma"
 )
+# OASIS_STOP
 

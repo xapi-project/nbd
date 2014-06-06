@@ -1,0 +1,38 @@
+OASISFormat: 0.3
+Name: nbd
+Version: 1.0.1
+Synopsis: Pure OCaml implementation of the Network Block Device
+Authors: Jonathan Ludlam, Dave Scott
+License: LGPL-2.1 with OCaml linking exception
+Plugins:     META (0.3), DevFiles (0.3)
+BuildTools:  ocamlbuild
+
+Flag lwt
+  Description: build the Lwt library
+  Default: true
+
+Library nbd
+  Path: lib
+  Modules: Nbd, Nbd_result
+  BuildDepends: cstruct, cstruct.syntax
+
+Library "nbd-lwt"
+  Build$: flag(lwt)
+  Install$: flag(lwt)
+  Path: lwt
+  Findlibname: lwt
+  FindlibParent: nbd
+  Modules: Nbd_lwt_common, Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux
+  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax
+
+Executable "nbd-tool"
+  Path: cli
+  MainIs: main.ml
+  Install: true
+  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
+
+Executable "nbd-test-lwt"
+  Path: lib_test
+  MainIs: nbd_test_lwt.ml
+  BuildDepends: nbd.lwt
+  Install: false
