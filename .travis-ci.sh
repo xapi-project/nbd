@@ -23,6 +23,6 @@ opam --git-version
 opam init
 opam pin add nbd . -y
 
-eval `opam config -env`
+eval `opam config env`
 make
 make test
