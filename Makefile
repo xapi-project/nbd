@@ -39,3 +39,8 @@ configure:
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 # OASIS_STOP
+
+setup.data : setup.ml
+
+setup.ml : _oasis
+	oasis setup
