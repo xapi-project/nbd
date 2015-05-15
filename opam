@@ -1,6 +1,7 @@
 opam-version: "1"
 maintainer: "jonathan.ludlam@eu.citrix.com"
 build: [
+  ["oasis" "setup"]
   ["./configure" "--prefix" prefix]
   [make]
   [make "install" "BINDIR=%{bin}%"]
@@ -10,6 +11,7 @@ remove: [
   ["ocamlfind" "remove" "nbd"]
 ]
 depends: [
+  "oasis"
   "ocamlfind"
   "obuild"
   "lwt"
