@@ -14,7 +14,7 @@ Flag lwt
 Library nbd
   Path: lib
   Modules: Nbd, Nbd_result
-  BuildDepends: cstruct, cstruct.syntax
+  BuildDepends: cstruct, cstruct.syntax, sexplib, sexplib.syntax
 
 Library "nbd-lwt"
   Build$: flag(lwt)

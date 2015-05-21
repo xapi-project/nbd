@@ -38,19 +38,34 @@ module Flag: sig
   val to_int32: t list -> int32
 end
 
-module Negotiate: sig
-
-  type t = {
-    size: int64;
-    flags: Flag.t list;
-  }
-
-  val to_string: t -> string
+module Announcement: sig
+  type t = [ `V1 | `V2 ] with sexp
 
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+end
+
+module Negotiate: sig
+
+  type v1 = {
+    size: int64;
+    flags: Flag.t list;
+  } with sexp
+
+  type v2 = [ `NewStyle ] list with sexp
+
+  type t =
+    | V1 of v1
+    | V2 of v2
+
+  val to_string: t -> string
+
+  val sizeof: Announcement.t -> int
+
+  val marshal: Cstruct.t -> t -> unit
+  val unmarshal: Cstruct.t -> Announcement.t -> [ `Ok of t | `Error of exn ]
 end
 
 

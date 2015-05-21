@@ -105,13 +105,24 @@ module Mux = Nbd_lwt_mux.Mux(NbdRpc)
 type t = Mux.client
 
 let negotiate sock =
-  let buf = Cstruct.create Negotiate.sizeof in
-  lwt () = sock.read buf in
-  match Negotiate.unmarshal buf with
+  let buf = Cstruct.create Announcement.sizeof in
+  sock.read buf
+  >>= fun () ->
+  match Announcement.unmarshal buf with
   | `Error e -> fail e
-  | `Ok x ->
-    lwt t = Mux.create sock in
-    return (t, x.Negotiate.size, x.Negotiate.flags)
+  | `Ok kind ->
+    let buf = Cstruct.create (Negotiate.sizeof kind) in
+    sock.read buf
+    >>= fun () ->
+    begin match Negotiate.unmarshal buf kind with
+    | `Error e -> fail e
+    | `Ok (Negotiate.V1 x) ->
+      Mux.create sock
+      >>= fun t ->
+      return (t, x.Negotiate.size, x.Negotiate.flags)
+    | `Ok (Negotiate.V2 _) ->
+      fail (Failure "Client only supports the V1 handshake")
+    end
 
 let write t data from =
   let handle = get_handle () in
