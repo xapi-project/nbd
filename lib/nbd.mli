@@ -87,6 +87,16 @@ module Option: sig
   val marshal: Cstruct.t -> t -> unit
 end
 
+module OptionResult: sig
+  type t = {
+    size: int64;
+    flags: Flag.t list;
+  }
+
+  val sizeof: int
+
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+end
 
 module Request: sig
   type t = {

@@ -112,15 +112,15 @@ let negotiate sock export =
       Option.marshal buf opt;
       sock.write buf
       >>= fun () ->
-      let buf = Cstruct.create (Negotiate.sizeof `V1) in
+      let buf = Cstruct.create OptionResult.sizeof in
       sock.read buf
       >>= fun () ->
-      begin match Negotiate.unmarshal buf `V1 with
+      begin match OptionResult.unmarshal buf with
       | `Error e -> fail e
-      | `Ok (Negotiate.V1 x) ->
+      | `Ok x ->
         Mux.create sock
         >>= fun t ->
-        return (t, x.Negotiate.size, x.Negotiate.flags)
+        return (t, x.OptionResult.size, x.OptionResult.flags)
       | `Ok _ ->
         fail (Failure "Expected to receive size and flags from the server")
       end

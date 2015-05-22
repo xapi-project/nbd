@@ -220,6 +220,27 @@ module Option = struct
 
 end
 
+module OptionResult = struct
+  type t = {
+    size: int64;
+    flags: Flag.t list
+  }
+
+  cstruct t {
+    uint64_t size;
+    uint16_t flags;
+    uint8_t padding[124];
+  } as big_endian
+
+  let sizeof = sizeof_t
+
+  let unmarshal buf =
+    let open Nbd_result in
+    let size = get_t_size buf in
+    let flags = Flag.of_int32 (Int32.of_int (get_t_flags buf)) in
+    return { size; flags }
+end
+
 module Request = struct
   type t = {
     ty : Command.t;
