@@ -27,10 +27,10 @@ val open_channel: string -> int -> channel Lwt.t
 (** [open_channel hostname port] connects to host:port and returns
     a channel. *)
 
-val negotiate: channel -> (t * size * Nbd.Flag.t list) Lwt.t
-(** [negotiate channel] takes an already-connected channel and
-    performs the initial protocol negotiation. Returns
-    (remote disk size * flags) *)
+val negotiate: channel -> string -> (t * size * Nbd.Flag.t list) Lwt.t
+(** [negotiate channel export] takes an already-connected channel,
+    performs the initial protocol negotiation and connects to
+    the named export. Returns (remote disk size * flags) *)
 
 val write : t -> Cstruct.t -> int64 -> unit Lwt.t
 (** [write t buf dst_offset] writes the whole string [buf] to

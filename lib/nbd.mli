@@ -68,6 +68,25 @@ module Negotiate: sig
   val unmarshal: Cstruct.t -> Announcement.t -> [ `Ok of t | `Error of exn ]
 end
 
+module NegotiateResponse: sig
+  type t = unit
+
+  val sizeof: int
+
+  val marshal: Cstruct.t -> unit
+
+  val unmarshal: Cstruct.t -> unit
+end
+
+module Option: sig
+  type t =
+    | ExportName of string
+
+  val sizeof: t -> int
+
+  val marshal: Cstruct.t -> t -> unit
+end
+
 
 module Request: sig
   type t = {

@@ -32,6 +32,11 @@ let nbd_flag_send_fua = 8
 let nbd_flag_rotational = 16
 let nbd_flag_send_trim = 32
 
+let zero buf =
+  for i = 0 to Cstruct.len buf - 1 do
+    Cstruct.set_uint8 buf i 0
+  done
+
 module Flag = struct
   type t =
     | Read_only
@@ -159,10 +164,12 @@ module Negotiate = struct
     | `V1 -> sizeof_v1
     | `V2 -> sizeof_v2
 
-  let marshal buf = function
+  let marshal buf t =
+    zero buf;
+    match t with
     | V1 t ->
       set_v1_size buf t.size;
-      set_v1_flags buf (Flag.to_int32 t.flags)
+      set_v1_flags buf (Flag.to_int32 t.flags);
     | V2 t ->
       set_v2_flags buf (if List.mem `NewStyle t then 1 else 0)
 

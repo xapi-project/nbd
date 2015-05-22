@@ -33,7 +33,7 @@ let test host port =
     let test_str8 = make 512 'h' in
     Printf.printf "Connecting...\n";
     lwt channel = open_channel host port in
-    lwt (sock,sz,flags) = negotiate channel in
+    lwt (sock,sz,flags) = negotiate channel "export" in
     Printf.printf "Connected: size=%Ld\n" sz;
     let t1 = write sock test_str1 0L in
     let t2 = write sock test_str2 512L in

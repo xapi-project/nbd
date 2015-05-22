@@ -3,10 +3,11 @@
 open Lwt
 open Cmdliner
 
-let size host port =
+let size host port export =
   let res =  
-    Nbd_lwt_client.open_channel host port >>= 
-    Nbd_lwt_client.negotiate in
+    Nbd_lwt_client.open_channel host port
+    >>= fun client ->
+    Nbd_lwt_client.negotiate client export in
   let (_,size,_) = Lwt_main.run res in
   Printf.printf "%Ld\n%!" size;
   `Ok ()
@@ -19,7 +20,10 @@ let default_cmd =
   let port =
     let doc = "Remote port" in
     Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port") in
-  Term.(ret (pure size $ host $ port)),
+  let export =
+    let doc = "Name of the export" in
+    Arg.(value & opt string "export" & info [ "export" ] ~doc ~docv:"export") in
+  Term.(ret (pure size $ host $ port $ export)),
   Term.info "nbd-size" ~version:"1.0.0" ~doc
 
 let _ =
