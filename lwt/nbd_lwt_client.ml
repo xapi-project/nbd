@@ -23,31 +23,13 @@ type channel = {
   write:  Cstruct.t -> unit Lwt.t;
 }
 
-let complete op fd buffer =
-  let ofs = buffer.Cstruct.off in
-  let len = buffer.Cstruct.len in
-  let buf = buffer.Cstruct.buffer in
-  let rec loop acc fd buf ofs len =
-    op fd buf ofs len >>= fun n ->
-    let len' = len - n in
-    if len' = 0 || n = 0
-    then return acc
-    else loop (acc + n) fd buf (ofs + n) len' in
-  loop 0 fd buf ofs len >>= fun n ->
-  if n = 0 && len <> 0
-  then fail End_of_file
-  else return ()
-
-let really_write = complete Lwt_bytes.write
-let really_read = complete Lwt_bytes.read
-
 let open_channel hostname port =
   let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
   lwt host_info = Lwt_unix.gethostbyname hostname in
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
   lwt () = Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)) in
-  let read = complete Lwt_bytes.read socket in
-  let write = complete Lwt_bytes.write socket in
+  let read = Lwt_cstruct.(complete (read socket)) in
+  let write = Lwt_cstruct.(complete (write socket)) in
   return { read; write }
 
 let get_handle =
