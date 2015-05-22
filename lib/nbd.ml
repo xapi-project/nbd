@@ -178,6 +178,41 @@ module Negotiate = struct
        return (V2 (if flags land 1 = 1 then [ `NewStyle ] else []))
 end
 
+module NegotiateResponse = struct
+  type t = unit
+
+  let sizeof = 4
+
+  let marshal buf =
+    Cstruct.LE.set_uint32 buf 0 0l
+
+  let unmarshal buf = ()
+end
+
+module Option = struct
+  type t =
+    | ExportName of string
+
+  cstruct t {
+    uint64_t magic;
+    uint32_t kind;
+    uint32_t length;
+  } as big_endian
+
+  let sizeof = function
+    | ExportName x -> sizeof_t + (String.length x)
+
+  let marshal buf t =
+    set_t_magic buf Announcement.v2_magic;
+    match t with
+    | ExportName x ->
+      set_t_kind buf 1l;
+      set_t_length buf (Int32.of_int (String.length x));
+      let payload = Cstruct.shift buf sizeof_t in
+      Cstruct.blit_from_string x 0 payload 0 (String.length x)
+
+end
+
 module Request = struct
   type t = {
     ty : Command.t;
