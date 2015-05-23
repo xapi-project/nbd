@@ -107,9 +107,8 @@ let negotiate sock export =
       NegotiateResponse.marshal buf;
       sock.write buf
       >>= fun () ->
-      let opt = Option.ExportName export in
-      let buf = Cstruct.create (Option.sizeof opt) in
-      Option.marshal buf opt;
+      let buf = Cstruct.create (ExportName.sizeof export) in
+      ExportName.marshal buf export;
       sock.write buf
       >>= fun () ->
       let buf = Cstruct.create OptionResult.sizeof in

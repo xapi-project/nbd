@@ -99,6 +99,29 @@ module Command = struct
 
 end
 
+module Option = struct
+  type t =
+    | ExportName
+    | Abort
+    | List
+    | Unknown of int32
+  with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 = function
+  | 1l -> ExportName
+  | 2l -> Abort
+  | 3l -> List
+  | c -> Unknown c
+
+  let to_int32 = function
+  | ExportName -> 1l
+  | Abort -> 2l
+  | List -> 3l
+  | Unknown c -> c
+end
+
 (* Sent by the server to the client which includes an initial
    protocol choice *)
 module Announcement = struct
@@ -196,9 +219,8 @@ module NegotiateResponse = struct
   let unmarshal buf = ()
 end
 
-module Option = struct
-  type t =
-    | ExportName of string
+module ExportName = struct
+  type t = string
 
   cstruct t {
     uint64_t magic;
@@ -206,17 +228,15 @@ module Option = struct
     uint32_t length;
   } as big_endian
 
-  let sizeof = function
-    | ExportName x -> sizeof_t + (String.length x)
+  let sizeof x =
+    sizeof_t + (String.length x)
 
-  let marshal buf t =
+  let marshal buf x =
     set_t_magic buf Announcement.v2_magic;
-    match t with
-    | ExportName x ->
-      set_t_kind buf 1l;
-      set_t_length buf (Int32.of_int (String.length x));
-      let payload = Cstruct.shift buf sizeof_t in
-      Cstruct.blit_from_string x 0 payload 0 (String.length x)
+    set_t_kind buf (Option.to_int32 Option.ExportName);
+    set_t_length buf (Int32.of_int (String.length x));
+    let payload = Cstruct.shift buf sizeof_t in
+    Cstruct.blit_from_string x 0 payload 0 (String.length x)
 
 end
 

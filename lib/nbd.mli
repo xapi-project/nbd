@@ -38,6 +38,20 @@ module Flag: sig
   val to_int32: t list -> int32
 end
 
+module Option: sig
+  type t =
+    | ExportName
+    | Abort
+    | List
+    | Unknown of int32
+
+
+  val to_string: t -> string
+
+  val of_int32: int32 -> t
+  val to_int32: t -> int32
+end
+
 module Announcement: sig
   type t = [ `V1 | `V2 ] with sexp
 
@@ -78,9 +92,8 @@ module NegotiateResponse: sig
   val unmarshal: Cstruct.t -> unit
 end
 
-module Option: sig
-  type t =
-    | ExportName of string
+module ExportName: sig
+  type t = string
 
   val sizeof: t -> int
 
