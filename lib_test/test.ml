@@ -44,6 +44,28 @@ let v2_list_export_disabled = [
   `Server "\000\000\000\000";
 ]
 
+let v2_list_export_success = [
+  `Server "NBDMAGIC"; (* read *)
+  `Server "IHAVEOPT";
+  `Server "\000\003";
+  `Client "\000\000\000\000";
+  `Client "IHAVEOPT";
+  `Client "\000\000\000\003"; (* NBD_OPT_LIST *)
+  `Client "\000\000\000\000";
+
+  `Server "\x00\x03\xe8\x89\x04\x55\x65\xa9";
+  `Server "\000\000\000\003";
+  `Server "\000\000\000\002"; (* NBD_REP_SERVER *)
+  `Server "\000\000\000\011";
+  `Server "\000\000\000\007";
+  `Server "export1";
+
+  `Server "\x00\x03\xe8\x89\x04\x55\x65\xa9";
+  `Server "\000\000\000\003";
+  `Server "\000\000\000\001"; (* NBD_REP_ACK *)
+  `Server "\000\000\000\000";
+]
+
 let make_client_channel n =
   let next = ref n in
   let rec read buf = match !next with
@@ -94,9 +116,23 @@ let list_disabled =
     | _ -> failwith "Expected to receive a Policy error" in
   Lwt_main.run t
 
+let list_success =
+  "Check that if we request a list of exports, a list is returned and parsed
+   properly."
+  >:: fun () ->
+  let t =
+    let channel = make_client_channel v2_list_export_success in
+    Nbd_lwt_client.list channel
+    >>= function
+    | `Ok [ "export1" ] ->
+      return ()
+    | _ -> failwith "Expected to receive a list of exports" in
+  Lwt_main.run t
+
 let negotiate_suite = "Nbd protocol negotiation" >::: [
   client_negotiation;
   list_disabled;
+  list_success;
   ]
 
 let _ =
