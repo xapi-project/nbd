@@ -12,6 +12,24 @@
  * GNU Lesser General Public License for more details.
  *)
 
+module Error: sig
+  type t =
+  | EPERM  (** Operation not permitted *)
+  | EIO    (** Input/output error *)
+  | ENOMEM (** Cannot allocate memory *)
+  | EINVAL (** Invalid argument *)
+  | ENOSPC (** No space left on device *)
+  | Unknown of int32
+  with sexp
+  (** Defined error codes which can be returned in response to a request
+      in the data-pushing phase. *)
+
+  val to_string: t -> string
+
+  val of_int32: int32 -> t
+  val to_int32: t -> int32
+end
+
 module Command: sig
   type t =
   | Read

@@ -69,6 +69,35 @@ module Flag = struct
     Int32.of_int (List.fold_left (lor) 0 (List.map one flags))
 end
 
+module Error = struct
+  type t =
+  | EPERM
+  | EIO
+  | ENOMEM
+  | EINVAL
+  | ENOSPC
+  | Unknown of int32
+  with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 = function
+    | 1l -> EPERM
+    | 5l -> EIO
+    | 12l -> ENOMEM
+    | 22l -> EINVAL
+    | 28l -> ENOSPC
+    | x -> Unknown x
+
+  let to_int32 = function
+    | EPERM -> 1l
+    | EIO -> 5l
+    | ENOMEM -> 12l
+    | EINVAL -> 22l
+    | ENOSPC -> 28l
+    | Unknown x -> x
+end
+
 module Command = struct
   type t =
     | Read
