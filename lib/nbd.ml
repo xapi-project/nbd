@@ -324,14 +324,16 @@ module Negotiate = struct
 end
 
 module NegotiateResponse = struct
-  type t = unit with sexp
+  type t = ClientFlag.t list with sexp
 
   let sizeof = 4
 
-  let marshal buf =
-    Cstruct.LE.set_uint32 buf 0 0l
+  let marshal buf t =
+    Cstruct.LE.set_uint32 buf 0 (ClientFlag.to_int32 t)
 
-  let unmarshal buf = ()
+  let unmarshal buf =
+    ClientFlag.of_int32 (Cstruct.LE.get_uint32 buf 0)
+
 end
 
 (* In the 'new' and 'new fixed' protocols, options are preceeded by

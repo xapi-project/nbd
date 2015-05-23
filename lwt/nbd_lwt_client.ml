@@ -105,7 +105,8 @@ let list channel =
       return (`Error `Unsupported)
     | `Ok (Negotiate.V2 x) ->
       let buf = Cstruct.create NegotiateResponse.sizeof in
-      NegotiateResponse.marshal buf;
+      let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
+      NegotiateResponse.marshal buf flags;
       channel.write buf
       >>= fun () ->
       let buf = Cstruct.create OptionRequestHeader.sizeof in
@@ -151,7 +152,8 @@ let negotiate channel export =
       return (t, x.Negotiate.size, x.Negotiate.flags)
     | `Ok (Negotiate.V2 x) ->
       let buf = Cstruct.create NegotiateResponse.sizeof in
-      NegotiateResponse.marshal buf;
+      let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
+      NegotiateResponse.marshal buf flags;
       channel.write buf
       >>= fun () ->
       let buf = Cstruct.create OptionRequestHeader.sizeof in

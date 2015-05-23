@@ -127,13 +127,13 @@ module Negotiate: sig
 end
 
 module NegotiateResponse: sig
-  type t = unit with sexp
+  type t = ClientFlag.t list with sexp
 
   val sizeof: int
 
-  val marshal: Cstruct.t -> unit
+  val marshal: Cstruct.t -> t -> unit
 
-  val unmarshal: Cstruct.t -> unit
+  val unmarshal: Cstruct.t -> t
 end
 
 module OptionRequestHeader: sig
