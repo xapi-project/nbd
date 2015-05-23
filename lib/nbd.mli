@@ -53,6 +53,15 @@ module PerExportFlag: sig
   val to_string: t -> string
 end
 
+module GlobalFlag: sig
+  type t =
+    | Fixed_newstyle (** server supports the fixed newstyle protocol *)
+    | No_zeroes      (** request to omit the 124 bytes of zeroes *)
+  with sexp
+
+  val to_string: t -> string
+end
+
 module Option: sig
   type t =
     | ExportName
@@ -94,7 +103,7 @@ module Negotiate: sig
     flags: PerExportFlag.t list;
   } with sexp
 
-  type v2 = [ `NewStyle ] list with sexp
+  type v2 = GlobalFlag.t list with sexp
 
   type t =
     | V1 of v1

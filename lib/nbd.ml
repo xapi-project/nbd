@@ -79,24 +79,22 @@ module GlobalFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-    | Unknown of int32
   with sexp
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let of_int32 x =
-    let flags = Int32.to_int x in
+  let of_int flags =
     let is_set i mask = i land mask = mask in
       List.map snd 
         (List.filter (fun (mask,_) -> is_set flags mask)
           [ nbd_flag_fixed_newstyle, Fixed_newstyle;
             nbd_flag_no_zeroes, No_zeroes; ])
 
-  let to_int32 flags =
+  let to_int flags =
     let one = function
       | Fixed_newstyle -> nbd_flag_fixed_newstyle
       | No_zeroes -> nbd_flag_no_zeroes in
-    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+    List.fold_left (lor) 0 (List.map one flags)
 
 end
 
@@ -104,24 +102,22 @@ module ClientFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-    | Unknown of int32
   with sexp
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let of_int32 x =
-    let flags = Int32.to_int x in
+  let of_int flags =
     let is_set i mask = i land mask = mask in
       List.map snd 
         (List.filter (fun (mask,_) -> is_set flags mask)
           [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
             nbd_flag_c_no_zeroes, No_zeroes; ])
 
-  let to_int32 flags =
+  let to_int flags =
     let one = function
       | Fixed_newstyle -> nbd_flag_c_fixed_newstyle
       | No_zeroes -> nbd_flag_c_no_zeroes in
-    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+    List.fold_left (lor) 0 (List.map one flags)
 
 end
 
@@ -282,7 +278,7 @@ module Negotiate = struct
     flags: PerExportFlag.t list;
   } with sexp
 
-  type v2 = [ `NewStyle ] list with sexp
+  type v2 = GlobalFlag.t list with sexp
 
   type t =
     | V1 of v1
@@ -312,7 +308,7 @@ module Negotiate = struct
       set_v1_size buf t.size;
       set_v1_flags buf (PerExportFlag.to_int32 t.flags);
     | V2 t ->
-      set_v2_flags buf (if List.mem `NewStyle t then 1 else 0)
+      set_v2_flags buf (GlobalFlag.to_int t)
 
   let unmarshal buf t =
     let open Nbd_result in
@@ -322,8 +318,8 @@ module Negotiate = struct
        let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
        return (V1 { size; flags })
     | `V2 ->
-       let flags = get_v2_flags buf in
-       return (V2 (if flags land 1 = 1 then [ `NewStyle ] else []))
+       let flags = GlobalFlag.of_int (get_v2_flags buf) in
+       return (V2 flags)
 end
 
 module NegotiateResponse = struct
