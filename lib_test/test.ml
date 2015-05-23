@@ -30,6 +30,20 @@ let v2_negotiation = [
   `Server (String.make 124 '\000');
 ]
 
+let v2_list_export_disabled = [
+  `Server "NBDMAGIC"; (* read *)
+  `Server "IHAVEOPT";
+  `Server "\000\003";
+  `Client "\000\000\000\000";
+  `Client "IHAVEOPT";
+  `Client "\000\000\000\003"; (* NBD_OPT_LIST *)
+  `Client "\000\000\000\000";
+  `Server "\x00\x03\xe8\x89\x04\x55\x65\xa9";
+  `Server "\000\000\000\003";
+  `Server "\128\000\000\002";
+  `Server "\000\000\000\000";
+]
+
 let make_client_channel n =
   let next = ref n in
   let rec read buf = match !next with
@@ -67,8 +81,22 @@ let client_negotiation =
     return () in
   Lwt_main.run t
 
+let list_disabled =
+  "Check that if we request a list of exports and are denied, the error is
+   reported properly."
+  >:: fun () ->
+  let t =
+    let channel = make_client_channel v2_list_export_disabled in
+    Nbd_lwt_client.list channel
+    >>= function
+    | `Error `Policy ->
+      return ()
+    | _ -> failwith "Expected to receive a Policy error" in
+  Lwt_main.run t
+
 let negotiate_suite = "Nbd protocol negotiation" >::: [
   client_negotiation;
+  list_disabled;
   ]
 
 let _ =
