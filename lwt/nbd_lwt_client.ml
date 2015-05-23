@@ -183,8 +183,10 @@ let write t data from =
     handle; from;
     len = Int32.of_int (Cstruct.len data)
   } in
-  lwt _ = Mux.rpc req_hdr (Some data) t in
-  return ()
+  Mux.rpc req_hdr (Some data) t
+  >>= function
+  | _, `Ok _ -> return (`Ok ())
+  | _, `Error e -> return (`Error e)
 
 let read t from len =
   let handle = get_handle () in
