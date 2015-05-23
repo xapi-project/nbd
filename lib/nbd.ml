@@ -271,7 +271,7 @@ module Negotiate = struct
 end
 
 module NegotiateResponse = struct
-  type t = unit
+  type t = unit with sexp
 
   let sizeof = 4
 
@@ -316,7 +316,7 @@ end
 (* This is the option sent by the client to select a particular disk
    export. *)
 module ExportName = struct
-  type t = string
+  type t = string with sexp
 
   let sizeof = String.length
 
@@ -331,7 +331,7 @@ module DiskInfo = struct
   type t = {
     size: int64;
     flags: PerExportFlag.t list
-  }
+  } with sexp
 
   cstruct t {
     uint64_t size;
@@ -408,7 +408,7 @@ module Request = struct
     handle : int64;
     from : int64;
     len : int32
-  }
+  } with sexp
 
   let to_string t =
     Printf.sprintf "{ Command = %s; handle = %Ld; from = %Ld; len = %ld }"

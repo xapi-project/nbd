@@ -25,9 +25,6 @@ module Error: sig
       in the data-pushing phase. *)
 
   val to_string: t -> string
-
-  val of_int32: int32 -> t
-  val to_int32: t -> int32
 end
 
 module Command: sig
@@ -38,6 +35,7 @@ module Command: sig
   | Flush
   | Trim
   | Unknown of int32
+  with sexp
 
   val to_string: t -> string
 end
@@ -53,9 +51,6 @@ module PerExportFlag: sig
   (** Per-export flags *)
 
   val to_string: t -> string
-
-  val of_int32: int32 -> t list
-  val to_int32: t list -> int32
 end
 
 module Option: sig
@@ -64,12 +59,9 @@ module Option: sig
     | Abort
     | List
     | Unknown of int32
-
+  with sexp
 
   val to_string: t -> string
-
-  val of_int32: int32 -> t
-  val to_int32: t -> int32
 end
 
 module OptionResponse: sig
@@ -81,11 +73,9 @@ module OptionResponse: sig
     | Invalid
     | Platform
     | Unknown of int32
+  with sexp
 
   val to_string: t -> string
-
-  val of_int32: int32 -> t
-  val to_int32: t -> int32
 end
 
 module Announcement: sig
@@ -119,7 +109,7 @@ module Negotiate: sig
 end
 
 module NegotiateResponse: sig
-  type t = unit
+  type t = unit with sexp
 
   val sizeof: int
 
@@ -132,7 +122,7 @@ module OptionRequestHeader: sig
   type t = {
     ty: Option.t;
     length: int32;
-  }
+  } with sexp
 
   val sizeof: int
 
@@ -141,7 +131,7 @@ module OptionRequestHeader: sig
 end
 
 module ExportName: sig
-  type t = string
+  type t = string with sexp
 
   val sizeof: t -> int
 
@@ -152,7 +142,7 @@ module DiskInfo: sig
   type t = {
     size: int64;
     flags: PerExportFlag.t list;
-  }
+  } with sexp
 
   val sizeof: int
 
@@ -189,7 +179,7 @@ module Request: sig
     handle : int64;
     from : int64;
     len : int32;
-  }
+  } with sexp
 
   val to_string: t -> string
 
