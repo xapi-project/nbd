@@ -37,7 +37,7 @@ let zero buf =
     Cstruct.set_uint8 buf i 0
   done
 
-module Flag = struct
+module PerExportFlag = struct
   type t =
     | Read_only
     | Send_flush
@@ -223,7 +223,7 @@ end
 module Negotiate = struct
   type v1 = {
     size: int64;
-    flags: Flag.t list;
+    flags: PerExportFlag.t list;
   } with sexp
 
   type v2 = [ `NewStyle ] list with sexp
@@ -254,7 +254,7 @@ module Negotiate = struct
     match t with
     | V1 t ->
       set_v1_size buf t.size;
-      set_v1_flags buf (Flag.to_int32 t.flags);
+      set_v1_flags buf (PerExportFlag.to_int32 t.flags);
     | V2 t ->
       set_v2_flags buf (if List.mem `NewStyle t then 1 else 0)
 
@@ -263,7 +263,7 @@ module Negotiate = struct
     match t with
     | `V1 ->
        let size = get_v1_size buf in
-       let flags = Flag.of_int32 (get_v1_flags buf) in
+       let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
        return (V1 { size; flags })
     | `V2 ->
        let flags = get_v2_flags buf in
@@ -330,7 +330,7 @@ end
 module DiskInfo = struct
   type t = {
     size: int64;
-    flags: Flag.t list
+    flags: PerExportFlag.t list
   }
 
   cstruct t {
@@ -344,7 +344,7 @@ module DiskInfo = struct
   let unmarshal buf =
     let open Nbd_result in
     let size = get_t_size buf in
-    let flags = Flag.of_int32 (Int32.of_int (get_t_flags buf)) in
+    let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
     return { size; flags }
 end
 

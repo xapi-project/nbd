@@ -18,7 +18,7 @@ type t
 type size = int64
 (** The size of a remote disk *)
 
-val negotiate : Lwt_unix.file_descr -> size  -> Nbd.Flag.t list -> t Lwt.t
+val negotiate : Lwt_unix.file_descr -> size  -> Nbd.PerExportFlag.t list -> t Lwt.t
 (** [negotiate fd size flags] tells the client connected to [fd] about the
     disk [size] and [flags]. When negotiate finishes, the client will start
     sending requests. *)

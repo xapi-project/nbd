@@ -33,7 +33,7 @@ val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ]
     `Error `Unsupported means the server is old and does not support the query
     function. *)
 
-val negotiate: channel -> string -> (t * size * Nbd.Flag.t list) Lwt.t
+val negotiate: channel -> string -> (t * size * Nbd.PerExportFlag.t list) Lwt.t
 (** [negotiate channel export] takes an already-connected channel,
     performs the initial protocol negotiation and connects to
     the named export. Returns (remote disk size * flags) *)

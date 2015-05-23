@@ -42,13 +42,15 @@ module Command: sig
   val to_string: t -> string
 end
 
-module Flag: sig
+module PerExportFlag: sig
   type t =
-  | Read_only
-  | Send_flush
-  | Send_fua
-  | Rotational
-  | Send_trim
+  | Read_only   (** export is read/only. Writes will receive EPERM *)
+  | Send_flush  (** server supports Command.Flush *)
+  | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
+  | Rotational  (** let the client schedule I/O for a rotational medium *)
+  | Send_trim   (** server supports Command.Trim *)
+  with sexp
+  (** Per-export flags *)
 
   val to_string: t -> string
 
@@ -99,7 +101,7 @@ module Negotiate: sig
 
   type v1 = {
     size: int64;
-    flags: Flag.t list;
+    flags: PerExportFlag.t list;
   } with sexp
 
   type v2 = [ `NewStyle ] list with sexp
@@ -149,7 +151,7 @@ end
 module DiskInfo: sig
   type t = {
     size: int64;
-    flags: Flag.t list;
+    flags: PerExportFlag.t list;
   }
 
   val sizeof: int
