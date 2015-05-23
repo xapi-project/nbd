@@ -66,7 +66,7 @@ module Flag = struct
       | Send_fua -> nbd_flag_send_fua
       | Rotational -> nbd_flag_rotational
       | Send_trim -> nbd_flag_send_trim in
-    Int32.of_int (List.fold_left (lor) 0 (List.map one flags))
+    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
 end
 
 module Error = struct
