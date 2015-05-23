@@ -47,3 +47,14 @@ Executable "nbd-test-lwt"
   MainIs: nbd_test_lwt.ml
   BuildDepends: nbd.lwt
   Install: false
+
+Executable "test"
+  CompiledObject: best
+  Path: lib_test
+  MainIs: test.ml
+  BuildDepends: nbd.lwt, oUnit
+  Install: false
+
+Test test
+  Command:            ./test.native
+  Run:                true

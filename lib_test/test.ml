@@ -1,0 +1,77 @@
+(*
+ * Copyright (C) 2015 Citrix Systems Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation; version 2.1 only. with the special
+ * exception on linking described in file LICENSE.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *)
+
+open OUnit
+open Nbd
+open Lwt
+
+let v2_negotiation = [
+  `Server "NBDMAGIC";
+  `Server "IHAVEOPT";
+  `Server "\000\003";
+  `Client "\000\000\000\000";
+  `Client "IHAVEOPT";
+  `Client "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+  `Client "\000\000\000\007";
+  `Client "export1";
+  `Server "\000\000\000\000\001\000\000\000"; (* size *)
+  `Server "\000\000"; (* flags *)
+  `Server (String.make 124 '\000');
+]
+
+let make_client_channel n =
+  let next = ref n in
+  let rec read buf = match !next with
+  | `Server x :: rest ->
+    let available = min (Cstruct.len buf) (String.length x) in
+    Cstruct.blit_from_string x 0 buf 0 available;
+    next := if available = String.length x then rest else `Server (String.sub x available (String.length x - available)) :: rest;
+    let buf = Cstruct.shift buf available in
+    if Cstruct.len buf = 0
+    then return ()
+    else read buf
+  | `Client _ :: _ -> fail (Failure "Client tried to read but it should have written")
+  | [] -> fail (Failure "Client tried to read but the stream was empty") in
+  let rec write buf = match !next with
+  | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
+  | `Client x :: rest ->
+    let available = min (Cstruct.len buf) (String.length x) in
+    Cstruct.blit_from_string x 0 buf 0 available;
+    next := if available = String.length x then rest else `Client (String.sub x available (String.length x - available)) :: rest;
+    let buf = Cstruct.shift buf available in
+    if Cstruct.len buf = 0
+    then return ()
+    else write buf
+  | [] -> fail (Failure "Client tried to write but the stream was empty") in
+  { Nbd_lwt_client.read; write }
+
+let client_negotiation =
+  "Perform a negotiation using the second version of the protocol from the
+   client's side."
+  >:: fun () ->
+  let t =
+    let channel = make_client_channel v2_negotiation in
+    Nbd_lwt_client.negotiate channel "export1"
+    >>= fun (t, size, flags) ->
+    return () in
+  Lwt_main.run t
+
+let negotiate_suite = "Nbd protocol negotiation" >::: [
+  client_negotiation;
+  ]
+
+let _ =
+  List.iter (fun suite -> ignore (run_test_tt suite)) [
+    negotiate_suite;
+  ]

@@ -12,8 +12,8 @@ remove: [
 ]
 depends: [
   "oasis"
+  "ounit"
   "ocamlfind"
-  "obuild"
   "lwt"
   "cstruct" {> "1.0.0"}
   "cmdliner"
