@@ -52,6 +52,22 @@ module Option: sig
   val to_int32: t -> int32
 end
 
+module OptionResponse: sig
+  type t =
+    | Ack
+    | Server
+    | Unsupported
+    | Policy
+    | Invalid
+    | Platform
+    | Unknown of int32
+
+  val to_string: t -> string
+
+  val of_int32: int32 -> t
+  val to_int32: t -> int32
+end
+
 module Announcement: sig
   type t = [ `V1 | `V2 ] with sexp
 
@@ -92,6 +108,18 @@ module NegotiateResponse: sig
   val unmarshal: Cstruct.t -> unit
 end
 
+module OptionRequestHeader: sig
+  type t = {
+    ty: Option.t;
+    length: int32;
+  }
+
+  val sizeof: int
+
+  val marshal: Cstruct.t -> t -> unit
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+end
+
 module ExportName: sig
   type t = string
 
@@ -100,7 +128,7 @@ module ExportName: sig
   val marshal: Cstruct.t -> t -> unit
 end
 
-module OptionResult: sig
+module DiskInfo: sig
   type t = {
     size: int64;
     flags: Flag.t list;
@@ -110,6 +138,30 @@ module OptionResult: sig
 
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
 end
+
+module OptionResponseHeader: sig
+  type t = {
+    request_type: Option.t;
+    reply_type: OptionResponse.t;
+    length: int32;
+  } with sexp
+
+  val sizeof: int
+
+  val to_string: t -> string
+
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+end
+
+module Server: sig
+  type t = {
+    name: string;
+  } with sexp
+
+  val sizeof: t -> int
+
+  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+end  
 
 module Request: sig
   type t = {

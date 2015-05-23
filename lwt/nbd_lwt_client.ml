@@ -86,40 +86,88 @@ module Mux = Nbd_lwt_mux.Mux(NbdRpc)
 
 type t = Mux.client
 
-let negotiate sock export =
+let list channel =
   let buf = Cstruct.create Announcement.sizeof in
-  sock.read buf
+  channel.read buf
   >>= fun () ->
   match Announcement.unmarshal buf with
   | `Error e -> fail e
   | `Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
-    sock.read buf
+    channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
     | `Error e -> fail e
     | `Ok (Negotiate.V1 x) ->
-      Mux.create sock
+      return (`Error `Unsupported)
+    | `Ok (Negotiate.V2 x) ->
+      let buf = Cstruct.create NegotiateResponse.sizeof in
+      NegotiateResponse.marshal buf;
+      channel.write buf
+      >>= fun () ->
+      let buf = Cstruct.create OptionRequestHeader.sizeof in
+      OptionRequestHeader.(marshal buf { ty = Option.List; length = 0l });
+      channel.write buf
+      >>= fun () ->
+      let buf = Cstruct.create OptionResponseHeader.sizeof in
+      let rec loop acc =
+        channel.read buf
+        >>= fun () ->
+        match OptionResponseHeader.unmarshal buf with
+        | `Error e -> fail e
+        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Ack } -> return (`Ok acc)
+        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Policy } ->
+          return (`Error `Policy)
+        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Server; length } ->
+          let buf' = Cstruct.create (Int32.to_int length) in
+          channel.read buf'
+          >>= fun () ->
+          begin match Server.unmarshal buf' with
+          | `Ok server ->
+            loop (server.Server.name :: acc)
+          | `Error e -> fail e
+          end in
+      loop []
+    end
+
+let negotiate channel export =
+  let buf = Cstruct.create Announcement.sizeof in
+  channel.read buf
+  >>= fun () ->
+  match Announcement.unmarshal buf with
+  | `Error e -> fail e
+  | `Ok kind ->
+    let buf = Cstruct.create (Negotiate.sizeof kind) in
+    channel.read buf
+    >>= fun () ->
+    begin match Negotiate.unmarshal buf kind with
+    | `Error e -> fail e
+    | `Ok (Negotiate.V1 x) ->
+      Mux.create channel
       >>= fun t ->
       return (t, x.Negotiate.size, x.Negotiate.flags)
     | `Ok (Negotiate.V2 x) ->
       let buf = Cstruct.create NegotiateResponse.sizeof in
       NegotiateResponse.marshal buf;
-      sock.write buf
+      channel.write buf
+      >>= fun () ->
+      let buf = Cstruct.create OptionRequestHeader.sizeof in
+      OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
+      channel.write buf
       >>= fun () ->
       let buf = Cstruct.create (ExportName.sizeof export) in
       ExportName.marshal buf export;
-      sock.write buf
+      channel.write buf
       >>= fun () ->
-      let buf = Cstruct.create OptionResult.sizeof in
-      sock.read buf
+      let buf = Cstruct.create DiskInfo.sizeof in
+      channel.read buf
       >>= fun () ->
-      begin match OptionResult.unmarshal buf with
+      begin match DiskInfo.unmarshal buf with
       | `Error e -> fail e
       | `Ok x ->
-        Mux.create sock
+        Mux.create channel
         >>= fun t ->
-        return (t, x.OptionResult.size, x.OptionResult.flags)
+        return (t, x.DiskInfo.size, x.DiskInfo.flags)
       | `Ok _ ->
         fail (Failure "Expected to receive size and flags from the server")
       end

@@ -122,6 +122,39 @@ module Option = struct
   | Unknown c -> c
 end
 
+module OptionResponse = struct
+  type t =
+    | Ack
+    | Server
+    | Unsupported
+    | Policy
+    | Invalid
+    | Platform
+    | Unknown of int32
+  with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 = function
+  | 1l -> Ack
+  | 2l -> Server
+  | -2147483647l -> Unsupported
+  | -2147483646l -> Policy
+  | -2147483645l -> Invalid
+  | -2147483644l -> Platform
+  | x -> Unknown x
+
+  let to_int32 = function
+  | Ack -> 1l
+  | Server -> 2l
+  | Unsupported -> -2147483647l
+  | Policy -> -2147483646l
+  | Invalid -> -2147483645l
+  | Platform -> -2147483644l;
+  | Unknown x -> x
+
+end
+
 (* Sent by the server to the client which includes an initial
    protocol choice *)
 module Announcement = struct
@@ -219,28 +252,53 @@ module NegotiateResponse = struct
   let unmarshal buf = ()
 end
 
-module ExportName = struct
-  type t = string
+(* In the 'new' and 'new fixed' protocols, options are preceeded by
+   a common header which includes a type and a length. *)
+module OptionRequestHeader = struct
+  type t = {
+    ty: Option.t;
+    length: int32;
+  } with sexp
 
   cstruct t {
     uint64_t magic;
-    uint32_t kind;
+    uint32_t ty;
     uint32_t length;
   } as big_endian
 
-  let sizeof x =
-    sizeof_t + (String.length x)
+  let sizeof = sizeof_t
 
-  let marshal buf x =
+  let marshal buf t =
     set_t_magic buf Announcement.v2_magic;
-    set_t_kind buf (Option.to_int32 Option.ExportName);
-    set_t_length buf (Int32.of_int (String.length x));
-    let payload = Cstruct.shift buf sizeof_t in
-    Cstruct.blit_from_string x 0 payload 0 (String.length x)
+    set_t_ty buf (Option.to_int32 t.ty);
+    set_t_length buf t.length
 
+  let unmarshal buf =
+    let open Nbd_result in
+    let magic = get_t_magic buf in
+    ( if Announcement.v2_magic <> magic
+      then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
+      else return () ) >>= fun () ->
+    let ty = Option.of_int32 (get_t_ty buf) in
+    let length = get_t_length buf in
+    return { ty; length }
 end
 
-module OptionResult = struct
+(* This is the option sent by the client to select a particular disk
+   export. *)
+module ExportName = struct
+  type t = string
+
+  let sizeof = String.length
+
+  let marshal buf x =
+    Cstruct.blit_from_string x 0 buf 0 (String.length x)
+end
+
+(* In both the 'new' style handshake and the 'fixed new' style handshake,
+   the server will reply to an ExportName option with either a connection
+   close or a DiskInfo: *)
+module DiskInfo = struct
   type t = {
     size: int64;
     flags: Flag.t list
@@ -259,6 +317,60 @@ module OptionResult = struct
     let size = get_t_size buf in
     let flags = Flag.of_int32 (Int32.of_int (get_t_flags buf)) in
     return { size; flags }
+end
+
+(* In the 'fixed new' style handshake, all options apart from ExportName
+   should result in reply packets as follows: *)
+module OptionResponseHeader = struct
+  cstruct t {
+    uint64_t magic;
+    uint32_t request_type;
+    uint32_t reply_type;
+    uint32_t length;
+  } as big_endian
+
+  type t = {
+    request_type: Option.t;
+    reply_type: OptionResponse.t;
+    length: int32;
+  } with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let sizeof = sizeof_t
+
+  let expected_magic = 0x3e889045565a9L
+
+  let unmarshal buf =
+    let open Nbd_result in
+    let magic = get_t_magic buf in
+    ( if expected_magic <> magic
+      then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
+      else return () ) >>= fun () ->
+    let request_type = Option.of_int32 (get_t_request_type buf) in
+    let reply_type = OptionResponse.of_int32 (get_t_reply_type buf) in
+    let length = get_t_length buf in
+    return { request_type; reply_type; length }
+end
+
+(* A description of an export, sent in response to a List option *)
+module Server = struct
+  type t = {
+    name: string;
+  } with sexp
+
+  cstruct t {
+    uint32_t length;
+  } as big_endian
+
+  let sizeof t = sizeof_t + (String.length t.name)
+
+  let unmarshal buf =
+    let open Nbd_result in
+    let length = Int32.to_int (get_t_length buf) in
+    let buf = Cstruct.shift buf sizeof_t in
+    let name = Cstruct.(to_string (sub buf 0 length)) in
+    return { name }
 end
 
 module Request = struct
