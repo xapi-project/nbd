@@ -62,6 +62,15 @@ module GlobalFlag: sig
   val to_string: t -> string
 end
 
+module ClientFlag: sig
+  type t =
+    | Fixed_newstyle (** client acknowledges use of fixed newstyle protocol *)
+    | No_zeroes      (** client acknowledges omission of 124 bytes of zeroes *)
+  with sexp
+
+  val to_string: t -> string
+end
+
 module Option: sig
   type t =
     | ExportName

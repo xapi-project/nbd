@@ -106,18 +106,19 @@ module ClientFlag = struct
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let of_int flags =
+  let of_int32 flags =
+    let flags = Int32.to_int flags in
     let is_set i mask = i land mask = mask in
       List.map snd 
         (List.filter (fun (mask,_) -> is_set flags mask)
           [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
             nbd_flag_c_no_zeroes, No_zeroes; ])
 
-  let to_int flags =
+  let to_int32 flags =
     let one = function
       | Fixed_newstyle -> nbd_flag_c_fixed_newstyle
       | No_zeroes -> nbd_flag_c_no_zeroes in
-    List.fold_left (lor) 0 (List.map one flags)
+    Int32.of_int (List.fold_left (lor) 0 (List.map one flags))
 
 end
 
