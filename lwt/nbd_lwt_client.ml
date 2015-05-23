@@ -45,7 +45,7 @@ module NbdRpc = struct
   type request_hdr = Request.t
   type request_body = Cstruct.t option
   type response_hdr = Reply.t
-  type response_body = Cstruct.t option
+  type response_body = [ `Ok of Cstruct.t option | `Error of Error.t ]
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
@@ -55,16 +55,19 @@ module NbdRpc = struct
     | `Error e -> fail e
 
   let recv_body sock req_hdr res_hdr =
-    if res_hdr.Reply.error <> 0l
-    then fail (Failure (Printf.sprintf "Error %ld returned" res_hdr.Reply.error))
-    else match req_hdr.Request.ty with
-    | Command.Read -> 
-      (* TODO: use a page-aligned memory allocator *)
-      let expected = Int32.to_int req_hdr.Request.len in
-      let data = Cstruct.create expected in
-      lwt () = sock.read data in
-      return (Some data)
-   | _ -> return None
+    match res_hdr.Reply.error with
+    | `Error e -> return (`Error e)
+    | `Ok () ->
+      begin match req_hdr.Request.ty with
+      | Command.Read -> 
+        (* TODO: use a page-aligned memory allocator *)
+        let expected = Int32.to_int req_hdr.Request.len in
+        let data = Cstruct.create expected in
+        sock.read data
+        >>= fun () ->
+        return (`Ok (Some data))
+     | _ -> return (`Ok None)
+     end
 
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
@@ -79,7 +82,7 @@ module NbdRpc = struct
   let id_of_request req = req.Request.handle
 
   let handle_unrequested_packet t reply =
-    fail (Failure (Printf.sprintf "Unexpected response from server, error = %ld handle = %Ld" reply.Reply.error reply.Reply.handle))
+    fail (Failure (Printf.sprintf "Unexpected response from server: %s" (Reply.to_string reply)))
 end
 
 module Mux = Nbd_lwt_mux.Mux(NbdRpc)
@@ -190,7 +193,8 @@ let read t from len =
     handle; from; len
   } in
   let req_body = None in
-  lwt res = Mux.rpc req_hdr req_body t in
-  match res with
-    | (_,Some res) -> return res
-    | _ -> fail (Failure "No response!?")
+  Mux.rpc req_hdr req_body t
+  >>= function
+    | _, `Ok (Some res) -> return (`Ok res)
+    | _, `Ok None -> return (`Ok (Cstruct.create 0))
+    | _, `Error e -> return (`Error e)

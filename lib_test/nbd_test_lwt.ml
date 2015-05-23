@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Lwt
 
 let make len char =
   let buf = Cstruct.create len in
@@ -46,9 +47,12 @@ let test host port =
 
     lwt () = Lwt.join [t1; t2; t3; t4; t5; t6; t7; t8] in
     Printf.printf "Written\n";
-    lwt str2 = read sock 0L 4096l in
-    Printf.printf "%s\n" (Cstruct.to_string str2);
-    Lwt.return ()
+    read sock 0L 4096l
+    >>= function
+    | `Ok str2 ->
+      Printf.printf "%s\n" (Cstruct.to_string str2);
+      Lwt.return ()
+    | `Error e -> failwith (Printf.sprintf "Read failed with %s" (Nbd.Error.to_string e))
   with e -> 
     Printf.printf "Caught exception: %s" (Printexc.to_string e);
     Lwt.return ()

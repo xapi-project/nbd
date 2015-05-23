@@ -103,7 +103,7 @@ module Impl = struct
                 Nbd_lwt_server.ok server request.Request.handle None
               | Command.Read 
               | _ ->
-                Nbd_lwt_server.error server request.Request.handle 1l
+                Nbd_lwt_server.error server request.Request.handle `EINVAL
             done
           with e ->
             Printf.fprintf stderr "Caught %s; closing connection\n%!" (Printexc.to_string e);

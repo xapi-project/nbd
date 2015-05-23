@@ -13,14 +13,14 @@
  *)
 
 module Error: sig
-  type t =
-  | EPERM  (** Operation not permitted *)
-  | EIO    (** Input/output error *)
-  | ENOMEM (** Cannot allocate memory *)
-  | EINVAL (** Invalid argument *)
-  | ENOSPC (** No space left on device *)
-  | Unknown of int32
-  with sexp
+  type t = [
+  | `EPERM  (** Operation not permitted *)
+  | `EIO    (** Input/output error *)
+  | `ENOMEM (** Cannot allocate memory *)
+  | `EINVAL (** Invalid argument *)
+  | `ENOSPC (** No space left on device *)
+  | `Unknown of int32
+  ] with sexp
   (** Defined error codes which can be returned in response to a request
       in the data-pushing phase. *)
 
@@ -199,9 +199,9 @@ end
 
 module Reply: sig
   type t = {
-    error : int32;
+    error : [ `Ok of unit | `Error of Error.t ];
     handle : int64;
-  }
+  } with sexp
 
   val to_string: t -> string
 

@@ -70,32 +70,32 @@ module Flag = struct
 end
 
 module Error = struct
-  type t =
-  | EPERM
-  | EIO
-  | ENOMEM
-  | EINVAL
-  | ENOSPC
-  | Unknown of int32
-  with sexp
+  type t = [
+  | `EPERM
+  | `EIO
+  | `ENOMEM
+  | `EINVAL
+  | `ENOSPC
+  | `Unknown of int32
+  ] with sexp
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 = function
-    | 1l -> EPERM
-    | 5l -> EIO
-    | 12l -> ENOMEM
-    | 22l -> EINVAL
-    | 28l -> ENOSPC
-    | x -> Unknown x
+    | 1l -> `EPERM
+    | 5l -> `EIO
+    | 12l -> `ENOMEM
+    | 22l -> `EINVAL
+    | 28l -> `ENOSPC
+    | x -> `Unknown x
 
   let to_int32 = function
-    | EPERM -> 1l
-    | EIO -> 5l
-    | ENOMEM -> 12l
-    | EINVAL -> 22l
-    | ENOSPC -> 28l
-    | Unknown x -> x
+    | `EPERM -> 1l
+    | `EIO -> 5l
+    | `ENOMEM -> 12l
+    | `EINVAL -> 22l
+    | `ENOSPC -> 28l
+    | `Unknown x -> x
 end
 
 module Command = struct
@@ -446,12 +446,11 @@ end
 	
 module Reply = struct
   type t = {
-    error : int32;
+    error : [ `Ok of unit | `Error of Error.t ];
     handle : int64;
-  }
+  } with sexp
 
-  let to_string t =
-    Printf.sprintf "{ handle = %Ld; error = %ld }" t.handle t.error
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   cstruct t {
     uint32_t magic;
@@ -466,6 +465,7 @@ module Reply = struct
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
       else return () ) >>= fun () ->
     let error = get_t_error buf in
+    let error = if error = 0l then `Ok () else `Error (Error.of_int32 error) in
     let handle = get_t_handle buf in
     return { error; handle }
 
@@ -473,6 +473,9 @@ module Reply = struct
 
   let marshal (buf: Cstruct.t) t =
     set_t_magic buf nbd_reply_magic;
-    set_t_error buf t.error;
+    let error = match t.error with
+      | `Ok () -> 0l
+      | `Error e -> Error.to_int32 e in
+    set_t_error buf error;
     set_t_handle buf t.handle
 end

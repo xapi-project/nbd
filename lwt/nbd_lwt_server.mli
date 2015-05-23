@@ -33,7 +33,7 @@ val ok : t -> int64 -> Cstruct.t option -> unit Lwt.t
 (** [ok t handle data] replies affirmatively to the request identified
     by [handle] with optional response payload [data] *)
 
-val error : t -> int64 -> int32 -> unit Lwt.t
+val error : t -> int64 -> Nbd.Error.t -> unit Lwt.t
 (** [error t handle code] sends error [code] to the client [t[ to
     indicate that the request failed. *)
 

@@ -50,7 +50,7 @@ let next t =
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = 0l };
+      Reply.marshal t.reply { Reply.handle; error = `Ok () };
       lwt () = really_write t.fd t.reply in
       match payload with
       | None -> return ()
@@ -60,7 +60,7 @@ let ok t handle payload =
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = code };
+      Reply.marshal t.reply { Reply.handle; error = `Error code };
       really_write t.fd t.reply
     )
 
