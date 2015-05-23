@@ -32,6 +32,12 @@ let nbd_flag_send_fua = 8
 let nbd_flag_rotational = 16
 let nbd_flag_send_trim = 32
 
+let nbd_flag_fixed_newstyle = 1
+let nbd_flag_no_zeroes = 2
+
+let nbd_flag_c_fixed_newstyle = 1
+let nbd_flag_c_no_zeroes = 2
+
 let zero buf =
   for i = 0 to Cstruct.len buf - 1 do
     Cstruct.set_uint8 buf i 0
@@ -67,6 +73,56 @@ module PerExportFlag = struct
       | Rotational -> nbd_flag_rotational
       | Send_trim -> nbd_flag_send_trim in
     Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+end
+
+module GlobalFlag = struct
+  type t =
+    | Fixed_newstyle
+    | No_zeroes
+    | Unknown of int32
+  with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 x =
+    let flags = Int32.to_int x in
+    let is_set i mask = i land mask = mask in
+      List.map snd 
+        (List.filter (fun (mask,_) -> is_set flags mask)
+          [ nbd_flag_fixed_newstyle, Fixed_newstyle;
+            nbd_flag_no_zeroes, No_zeroes; ])
+
+  let to_int32 flags =
+    let one = function
+      | Fixed_newstyle -> nbd_flag_fixed_newstyle
+      | No_zeroes -> nbd_flag_no_zeroes in
+    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+
+end
+
+module ClientFlag = struct
+  type t =
+    | Fixed_newstyle
+    | No_zeroes
+    | Unknown of int32
+  with sexp
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 x =
+    let flags = Int32.to_int x in
+    let is_set i mask = i land mask = mask in
+      List.map snd 
+        (List.filter (fun (mask,_) -> is_set flags mask)
+          [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
+            nbd_flag_c_no_zeroes, No_zeroes; ])
+
+  let to_int32 flags =
+    let one = function
+      | Fixed_newstyle -> nbd_flag_c_fixed_newstyle
+      | No_zeroes -> nbd_flag_c_no_zeroes in
+    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+
 end
 
 module Error = struct
