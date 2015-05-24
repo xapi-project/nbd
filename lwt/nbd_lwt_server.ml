@@ -17,7 +17,9 @@ open Nbd
 open Nbd_lwt_common
 open Nbd_lwt_channel
 
-type t = {
+type name = string
+
+type 'a t = {
   channel: channel;
   request: Cstruct.t; (* buffer used to read the request headers *)
   reply: Cstruct.t;   (* buffer used to write the response headers *)
@@ -41,6 +43,9 @@ let negotiate channel size flags =
   let reply = Cstruct.create Reply.sizeof in
   let m = Lwt_mutex.create () in
   return { channel; request; reply; m }
+
+let negotiate_begin channel ?offer () = fail (Failure "unimplemented")
+let negotiate_end t size flags = fail (Failure "unimplemented")
 
 let next t =
   t.channel.read t.request
