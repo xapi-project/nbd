@@ -76,17 +76,12 @@ module Impl = struct
 
   let serve common filename port =
     let filename = require "filename" filename in
-    let port = require "port" port in
     let stats = Unix.LargeFile.stat filename in
     let size = stats.Unix.LargeFile.st_size in
     let flags = [] in
     let t =
-(*
-      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 1 in
+      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-*)
-      let sock = Lwt_unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 1 in
-      let sockaddr = Lwt_unix.ADDR_UNIX "socket" in
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
       while_lwt true do
@@ -94,7 +89,10 @@ module Impl = struct
         (* Background thread per connection *)
         let _ =
           let channel = Nbd_lwt_channel.of_fd fd in
-          lwt server = Nbd_lwt_server.negotiate channel size flags in
+          Nbd_lwt_server.negotiate_begin channel ()
+          >>= fun (name, t) ->
+          Nbd_lwt_server.negotiate_end t size flags
+          >>= fun server ->
           try_lwt
             let block_size = 32768 in
             let block = Cstruct.create block_size in
@@ -106,7 +104,7 @@ module Impl = struct
                 let rec loop remaining =
                   let n = min block_size remaining in
                   let subblock = Cstruct.sub block 0 n in
-                  channel.read subblock
+                  channel.Nbd_lwt_channel.read subblock
                   >>= fun () ->
                   let remaining = remaining - n in
                   if remaining > 0 then loop remaining else return () in
@@ -152,7 +150,7 @@ let serve_cmd =
     Arg.(value & pos 0 (some file) None & info [] ~doc) in
   let port =
     let doc = "Local port to listen for connections on" in
-    Arg.(value & pos 1 (some int) None & info [] ~doc) in
+    Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
   Term.(ret(pure Impl.serve $ common_options_t $ filename $ port)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
