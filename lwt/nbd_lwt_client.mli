@@ -11,21 +11,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Nbd_lwt_channel
 
 type t
 (** An open connection to an NBD server *)
 
 type size = int64
 (** The size of a remote disk *)
-
-type channel = {
-  read:  Cstruct.t -> unit Lwt.t;
-  write: Cstruct.t -> unit Lwt.t;
-}
-
-val open_channel: string -> int -> channel Lwt.t
-(** [open_channel hostname port] connects to host:port and returns
-    a channel. *)
 
 val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
 (** [list channel] returns a list of exports known by the server.

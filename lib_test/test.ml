@@ -90,7 +90,7 @@ let make_client_channel n =
     then return ()
     else write buf
   | [] -> fail (Failure "Client tried to write but the stream was empty") in
-  { Nbd_lwt_client.read; write }
+  { Nbd_lwt_channel.read; write }
 
 let client_negotiation =
   "Perform a negotiation using the second version of the protocol from the

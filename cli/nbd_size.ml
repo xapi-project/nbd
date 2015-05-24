@@ -5,7 +5,7 @@ open Cmdliner
 
 let size host port export =
   let res =  
-    Nbd_lwt_client.open_channel host port
+    Nbd_lwt_channel.connect host port
     >>= fun client ->
     Nbd_lwt_client.negotiate client export in
   let (_,size,_) = Lwt_main.run res in

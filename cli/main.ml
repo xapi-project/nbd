@@ -50,7 +50,7 @@ module Impl = struct
 
   let list common host port =
     let t =
-      Nbd_lwt_client.open_channel host port
+      Nbd_lwt_channel.connect host port
       >>= fun channel ->
       Nbd_lwt_client.list channel
       >>= function
