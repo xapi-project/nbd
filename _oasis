@@ -25,7 +25,7 @@ Library "nbd-lwt"
   Findlibname: lwt
   FindlibParent: nbd
   Modules: Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux, Nbd_lwt_channel
-  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt
+  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt, mirage-types.lwt
 
 Executable "nbd-tool"
   CompiledObject: best

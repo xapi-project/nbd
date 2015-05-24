@@ -144,3 +144,66 @@ let error t handle code =
       t.channel.write t.reply
     )
 
+let serve_forever t (type t) block (b:t) =
+  let module Block = (val block: V1_LWT.BLOCK with type t = t) in
+
+  Block.get_info b
+  >>= fun info ->
+  let size = Int64.(mul info.Block.size_sectors (of_int info.Block.sector_size)) in
+  let flags = if info.Block.read_write then [] else [ PerExportFlag.Read_only ] in
+  negotiate_end t size flags
+  >>= fun t ->
+
+  let block_size = 32768 in
+  let block = Cstruct.create block_size in
+  let rec loop () =
+    next t
+    >>= fun request ->
+    Printf.fprintf stderr "%s\n%!" (Request.to_string request);
+    let open Request in
+    match request with
+    | { ty = Command.Write; from; len; handle } ->
+      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      then error t handle `EINVAL
+      else begin
+        let rec copy offset remaining =
+          let n = min block_size remaining in
+          let subblock = Cstruct.sub block 0 n in
+          t.channel.Nbd_lwt_channel.read subblock
+          >>= fun () ->
+          Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          >>= function
+          | `Error e ->
+            error t handle `EIO
+          | `Ok () ->
+            let remaining = remaining - n in
+            if remaining > 0
+            then copy Int64.(add offset (of_int n)) remaining
+            else ok t handle None in
+        copy from (Int32.to_int request.Request.len)
+      end
+    | { ty = Command.Read; from; len; handle } ->
+      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      then error t handle `EINVAL
+      else begin
+        ok t handle None
+        >>= fun () ->
+        let rec copy offset remaining =
+          let n = min block_size remaining in
+          let subblock = Cstruct.sub block 0 n in
+          Block.read b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          >>= function
+          | `Error e ->
+            fail (Failure "Partial failure during a Block.read")
+          | `Ok () ->
+            t.channel.write subblock
+            >>= fun () ->
+            let remaining = remaining - n in
+            if remaining > 0
+            then copy Int64.(add offset (of_int n)) remaining
+            else return () in
+        copy from (Int32.to_int request.Request.len)
+      end
+    | _ ->
+      error t request.Request.handle `EINVAL in
+  loop ()

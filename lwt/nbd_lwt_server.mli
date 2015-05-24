@@ -41,6 +41,10 @@ val negotiate_end : [ `Pending ] t -> size -> Nbd.PerExportFlag.t list -> [ `Con
     returning the [size] and [flags] to the client. The connection can now be used
     for I/O. *)
 
+val serve_forever : [ `Pending ] t ->  (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
+(** [serve_forever t block b] runs forever processing requests from [t], using [block]
+    device type [b]. *)
+
 val close: 'a t -> unit Lwt.t
 (** [close t] shuts down the connection [t] and frees any allocated resources *)
 
