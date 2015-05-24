@@ -14,7 +14,6 @@
 
 open Lwt
 open Nbd
-open Nbd_lwt_common
 open Nbd_lwt_channel
 
 type size = int64
