@@ -34,13 +34,6 @@ Executable "nbd-tool"
   Install: true
   BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
 
-Executable "nbd-size"
-  CompiledObject: best
-  Path: cli
-  MainIs: nbd_size.ml
-  Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
-
 Executable "test"
   CompiledObject: best
   Path: lib_test

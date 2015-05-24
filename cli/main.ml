@@ -48,6 +48,15 @@ module Impl = struct
     | None -> failwith (Printf.sprintf "Please supply a %s argument" name)
     | Some x -> x
 
+  let size host port export =
+    let res =
+      Nbd_lwt_channel.connect host port
+      >>= fun client ->
+      Nbd_lwt_client.negotiate client export in
+    let (_,size,_) = Lwt_main.run res in
+    Printf.printf "%Ld\n%!" size;
+    `Ok ()
+
   let list common host port =
     let t =
       Nbd_lwt_channel.connect host port
@@ -118,6 +127,20 @@ module Impl = struct
 
 end
 
+let size_cmd =
+  let doc = "Return the size of a disk served over NBD" in
+  let host =
+    let doc = "Hostname of NBD server" in
+    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"hostname") in
+  let port =
+    let doc = "Remote port" in
+    Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port") in
+  let export =
+    let doc = "Name of the export" in
+    Arg.(value & opt string "export" & info [ "export" ] ~doc ~docv:"export") in
+  Term.(ret (pure Impl.size $ host $ port $ export)),
+  Term.info "size" ~version:"1.0.0" ~doc
+
 let serve_cmd =
   let doc = "serve a disk over NBD" in
   let man = [
@@ -154,7 +177,7 @@ let default_cmd =
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
        
-let cmds = [serve_cmd; list_cmd]
+let cmds = [serve_cmd; list_cmd; size_cmd]
 
 let _ =
   match Term.eval_choice default_cmd cmds with 
