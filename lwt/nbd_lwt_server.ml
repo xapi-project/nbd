@@ -28,9 +28,14 @@ type size = int64
 let close t = Lwt_unix.close t.fd
 
 let negotiate fd size flags =
-  let buf = Cstruct.create Negotiate.sizeof in
-  Negotiate.(marshal buf { size; flags });
-  lwt () = really_write fd buf in
+  let buf = Cstruct.create Announcement.sizeof in
+  Announcement.(marshal buf `V1);
+  really_write fd buf
+  >>= fun () ->
+  let buf = Cstruct.create (Negotiate.sizeof `V1) in
+  Negotiate.(marshal buf (V1 { size; flags }));
+  really_write fd buf
+  >>= fun () ->
   let request = Cstruct.create Request.sizeof in
   let reply = Cstruct.create Reply.sizeof in
   let m = Lwt_mutex.create () in
@@ -45,7 +50,7 @@ let next t =
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = 0l };
+      Reply.marshal t.reply { Reply.handle; error = `Ok () };
       lwt () = really_write t.fd t.reply in
       match payload with
       | None -> return ()
@@ -55,7 +60,7 @@ let ok t handle payload =
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = code };
+      Reply.marshal t.reply { Reply.handle; error = `Error code };
       really_write t.fd t.reply
     )
 

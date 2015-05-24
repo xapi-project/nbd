@@ -48,6 +48,23 @@ module Impl = struct
     | None -> failwith (Printf.sprintf "Please supply a %s argument" name)
     | Some x -> x
 
+  let list common host port =
+    let t =
+      Nbd_lwt_client.open_channel host port
+      >>= fun channel ->
+      Nbd_lwt_client.list channel
+      >>= function
+      | `Ok disks ->
+        List.iter print_endline disks;
+        return ()
+      | `Error `Unsupported ->
+        Printf.fprintf stderr "The server does not support the query function.\n%!";
+        exit 1
+      | `Error `Policy ->
+        Printf.fprintf stderr "The server configuration does not permit listing exports.\n%!";
+        exit 2 in
+    `Ok (Lwt_main.run t)
+
   let serve common filename port =
     let filename = require "filename" filename in
     let port = require "port" port in
@@ -86,7 +103,7 @@ module Impl = struct
                 Nbd_lwt_server.ok server request.Request.handle None
               | Command.Read 
               | _ ->
-                Nbd_lwt_server.error server request.Request.handle 1l
+                Nbd_lwt_server.error server request.Request.handle `EINVAL
             done
           with e ->
             Printf.fprintf stderr "Caught %s; closing connection\n%!" (Printexc.to_string e);
@@ -114,13 +131,28 @@ let serve_cmd =
   Term.(ret(pure Impl.serve $ common_options_t $ filename $ port)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
+let list_cmd =
+  let doc = "list the disks exported by an NBD server" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Queries a server and returns a list of known exports. Note older servers may not support the protocol option: this will result in an empty list.";
+  ] @ help in
+  let host =
+    let doc = "Hostname of NBD server" in
+    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"hostname") in
+  let port =
+    let doc = "Remote port" in
+    Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port") in
+  Term.(ret(pure Impl.list $ common_options_t $ host $ port)),
+  Term.info "list" ~sdocs:_common_options ~doc ~man
+
 let default_cmd = 
   let doc = "manipulate NBD clients and servers" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
        
-let cmds = [serve_cmd]
+let cmds = [serve_cmd; list_cmd]
 
 let _ =
   match Term.eval_choice default_cmd cmds with 

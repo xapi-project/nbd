@@ -27,15 +27,21 @@ val open_channel: string -> int -> channel Lwt.t
 (** [open_channel hostname port] connects to host:port and returns
     a channel. *)
 
-val negotiate: channel -> (t * size * Nbd.Flag.t list) Lwt.t
-(** [negotiate channel] takes an already-connected channel and
-    performs the initial protocol negotiation. Returns
-    (remote disk size * flags) *)
+val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
+(** [list channel] returns a list of exports known by the server.
+    `Error `Policy means the server has this function disabled deliberately.
+    `Error `Unsupported means the server is old and does not support the query
+    function. *)
 
-val write : t -> Cstruct.t -> int64 -> unit Lwt.t
+val negotiate: channel -> string -> (t * size * Nbd.PerExportFlag.t list) Lwt.t
+(** [negotiate channel export] takes an already-connected channel,
+    performs the initial protocol negotiation and connects to
+    the named export. Returns (remote disk size * flags) *)
+
+val write : t -> Cstruct.t -> int64 -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
 (** [write t buf dst_offset] writes the whole string [buf] to
     [dst_offset] in the remote disk. *)
 
-val read : t -> int64 -> int32 -> Cstruct.t Lwt.t
+val read : t -> int64 -> int32 -> [ `Ok of Cstruct.t | `Error of Nbd.Error.t ] Lwt.t
 (** [read t offset len] reads [len] bytes from the remote disk starting
     at [offset] *)

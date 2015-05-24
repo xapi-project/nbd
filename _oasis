@@ -12,33 +12,42 @@ Flag lwt
   Default: true
 
 Library nbd
+  CompiledObject: best
   Path: lib
   Modules: Nbd, Nbd_result
-  BuildDepends: cstruct, cstruct.syntax
+  BuildDepends: cstruct, cstruct.syntax, sexplib, sexplib.syntax
 
 Library "nbd-lwt"
+  CompiledObject: best
   Build$: flag(lwt)
   Install$: flag(lwt)
   Path: lwt
   Findlibname: lwt
   FindlibParent: nbd
   Modules: Nbd_lwt_common, Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux
-  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax
+  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt
 
 Executable "nbd-tool"
+  CompiledObject: best
   Path: cli
   MainIs: main.ml
   Install: true
   BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
 
 Executable "nbd-size"
+  CompiledObject: best
   Path: cli
   MainIs: nbd_size.ml
   Install: true
   BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
 
-Executable "nbd-test-lwt"
+Executable "test"
+  CompiledObject: best
   Path: lib_test
-  MainIs: nbd_test_lwt.ml
-  BuildDepends: nbd.lwt
+  MainIs: test.ml
+  BuildDepends: nbd.lwt, oUnit
   Install: false
+
+Test test
+  Command:            ./test.native
+  Run:                true
