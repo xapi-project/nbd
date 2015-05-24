@@ -1,6 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ee9d20f102df0ed5f15f54970ef3e4ef)
-Nbd_lwt_common
+# DO NOT EDIT (digest: 6c30ad640059755658bf3e6ac9a66b9b)
 Nbd_lwt_client
 Nbd_lwt_server
 Nbd_lwt_mux

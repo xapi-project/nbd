@@ -84,7 +84,8 @@ module Impl = struct
         lwt (fd, _) = Lwt_unix.accept sock in
         (* Background thread per connection *)
         let _ =
-          lwt server = Nbd_lwt_server.negotiate fd size flags in
+          let channel = Nbd_lwt_channel.of_fd fd in
+          lwt server = Nbd_lwt_server.negotiate channel size flags in
           try_lwt
             let block_size = 32768 in
             let block = Cstruct.create block_size in
@@ -96,7 +97,8 @@ module Impl = struct
                 let rec loop remaining =
                   let n = min block_size remaining in
                   let subblock = Cstruct.sub block 0 n in
-                  lwt () = Nbd_lwt_common.really_read fd subblock in
+                  channel.read subblock
+                  >>= fun () ->
                   let remaining = remaining - n in
                   if remaining > 0 then loop remaining else return () in
                 lwt () = loop (Int32.to_int request.Request.len) in

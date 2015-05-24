@@ -24,7 +24,7 @@ Library "nbd-lwt"
   Path: lwt
   Findlibname: lwt
   FindlibParent: nbd
-  Modules: Nbd_lwt_common, Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux, Nbd_lwt_channel
+  Modules: Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux, Nbd_lwt_channel
   BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt
 
 Executable "nbd-tool"

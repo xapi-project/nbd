@@ -15,6 +15,7 @@
 type channel = {
   read:  Cstruct.t -> unit Lwt.t;
   write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
 }
 
 val connect: string -> int -> channel Lwt.t

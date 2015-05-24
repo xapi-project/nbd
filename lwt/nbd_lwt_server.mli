@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Nbd_lwt_channel
 
 type t
 (** An open connection to an NBD client *)
@@ -18,8 +19,8 @@ type t
 type size = int64
 (** The size of a remote disk *)
 
-val negotiate : Lwt_unix.file_descr -> size  -> Nbd.PerExportFlag.t list -> t Lwt.t
-(** [negotiate fd size flags] tells the client connected to [fd] about the
+val negotiate : channel -> size  -> Nbd.PerExportFlag.t list -> t Lwt.t
+(** [negotiate channel size flags] tells the client connected to [channel] about the
     disk [size] and [flags]. When negotiate finishes, the client will start
     sending requests. *)
 

@@ -16,13 +16,15 @@ open Lwt
 
 type channel = {
   read: Cstruct.t -> unit Lwt.t;
-  write:  Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
 }
 
 let of_fd fd =
   let read = Lwt_cstruct.(complete (read fd)) in
   let write = Lwt_cstruct.(complete (write fd)) in
-  { read; write }
+  let close () = Lwt_unix.close fd in
+  { read; write; close }
 
 let connect hostname port =
   let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
