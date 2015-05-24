@@ -65,14 +65,16 @@ module PerExportFlag = struct
             nbd_flag_rotational, Rotational;
             nbd_flag_send_trim, Send_trim; ])
 
-  let to_int32 flags =
+  let to_int flags =
     let one = function
       | Read_only -> nbd_flag_read_only
       | Send_flush -> nbd_flag_send_flush
       | Send_fua -> nbd_flag_send_fua
       | Rotational -> nbd_flag_rotational
       | Send_trim -> nbd_flag_send_trim in
-    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+    List.fold_left (lor) nbd_flag_has_flags (List.map one flags)
+
+  let to_int32 flags = Int32.of_int (to_int flags)
 end
 
 module GlobalFlag = struct
@@ -401,6 +403,10 @@ module DiskInfo = struct
     let size = get_t_size buf in
     let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
     return { size; flags }
+
+  let marshal buf t =
+    set_t_size buf t.size;
+    set_t_flags buf (PerExportFlag.to_int t.flags)
 end
 
 (* In the 'fixed new' style handshake, all options apart from ExportName

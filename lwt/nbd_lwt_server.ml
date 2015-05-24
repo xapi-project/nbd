@@ -112,7 +112,12 @@ let negotiate_begin channel ?offer () =
       end in
   loop ()
 
-let negotiate_end t size flags = fail (Failure "unimplemented")
+let negotiate_end (t: [ `Pending ] t)  size flags : [ `Connected ] t Lwt.t =
+  let buf = Cstruct.create DiskInfo.sizeof in
+  DiskInfo.(marshal buf { size; flags });
+  t.channel.write buf
+  >>= fun () ->
+  return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
 
 let next t =
   t.channel.read t.request

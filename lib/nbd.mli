@@ -165,6 +165,7 @@ module DiskInfo: sig
   val sizeof: int
 
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val marshal: Cstruct.t -> t -> unit
 end
 
 module OptionResponseHeader: sig
