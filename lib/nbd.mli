@@ -165,12 +165,13 @@ module DiskInfo: sig
   val sizeof: int
 
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val marshal: Cstruct.t -> t -> unit
 end
 
 module OptionResponseHeader: sig
   type t = {
     request_type: Option.t;
-    reply_type: OptionResponse.t;
+    response_type: OptionResponse.t;
     length: int32;
   } with sexp
 
@@ -179,6 +180,7 @@ module OptionResponseHeader: sig
   val to_string: t -> string
 
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val marshal: Cstruct.t -> t -> unit
 end
 
 module Server: sig

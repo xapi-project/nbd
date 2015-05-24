@@ -65,14 +65,16 @@ module PerExportFlag = struct
             nbd_flag_rotational, Rotational;
             nbd_flag_send_trim, Send_trim; ])
 
-  let to_int32 flags =
+  let to_int flags =
     let one = function
       | Read_only -> nbd_flag_read_only
       | Send_flush -> nbd_flag_send_flush
       | Send_fua -> nbd_flag_send_fua
       | Rotational -> nbd_flag_rotational
       | Send_trim -> nbd_flag_send_trim in
-    Int32.of_int (List.fold_left (lor) nbd_flag_has_flags (List.map one flags))
+    List.fold_left (lor) nbd_flag_has_flags (List.map one flags)
+
+  let to_int32 flags = Int32.of_int (to_int flags)
 end
 
 module GlobalFlag = struct
@@ -401,6 +403,10 @@ module DiskInfo = struct
     let size = get_t_size buf in
     let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
     return { size; flags }
+
+  let marshal buf t =
+    set_t_size buf t.size;
+    set_t_flags buf (PerExportFlag.to_int t.flags)
 end
 
 (* In the 'fixed new' style handshake, all options apart from ExportName
@@ -409,13 +415,13 @@ module OptionResponseHeader = struct
   cstruct t {
     uint64_t magic;
     uint32_t request_type;
-    uint32_t reply_type;
+    uint32_t response_type;
     uint32_t length;
   } as big_endian
 
   type t = {
     request_type: Option.t;
-    reply_type: OptionResponse.t;
+    response_type: OptionResponse.t;
     length: int32;
   } with sexp
 
@@ -432,9 +438,15 @@ module OptionResponseHeader = struct
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
       else return () ) >>= fun () ->
     let request_type = Option.of_int32 (get_t_request_type buf) in
-    let reply_type = OptionResponse.of_int32 (get_t_reply_type buf) in
+    let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
     let length = get_t_length buf in
-    return { request_type; reply_type; length }
+    return { request_type; response_type; length }
+
+  let marshal buf t =
+    set_t_magic buf expected_magic;
+    set_t_request_type buf (Option.to_int32 t.request_type);
+    set_t_response_type buf (OptionResponse.to_int32 t.response_type);
+    set_t_length buf t.length
 end
 
 (* A description of an export, sent in response to a List option *)

@@ -24,22 +24,15 @@ Library "nbd-lwt"
   Path: lwt
   Findlibname: lwt
   FindlibParent: nbd
-  Modules: Nbd_lwt_common, Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux
-  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt
+  Modules: Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux, Nbd_lwt_channel
+  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt, mirage-types.lwt, io-page.unix, io-page
 
 Executable "nbd-tool"
   CompiledObject: best
   Path: cli
   MainIs: main.ml
   Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
-
-Executable "nbd-size"
-  CompiledObject: best
-  Path: cli
-  MainIs: nbd_size.ml
-  Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax
+  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax, mirage-block-unix
 
 Executable "test"
   CompiledObject: best

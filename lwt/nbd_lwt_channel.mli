@@ -12,12 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
+type channel = {
+  read:  Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
+}
 
-val really_read: Lwt_unix.file_descr -> Cstruct.t -> unit Lwt.t
-(** [really_read fd buffer] fills the [buffer] with data from [fd]
-    or fails with Failure *)
+val connect: string -> int -> channel Lwt.t
+(** [connect hostname port] connects to host:port and returns
+    a channel. *)
 
-val really_write: Lwt_unix.file_descr -> Cstruct.t -> unit Lwt.t
-(** [really_write fd buffer] writes the contents of [buffer] to
-    [fd] *)
+val of_fd: Lwt_unix.file_descr -> channel

@@ -14,23 +14,9 @@
 
 open Lwt
 open Nbd
-open Nbd_lwt_common
+open Nbd_lwt_channel
 
 type size = int64
-
-type channel = {
-  read: Cstruct.t -> unit Lwt.t;
-  write:  Cstruct.t -> unit Lwt.t;
-}
-
-let open_channel hostname port =
-  let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
-  lwt host_info = Lwt_unix.gethostbyname hostname in
-  let server_address = host_info.Lwt_unix.h_addr_list.(0) in
-  lwt () = Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)) in
-  let read = Lwt_cstruct.(complete (read socket)) in
-  let write = Lwt_cstruct.(complete (write socket)) in
-  return { read; write }
 
 let get_handle =
   let next = ref 0L in
@@ -119,10 +105,10 @@ let list channel =
         >>= fun () ->
         match OptionResponseHeader.unmarshal buf with
         | `Error e -> fail e
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Ack } -> return (`Ok acc)
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Policy } ->
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
           return (`Error `Policy)
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Server; length } ->
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
           let buf' = Cstruct.create (Int32.to_int length) in
           channel.read buf'
           >>= fun () ->
