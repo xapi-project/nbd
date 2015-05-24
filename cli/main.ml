@@ -89,35 +89,15 @@ module Impl = struct
         (* Background thread per connection *)
         let _ =
           let channel = Nbd_lwt_channel.of_fd fd in
-          Nbd_lwt_server.negotiate_begin channel ()
+          Nbd_lwt_server.connect channel ()
           >>= fun (name, t) ->
-          Nbd_lwt_server.negotiate_end t size flags
-          >>= fun server ->
-          try_lwt
-            let block_size = 32768 in
-            let block = Cstruct.create block_size in
-            while_lwt true do
-              lwt request = Nbd_lwt_server.next server in
-              Printf.fprintf stderr "%s\n%!" (Request.to_string request);
-              match request.Request.ty with
-              | Command.Write ->
-                let rec loop remaining =
-                  let n = min block_size remaining in
-                  let subblock = Cstruct.sub block 0 n in
-                  channel.Nbd_lwt_channel.read subblock
-                  >>= fun () ->
-                  let remaining = remaining - n in
-                  if remaining > 0 then loop remaining else return () in
-                lwt () = loop (Int32.to_int request.Request.len) in
-                Nbd_lwt_server.ok server request.Request.handle None
-              | Command.Read 
-              | _ ->
-                Nbd_lwt_server.error server request.Request.handle `EINVAL
-            done
-          with e ->
-            Printf.fprintf stderr "Caught %s; closing connection\n%!" (Printexc.to_string e);
-            lwt () = Nbd_lwt_server.close server in
-            return () in
+          Block.connect filename
+          >>= function
+          | `Error _ ->
+            Printf.fprintf stderr "Failed to open %s\n%!" filename;
+            exit 1
+          | `Ok b ->
+            Nbd_lwt_server.serve t (module Block) b in
         return ()
       done in
     Lwt_main.run t;

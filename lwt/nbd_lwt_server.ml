@@ -19,7 +19,7 @@ open Nbd_lwt_channel
 
 type name = string
 
-type 'a t = {
+type t = {
   channel: channel;
   request: Cstruct.t; (* buffer used to read the request headers *)
   reply: Cstruct.t;   (* buffer used to write the response headers *)
@@ -36,18 +36,7 @@ let make channel =
   let m = Lwt_mutex.create () in
   { channel; request; reply; m }
 
-let negotiate channel size flags =
-  let buf = Cstruct.create Announcement.sizeof in
-  Announcement.(marshal buf `V1);
-  channel.write buf
-  >>= fun () ->
-  let buf = Cstruct.create (Negotiate.sizeof `V1) in
-  Negotiate.(marshal buf (V1 { size; flags }));
-  channel.write buf
-  >>= fun () ->
-  return (make channel)
-
-let negotiate_begin channel ?offer () =
+let connect channel ?offer () =
   let buf = Cstruct.create Announcement.sizeof in
   Announcement.(marshal buf `V2);
   channel.write buf
@@ -112,7 +101,7 @@ let negotiate_begin channel ?offer () =
       end in
   loop ()
 
-let negotiate_end (t: [ `Pending ] t)  size flags : [ `Connected ] t Lwt.t =
+let negotiate_end t  size flags : t Lwt.t =
   let buf = Cstruct.create DiskInfo.sizeof in
   DiskInfo.(marshal buf { size; flags });
   t.channel.write buf
@@ -144,7 +133,7 @@ let error t handle code =
       t.channel.write t.reply
     )
 
-let serve_forever t (type t) block (b:t) =
+let serve t (type t) block (b:t) =
   let module Block = (val block: V1_LWT.BLOCK with type t = t) in
 
   Block.get_info b
