@@ -106,10 +106,10 @@ let list channel =
         >>= fun () ->
         match OptionResponseHeader.unmarshal buf with
         | `Error e -> fail e
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Ack } -> return (`Ok acc)
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Policy } ->
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
           return (`Error `Policy)
-        | `Ok { OptionResponseHeader.reply_type = OptionResponse.Server; length } ->
+        | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
           let buf' = Cstruct.create (Int32.to_int length) in
           channel.read buf'
           >>= fun () ->

@@ -409,13 +409,13 @@ module OptionResponseHeader = struct
   cstruct t {
     uint64_t magic;
     uint32_t request_type;
-    uint32_t reply_type;
+    uint32_t response_type;
     uint32_t length;
   } as big_endian
 
   type t = {
     request_type: Option.t;
-    reply_type: OptionResponse.t;
+    response_type: OptionResponse.t;
     length: int32;
   } with sexp
 
@@ -432,9 +432,15 @@ module OptionResponseHeader = struct
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
       else return () ) >>= fun () ->
     let request_type = Option.of_int32 (get_t_request_type buf) in
-    let reply_type = OptionResponse.of_int32 (get_t_reply_type buf) in
+    let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
     let length = get_t_length buf in
-    return { request_type; reply_type; length }
+    return { request_type; response_type; length }
+
+  let marshal buf t =
+    set_t_magic buf expected_magic;
+    set_t_request_type buf (Option.to_int32 t.request_type);
+    set_t_response_type buf (OptionResponse.to_int32 t.response_type);
+    set_t_length buf t.length
 end
 
 (* A description of an export, sent in response to a List option *)
