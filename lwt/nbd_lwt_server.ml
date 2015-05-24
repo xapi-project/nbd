@@ -189,7 +189,7 @@ let serve t (type t) block (b:t) =
             let remaining = remaining - n in
             if remaining > 0
             then copy Int64.(add offset (of_int n)) remaining
-            else return () in
+            else loop () in
         copy from (Int32.to_int request.Request.len)
       end
     | _ ->
