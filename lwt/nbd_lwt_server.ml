@@ -143,12 +143,11 @@ let serve t (type t) block (b:t) =
   negotiate_end t size flags
   >>= fun t ->
 
-  let block_size = 32768 in
-  let block = Cstruct.create block_size in
+  let block = Io_page.(to_cstruct (get 128)) in
+  let block_size = Cstruct.len block in
   let rec loop () =
     next t
     >>= fun request ->
-    Printf.fprintf stderr "%s\n%!" (Request.to_string request);
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->

@@ -19,6 +19,7 @@ depends: [
   "cmdliner"
   "sexplib"
   "mirage-block-unix"
+  "io-page"
   "mirage"
 ]
 tags: [ "org:mirage" "org:xapi-project" ]
