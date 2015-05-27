@@ -42,6 +42,8 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     secondary: Secondary.t;
     primary_block_size: int; (* number of primary sectors per info.sector_size *)
     secondary_block_size: int; (* number of secondary sectors per info.sector_size *)
+    mutable dirty: Extents.t; (* dirty blocks *)
+    mutable synchronous: bool; (* true if we've switched to synchronous replication *)
     info: info;
     mutable disconnected: bool;
   }
@@ -87,12 +89,27 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       let read_write = primary_info.Primary.read_write in
       let size_sectors = Int64.(div primary_bytes (of_int sector_size)) in
       let info = { read_write; sector_size; size_sectors } in
-      return (`Ok { primary; secondary; primary_block_size; secondary_block_size; info; disconnected })
+      let dirty = Extents.empty in
+      let synchronous = false in
+      return (`Ok { primary; secondary; primary_block_size; secondary_block_size; info; disconnected; dirty; synchronous })
 
   let read t ofs bufs =
+    let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
     Primary.read t.primary ofs bufs
 
-  let write t ofs bufs = return (`Error `Unimplemented)
+  let write t ofs bufs = match t.synchronous with
+    | true -> return (`Error `Unimplemented)
+    | false ->
+      let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
+      Primary.write t.primary primary_ofs bufs
+      >>= function
+      | `Error e -> return (`Error e)
+      | `Ok () ->
+        let total_length_bytes = List.(fold_left (+) 0 (map Cstruct.len bufs)) in
+        let length = total_length_bytes / t.info.sector_size in
+        let start = Int64.(div ofs (of_int t.info.sector_size)) in
+        t.dirty <- Extents.add ~start ~length t.dirty;
+        return (`Ok ())
 
   let disconnect t =
     t.disconnected <- true;
