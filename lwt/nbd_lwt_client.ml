@@ -166,6 +166,13 @@ let negotiate channel export =
 
 type page_aligned_buffer = Cstruct.t
 
+type error = [
+  | `Unknown of string
+  | `Unimplemented
+  | `Is_read_only
+  | `Disconnected
+]
+
 let write_one t from buffer =
   let handle = get_handle () in
   let req_hdr = {
@@ -188,6 +195,9 @@ let write t from buffers =
     | `Error e -> return (`Error e)
     end in
   loop from buffers
+  >>= function
+  | `Ok x -> return (`Ok x)
+  | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
 
 let read t from len =
   let handle = get_handle () in
