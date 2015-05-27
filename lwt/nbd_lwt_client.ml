@@ -164,7 +164,7 @@ let negotiate channel export =
       end
     end
 
-let write t data from =
+let write t from data =
   let handle = get_handle () in
   let req_hdr = {
     Request.ty = Command.Write;

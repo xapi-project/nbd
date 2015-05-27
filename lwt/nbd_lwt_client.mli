@@ -30,8 +30,8 @@ val negotiate: channel -> string -> (t * size * Nbd.PerExportFlag.t list) Lwt.t
     performs the initial protocol negotiation and connects to
     the named export. Returns (remote disk size * flags) *)
 
-val write : t -> Cstruct.t -> int64 -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
-(** [write t buf dst_offset] writes the whole string [buf] to
+val write : t -> int64 -> Cstruct.t -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
+(** [write t dst_offset buf] writes the whole buffer [buf] to
     [dst_offset] in the remote disk. *)
 
 val read : t -> int64 -> int32 -> [ `Ok of Cstruct.t | `Error of Nbd.Error.t ] Lwt.t
