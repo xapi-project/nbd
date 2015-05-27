@@ -72,7 +72,11 @@ end
 
 module Mux = Nbd_lwt_mux.Mux(NbdRpc)
 
-type t = Mux.client
+type t = {
+  client: Mux.client;
+  read_write: bool;
+  size_bytes: int64;
+}
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
@@ -133,7 +137,10 @@ let negotiate channel export =
     | `Error e -> fail e
     | `Ok (Negotiate.V1 x) ->
       Mux.create channel
-      >>= fun t ->
+      >>= fun client ->
+      let read_write = not (List.mem Nbd.PerExportFlag.Read_only x.Negotiate.flags) in
+      let size_bytes = x.Negotiate.size in
+      let t = { client; read_write; size_bytes } in
       return (t, x.Negotiate.size, x.Negotiate.flags)
     | `Ok (Negotiate.V2 x) ->
       let buf = Cstruct.create NegotiateResponse.sizeof in
@@ -156,7 +163,10 @@ let negotiate channel export =
       | `Error e -> fail e
       | `Ok x ->
         Mux.create channel
-        >>= fun t ->
+        >>= fun client ->
+        let read_write = not (List.mem Nbd.PerExportFlag.Read_only x.DiskInfo.flags) in
+        let size_bytes = x.DiskInfo.size in
+        let t = { client; read_write; size_bytes } in
         return (t, x.DiskInfo.size, x.DiskInfo.flags)
       | `Ok _ ->
         fail (Failure "Expected to receive size and flags from the server")
@@ -179,7 +189,7 @@ let write_one t from buffer =
     handle; from;
     len = Int32.of_int (Cstruct.len buffer)
   } in
-  Mux.rpc req_hdr (Some buffer) [] t
+  Mux.rpc req_hdr (Some buffer) [] t.client
 
 let write t from buffers =
   let rec loop from = function
@@ -203,7 +213,7 @@ let read t from buffers =
     handle; from; len
   } in
   let req_body = None in
-  Mux.rpc req_hdr req_body buffers t
+  Mux.rpc req_hdr req_body buffers t.client
   >>= function
   | `Ok x -> return (`Ok x)
   | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
