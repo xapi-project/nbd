@@ -19,3 +19,6 @@ val connect: string -> int -> channel Lwt.t
     a channel. *)
 
 val of_fd: Lwt_unix.file_descr -> channel
+
+module Client: S.CLIENT
+module Server: S.SERVER

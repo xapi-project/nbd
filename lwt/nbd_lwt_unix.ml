@@ -29,3 +29,6 @@ let connect hostname port =
   Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
   >>= fun () ->
   return (of_fd socket)
+
+module Client = Nbd.Client
+module Server = Nbd.Server
