@@ -19,7 +19,7 @@ Library "nbd-lwt"
   Path: lwt
   Findlibname: lwt
   FindlibParent: nbd
-  Modules: Nbd_lwt_channel
+  Modules: Nbd_lwt_unix
   BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt, mirage-types.lwt, io-page.unix, io-page
 
 Executable "nbd-tool"

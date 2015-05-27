@@ -50,7 +50,7 @@ module Impl = struct
 
   let size host port export =
     let res =
-      Nbd_lwt_channel.connect host port
+      Nbd_lwt_unix.connect host port
       >>= fun client ->
       Client.negotiate client export in
     let (_,size,_) = Lwt_main.run res in
@@ -59,7 +59,7 @@ module Impl = struct
 
   let list common host port =
     let t =
-      Nbd_lwt_channel.connect host port
+      Nbd_lwt_unix.connect host port
       >>= fun channel ->
       Client.list channel
       >>= function
@@ -88,7 +88,7 @@ module Impl = struct
         lwt (fd, _) = Lwt_unix.accept sock in
         (* Background thread per connection *)
         let _ =
-          let channel = Nbd_lwt_channel.of_fd fd in
+          let channel = Nbd_lwt_unix.of_fd fd in
           Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
@@ -117,7 +117,7 @@ module Impl = struct
         lwt (fd, _) = Lwt_unix.accept sock in
         (* Background thread per connection *)
         let _ =
-          let channel = Nbd_lwt_channel.of_fd fd in
+          let channel = Nbd_lwt_unix.of_fd fd in
           Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
