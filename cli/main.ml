@@ -125,8 +125,11 @@ module Impl = struct
           | `Error _ ->
             Printf.fprintf stderr "Failed to open %s\n%!" filename;
             exit 1
-          | `Ok b ->
-            Server.serve t (module Block) b in
+          | `Ok primary ->
+            (* Connect to the secondary *)
+            let module M = Mirror.Make(Block)(Block) in
+            let m = M.connect primary primary in
+            Server.serve t (module M) m in
         return ()
       done in
     Lwt_main.run t;
@@ -162,6 +165,25 @@ let serve_cmd =
   Term.(ret(pure Impl.serve $ common_options_t $ filename $ port)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
+let mirror_cmd =
+  let doc = "serve a disk over NBD while mirroring" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Create a server which allows a client to access a disk using NBD.";
+    `P "The server will pass I/O through to a primary disk underneath, while also mirroring the contents to a secondary.";
+  ] @ help in
+  let filename =
+    let doc = "Disk (file or block device) to expose" in
+    Arg.(value & pos 0 (some file) None & info [] ~doc) in
+  let secondary =
+    let doc = "NBD URL for the secondary disk" in
+    Arg.(value & pos 1 (some string) None & info [] ~doc) in
+  let port =
+    let doc = "Local port to listen for connections on" in
+    Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
+  Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary)),
+  Term.info "mirror" ~sdocs:_common_options ~doc ~man
+
 let list_cmd =
   let doc = "list the disks exported by an NBD server" in
   let man = [
@@ -183,7 +205,7 @@ let default_cmd =
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
        
-let cmds = [serve_cmd; list_cmd; size_cmd]
+let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
 
 let _ =
   match Term.eval_choice default_cmd cmds with 
