@@ -19,6 +19,9 @@ type t
 type size = int64
 (** The size of a remote disk *)
 
+type page_aligned_buffer
+(** Abstract type for a page-aligned memory buffer *)
+
 val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
 (** [list channel] returns a list of exports known by the server.
     `Error `Policy means the server has this function disabled deliberately.
@@ -30,8 +33,8 @@ val negotiate: channel -> string -> (t * size * Nbd.PerExportFlag.t list) Lwt.t
     performs the initial protocol negotiation and connects to
     the named export. Returns (remote disk size * flags) *)
 
-val write : t -> int64 -> Cstruct.t -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
-(** [write t dst_offset buf] writes the whole buffer [buf] to
+val write : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
+(** [write t dst_offset buffers] writes the sequence of [buffers] to
     [dst_offset] in the remote disk. *)
 
 val read : t -> int64 -> int32 -> [ `Ok of Cstruct.t | `Error of Nbd.Error.t ] Lwt.t

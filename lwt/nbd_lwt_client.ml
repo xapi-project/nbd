@@ -164,17 +164,30 @@ let negotiate channel export =
       end
     end
 
-let write t from data =
+type page_aligned_buffer = Cstruct.t
+
+let write_one t from buffer =
   let handle = get_handle () in
   let req_hdr = {
     Request.ty = Command.Write;
     handle; from;
-    len = Int32.of_int (Cstruct.len data)
+    len = Int32.of_int (Cstruct.len buffer)
   } in
-  Mux.rpc req_hdr (Some data) t
+  Mux.rpc req_hdr (Some buffer) t
   >>= function
   | _, `Ok _ -> return (`Ok ())
   | _, `Error e -> return (`Error e)
+
+let write t from buffers =
+  let rec loop from = function
+  | [] -> return (`Ok ())
+  | b :: bs ->
+    begin write_one t from b
+    >>= function
+    | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
+    | `Error e -> return (`Error e)
+    end in
+  loop from buffers
 
 let read t from len =
   let handle = get_handle () in
