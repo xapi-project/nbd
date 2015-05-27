@@ -1,5 +1,5 @@
 (*
- * Copyright (C) 2011-2013 Citrix Inc
+ * Copyright (C) 2011-2015 Citrix Inc
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published
@@ -103,6 +103,34 @@ module Impl = struct
     Lwt_main.run t;
     `Ok ()
 
+  let mirror common filename port secondary =
+    let filename = require "filename" filename in
+    let stats = Unix.LargeFile.stat filename in
+    let size = stats.Unix.LargeFile.st_size in
+    let flags = [] in
+    let t =
+      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+      let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
+      Lwt_unix.bind sock sockaddr;
+      Lwt_unix.listen sock 5;
+      while_lwt true do
+        lwt (fd, _) = Lwt_unix.accept sock in
+        (* Background thread per connection *)
+        let _ =
+          let channel = Nbd_lwt_channel.of_fd fd in
+          Nbd_lwt_server.connect channel ()
+          >>= fun (name, t) ->
+          Block.connect filename
+          >>= function
+          | `Error _ ->
+            Printf.fprintf stderr "Failed to open %s\n%!" filename;
+            exit 1
+          | `Ok b ->
+            Nbd_lwt_server.serve t (module Block) b in
+        return ()
+      done in
+    Lwt_main.run t;
+    `Ok ()
 end
 
 let size_cmd =

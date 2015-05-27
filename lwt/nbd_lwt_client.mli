@@ -30,6 +30,17 @@ type error = [
 ]
 (** IO operation errors *)
 
+type info = {
+  read_write: bool;    (** True if we can write, false if read/only *)
+  sector_size: int;    (** Octets per sector *)
+  size_sectors: int64; (** Total sectors per device *)
+}
+(** Characteristics of the block device. Note some devices may be able
+    to make themselves bigger over time. *)
+
+val get_info: t -> info Lwt.t
+(** Query the characteristics of a specific block device *)
+
 val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
 (** [list channel] returns a list of exports known by the server.
     `Error `Policy means the server has this function disabled deliberately.

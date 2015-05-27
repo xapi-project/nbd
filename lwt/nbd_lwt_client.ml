@@ -72,11 +72,25 @@ end
 
 module Mux = Nbd_lwt_mux.Mux(NbdRpc)
 
+type info = {
+  read_write: bool;
+  sector_size: int;
+  size_sectors: int64;
+}
+
 type t = {
   client: Mux.client;
-  read_write: bool;
-  size_bytes: int64;
+  info: info;
 }
+
+let make channel size_bytes flags =
+  Mux.create channel
+  >>= fun client ->
+  let read_write = not (List.mem Nbd.PerExportFlag.Read_only flags) in
+  let sector_size = 1 in (* Note: NBD has no notion of a sector *)
+  let size_sectors = size_bytes in
+  let info = { read_write; sector_size; size_sectors } in
+  return { client; info }
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
@@ -136,11 +150,8 @@ let negotiate channel export =
     begin match Negotiate.unmarshal buf kind with
     | `Error e -> fail e
     | `Ok (Negotiate.V1 x) ->
-      Mux.create channel
-      >>= fun client ->
-      let read_write = not (List.mem Nbd.PerExportFlag.Read_only x.Negotiate.flags) in
-      let size_bytes = x.Negotiate.size in
-      let t = { client; read_write; size_bytes } in
+      make channel x.Negotiate.size x.Negotiate.flags
+      >>= fun t ->
       return (t, x.Negotiate.size, x.Negotiate.flags)
     | `Ok (Negotiate.V2 x) ->
       let buf = Cstruct.create NegotiateResponse.sizeof in
@@ -162,11 +173,8 @@ let negotiate channel export =
       begin match DiskInfo.unmarshal buf with
       | `Error e -> fail e
       | `Ok x ->
-        Mux.create channel
-        >>= fun client ->
-        let read_write = not (List.mem Nbd.PerExportFlag.Read_only x.DiskInfo.flags) in
-        let size_bytes = x.DiskInfo.size in
-        let t = { client; read_write; size_bytes } in
+        make channel x.DiskInfo.size x.DiskInfo.flags
+        >>= fun t ->
         return (t, x.DiskInfo.size, x.DiskInfo.flags)
       | `Ok _ ->
         fail (Failure "Expected to receive size and flags from the server")
@@ -181,6 +189,8 @@ type error = [
   | `Is_read_only
   | `Disconnected
 ]
+
+let get_info t = return t.info
 
 let write_one t from buffer =
   let handle = get_handle () in
