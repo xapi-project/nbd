@@ -45,6 +45,6 @@ val write : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of 
 (** [write t dst_offset buffers] writes the sequence of [buffers] to
     [dst_offset] in the remote disk. *)
 
-val read : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
+val read : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of error ] Lwt.t
 (** [read t offset len] reads [len] bytes from the remote disk starting
     at [offset] *)

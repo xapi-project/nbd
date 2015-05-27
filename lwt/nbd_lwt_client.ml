@@ -204,3 +204,6 @@ let read t from buffers =
   } in
   let req_body = None in
   Mux.rpc req_hdr req_body buffers t
+  >>= function
+  | `Ok x -> return (`Ok x)
+  | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
