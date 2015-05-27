@@ -11,9 +11,14 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Nbd
-open Channel
+
 open Lwt
+
+type channel = {
+  read: Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
+}
 
 let of_fd fd =
   let read = Lwt_cstruct.(complete (read fd)) in

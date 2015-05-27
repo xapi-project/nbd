@@ -24,21 +24,21 @@ module type RPC = sig
   type response_body
 
   val recv_hdr : transport -> (id option * response_hdr) Lwt.t
-  val recv_body : transport -> request_hdr -> response_hdr -> response_body -> [ `Ok of unit | `Error of Nbd.Error.t ] Lwt.t
+  val recv_body : transport -> request_hdr -> response_hdr -> response_body -> [ `Ok of unit | `Error of Protocol.Error.t ] Lwt.t
   val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
   val id_of_request : request_hdr -> id
   val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
 end
 
 
-module Mux = functor (R : RPC) -> struct
+module Make = functor (R : RPC) -> struct
   exception Unexpected_id of R.id
   exception Shutdown
 
   type client = {
     transport : R.transport;
     outgoing_mutex: Lwt_mutex.t;
-    id_to_wakeup : (R.id, R.request_hdr * ([ `Ok of unit | `Error of Nbd.Error.t ] Lwt.u) * R.response_body) Hashtbl.t;
+    id_to_wakeup : (R.id, R.request_hdr * ([ `Ok of unit | `Error of Protocol.Error.t ] Lwt.u) * R.response_body) Hashtbl.t;
     mutable dispatcher_thread : unit Lwt.t;
     mutable dispatcher_shutting_down : bool;
   }
@@ -143,7 +143,7 @@ end
 
 
 
-module T = Mux(TestPacket) 
+module T = Make(TestPacket) 
 
 let test () =
 	let transport = TestPacket.create () in

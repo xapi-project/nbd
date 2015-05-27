@@ -7,24 +7,19 @@ License: LGPL-2.1 with OCaml linking exception
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
 
-Flag lwt
-  Description: build the Lwt library
-  Default: true
-
 Library nbd
+  Pack: true
   CompiledObject: best
   Path: lib
-  Modules: Nbd, Nbd_result
-  BuildDepends: cstruct, cstruct.syntax, sexplib, sexplib.syntax
+  Modules: Protocol, Result, Client, Channel, Server, Mux
+  BuildDepends: cstruct, cstruct.syntax, sexplib, sexplib.syntax, lwt, lwt.syntax, mirage-types.lwt, io-page
 
 Library "nbd-lwt"
   CompiledObject: best
-  Build$: flag(lwt)
-  Install$: flag(lwt)
   Path: lwt
   Findlibname: lwt
   FindlibParent: nbd
-  Modules: Nbd_lwt_client, Nbd_lwt_server, Nbd_lwt_mux, Nbd_lwt_channel
+  Modules: Nbd_lwt_channel
   BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt, mirage-types.lwt, io-page.unix, io-page
 
 Executable "nbd-tool"

@@ -13,8 +13,8 @@
  *)
 
 open Lwt
-open Nbd
-open Nbd_lwt_channel
+open Protocol
+open Channel
 
 type size = int64
 
@@ -70,7 +70,7 @@ module NbdRpc = struct
     fail (Failure (Printf.sprintf "Unexpected response from server: %s" (Reply.to_string reply)))
 end
 
-module Mux = Nbd_lwt_mux.Mux(NbdRpc)
+module Rpc = Mux.Make(NbdRpc)
 
 type info = {
   read_write: bool;
@@ -79,7 +79,7 @@ type info = {
 }
 
 type t = {
-  client: Mux.client;
+  client: Rpc.client;
   info: info;
   mutable disconnected: bool;
 }
@@ -87,9 +87,9 @@ type t = {
 type id = unit
 
 let make channel size_bytes flags =
-  Mux.create channel
+  Rpc.create channel
   >>= fun client ->
-  let read_write = not (List.mem Nbd.PerExportFlag.Read_only flags) in
+  let read_write = not (List.mem PerExportFlag.Read_only flags) in
   let sector_size = 1 in (* Note: NBD has no notion of a sector *)
   let size_sectors = size_bytes in
   let info = { read_write; sector_size; size_sectors } in
@@ -205,7 +205,7 @@ let write_one t from buffer =
     handle; from;
     len = Int32.of_int (Cstruct.len buffer)
   } in
-  Mux.rpc req_hdr (Some buffer) [] t.client
+  Rpc.rpc req_hdr (Some buffer) [] t.client
 
 let write t from buffers =
   if t.disconnected
@@ -222,7 +222,7 @@ let write t from buffers =
     loop from buffers
     >>= function
     | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let read t from buffers =
@@ -236,10 +236,10 @@ let read t from buffers =
       handle; from; len
     } in
     let req_body = None in
-    Mux.rpc req_hdr req_body buffers t.client
+    Rpc.rpc req_hdr req_body buffers t.client
     >>= function
     | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let disconnect t =

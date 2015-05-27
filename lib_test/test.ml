@@ -91,7 +91,7 @@ let make_client_channel n =
     else write buf
   | [] -> fail (Failure "Client tried to write but the stream was empty") in
   let close () = return () in
-  { Nbd_lwt_channel.read; write; close }
+  { Channel.read; write; close }
 
 let client_negotiation =
   "Perform a negotiation using the second version of the protocol from the
@@ -99,7 +99,7 @@ let client_negotiation =
   >:: fun () ->
   let t =
     let channel = make_client_channel v2_negotiation in
-    Nbd_lwt_client.negotiate channel "export1"
+    Client.negotiate channel "export1"
     >>= fun (t, size, flags) ->
     return () in
   Lwt_main.run t
@@ -110,7 +110,7 @@ let list_disabled =
   >:: fun () ->
   let t =
     let channel = make_client_channel v2_list_export_disabled in
-    Nbd_lwt_client.list channel
+    Client.list channel
     >>= function
     | `Error `Policy ->
       return ()
@@ -123,7 +123,7 @@ let list_success =
   >:: fun () ->
   let t =
     let channel = make_client_channel v2_list_export_success in
-    Nbd_lwt_client.list channel
+    Client.list channel
     >>= function
     | `Ok [ "export1" ] ->
       return ()

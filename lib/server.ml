@@ -13,8 +13,8 @@
  *)
 
 open Lwt
-open Nbd
-open Nbd_lwt_channel
+open Protocol
+open Channel
 
 type name = string
 
@@ -156,7 +156,7 @@ let serve t (type t) block (b:t) =
         let rec copy offset remaining =
           let n = min block_size remaining in
           let subblock = Cstruct.sub block 0 n in
-          t.channel.Nbd_lwt_channel.read subblock
+          t.channel.Channel.read subblock
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
           >>= function

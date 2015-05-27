@@ -11,8 +11,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Nbd
-open Channel
+
+type channel = {
+  read:  Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
+}
 
 val connect: string -> int -> channel Lwt.t
 (** [connect hostname port] connects to host:port and returns

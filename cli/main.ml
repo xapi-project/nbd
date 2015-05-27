@@ -52,7 +52,7 @@ module Impl = struct
     let res =
       Nbd_lwt_channel.connect host port
       >>= fun client ->
-      Nbd_lwt_client.negotiate client export in
+      Client.negotiate client export in
     let (_,size,_) = Lwt_main.run res in
     Printf.printf "%Ld\n%!" size;
     `Ok ()
@@ -61,7 +61,7 @@ module Impl = struct
     let t =
       Nbd_lwt_channel.connect host port
       >>= fun channel ->
-      Nbd_lwt_client.list channel
+      Client.list channel
       >>= function
       | `Ok disks ->
         List.iter print_endline disks;
@@ -89,7 +89,7 @@ module Impl = struct
         (* Background thread per connection *)
         let _ =
           let channel = Nbd_lwt_channel.of_fd fd in
-          Nbd_lwt_server.connect channel ()
+          Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
           >>= function
@@ -97,7 +97,7 @@ module Impl = struct
             Printf.fprintf stderr "Failed to open %s\n%!" filename;
             exit 1
           | `Ok b ->
-            Nbd_lwt_server.serve t (module Block) b in
+            Server.serve t (module Block) b in
         return ()
       done in
     Lwt_main.run t;
@@ -118,7 +118,7 @@ module Impl = struct
         (* Background thread per connection *)
         let _ =
           let channel = Nbd_lwt_channel.of_fd fd in
-          Nbd_lwt_server.connect channel ()
+          Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
           >>= function
@@ -126,7 +126,7 @@ module Impl = struct
             Printf.fprintf stderr "Failed to open %s\n%!" filename;
             exit 1
           | `Ok b ->
-            Nbd_lwt_server.serve t (module Block) b in
+            Server.serve t (module Block) b in
         return ()
       done in
     Lwt_main.run t;
