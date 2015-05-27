@@ -13,33 +13,10 @@
  *)
 open Nbd_lwt_channel
 
-type t
-(** An open connection to an NBD server *)
+include V1_LWT.BLOCK
 
 type size = int64
 (** The size of a remote disk *)
-
-type page_aligned_buffer
-(** Abstract type for a page-aligned memory buffer *)
-
-type error = [
-  | `Unknown of string (** an undiagnosed error *)
-  | `Unimplemented     (** operation not yet implemented in the code *)
-  | `Is_read_only      (** you cannot write to a read/only instance *)
-  | `Disconnected      (** the device has been previously disconnected *)
-]
-(** IO operation errors *)
-
-type info = {
-  read_write: bool;    (** True if we can write, false if read/only *)
-  sector_size: int;    (** Octets per sector *)
-  size_sectors: int64; (** Total sectors per device *)
-}
-(** Characteristics of the block device. Note some devices may be able
-    to make themselves bigger over time. *)
-
-val get_info: t -> info Lwt.t
-(** Query the characteristics of a specific block device *)
 
 val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
 (** [list channel] returns a list of exports known by the server.
@@ -51,11 +28,3 @@ val negotiate: channel -> string -> (t * size * Nbd.PerExportFlag.t list) Lwt.t
 (** [negotiate channel export] takes an already-connected channel,
     performs the initial protocol negotiation and connects to
     the named export. Returns (remote disk size * flags) *)
-
-val write : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of error ] Lwt.t
-(** [write t dst_offset buffers] writes the sequence of [buffers] to
-    [dst_offset] in the remote disk. *)
-
-val read : t -> int64 -> page_aligned_buffer list -> [ `Ok of unit | `Error of error ] Lwt.t
-(** [read t offset len] reads [len] bytes from the remote disk starting
-    at [offset] *)

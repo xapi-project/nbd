@@ -185,6 +185,8 @@ let negotiate channel export =
       end
     end
 
+type 'a io = 'a Lwt.t
+
 type page_aligned_buffer = Cstruct.t
 
 type error = [
