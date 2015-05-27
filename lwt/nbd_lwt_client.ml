@@ -81,7 +81,10 @@ type info = {
 type t = {
   client: Mux.client;
   info: info;
+  mutable disconnected: bool;
 }
+
+type id = unit
 
 let make channel size_bytes flags =
   Mux.create channel
@@ -90,7 +93,8 @@ let make channel size_bytes flags =
   let sector_size = 1 in (* Note: NBD has no notion of a sector *)
   let size_sectors = size_bytes in
   let info = { read_write; sector_size; size_sectors } in
-  return { client; info }
+  let disconnected = false in
+  return { client; info; disconnected }
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
@@ -202,28 +206,40 @@ let write_one t from buffer =
   Mux.rpc req_hdr (Some buffer) [] t.client
 
 let write t from buffers =
-  let rec loop from = function
-  | [] -> return (`Ok ())
-  | b :: bs ->
-    begin write_one t from b
+  if t.disconnected
+  then return (`Error `Disconnected)
+  else begin
+    let rec loop from = function
+    | [] -> return (`Ok ())
+    | b :: bs ->
+      begin write_one t from b
+      >>= function
+      | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
+      | `Error e -> return (`Error e)
+      end in
+    loop from buffers
     >>= function
-    | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
-    | `Error e -> return (`Error e)
-    end in
-  loop from buffers
-  >>= function
-  | `Ok x -> return (`Ok x)
-  | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+    | `Ok x -> return (`Ok x)
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+  end
 
 let read t from buffers =
-  let handle = get_handle () in
-  let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
-  let req_hdr = {
-    Request.ty = Command.Read;
-    handle; from; len
-  } in
-  let req_body = None in
-  Mux.rpc req_hdr req_body buffers t.client
-  >>= function
-  | `Ok x -> return (`Ok x)
-  | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+  if t.disconnected
+  then return (`Error `Disconnected)
+  else begin
+    let handle = get_handle () in
+    let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
+    let req_hdr = {
+      Request.ty = Command.Read;
+      handle; from; len
+    } in
+    let req_body = None in
+    Mux.rpc req_hdr req_body buffers t.client
+    >>= function
+    | `Ok x -> return (`Ok x)
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
+  end
+
+let disconnect t =
+  t.disconnected <- true;
+  return ()
