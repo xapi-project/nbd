@@ -31,7 +31,7 @@ module NbdRpc = struct
   type request_hdr = Request.t
   type request_body = Cstruct.t option
   type response_hdr = Reply.t
-  type response_body = [ `Ok of Cstruct.t option | `Error of Error.t ]
+  type response_body = Cstruct.t list
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
@@ -40,7 +40,7 @@ module NbdRpc = struct
     | `Ok x -> return (Some x.Reply.handle, x)
     | `Error e -> fail e
 
-  let recv_body sock req_hdr res_hdr =
+  let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
     | `Error e -> return (`Error e)
     | `Ok () ->
@@ -48,11 +48,10 @@ module NbdRpc = struct
       | Command.Read -> 
         (* TODO: use a page-aligned memory allocator *)
         let expected = Int32.to_int req_hdr.Request.len in
-        let data = Cstruct.create expected in
-        sock.read data
+        Lwt_list.iter_s sock.read response_body
         >>= fun () ->
-        return (`Ok (Some data))
-     | _ -> return (`Ok None)
+        return (`Ok ())
+     | _ -> return (`Ok ())
      end
 
   let send_one sock req_hdr req_body =
@@ -180,10 +179,7 @@ let write_one t from buffer =
     handle; from;
     len = Int32.of_int (Cstruct.len buffer)
   } in
-  Mux.rpc req_hdr (Some buffer) t
-  >>= function
-  | _, `Ok _ -> return (`Ok ())
-  | _, `Error e -> return (`Error e)
+  Mux.rpc req_hdr (Some buffer) [] t
 
 let write t from buffers =
   let rec loop from = function
@@ -199,15 +195,12 @@ let write t from buffers =
   | `Ok x -> return (`Ok x)
   | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Nbd.Error.to_string e))))
 
-let read t from len =
+let read t from buffers =
   let handle = get_handle () in
+  let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
   let req_hdr = {
     Request.ty = Command.Read;
     handle; from; len
   } in
   let req_body = None in
-  Mux.rpc req_hdr req_body t
-  >>= function
-    | _, `Ok (Some res) -> return (`Ok res)
-    | _, `Ok None -> return (`Ok (Cstruct.create 0))
-    | _, `Error e -> return (`Error e)
+  Mux.rpc req_hdr req_body buffers t
