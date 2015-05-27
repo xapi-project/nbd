@@ -128,8 +128,13 @@ module Impl = struct
           | `Ok primary ->
             (* Connect to the secondary *)
             let module M = Mirror.Make(Block)(Block) in
-            let m = M.connect primary primary in
-            Server.serve t (module M) m in
+            M.connect primary primary
+            >>= function
+            | `Error e ->
+              Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
+              exit 1
+            | `Ok m ->
+              Server.serve t (module M) m in
         return ()
       done in
     Lwt_main.run t;
