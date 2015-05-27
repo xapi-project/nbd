@@ -89,7 +89,9 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       let info = { read_write; sector_size; size_sectors } in
       return (`Ok { primary; secondary; primary_block_size; secondary_block_size; info; disconnected })
 
-  let read t ofs bufs = return (`Error `Unimplemented)
+  let read t ofs bufs =
+    Primary.read t.primary ofs bufs
+
   let write t ofs bufs = return (`Error `Unimplemented)
 
   let disconnect t =
