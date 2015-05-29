@@ -14,6 +14,83 @@
 
 let project_url = "http://github.com/xapi-project/nbd"
 
+open Lwt
+
+module Device = struct
+  type id = [
+    | `Nbd of Uri.t
+    | `Local of string
+  ]
+  type t = [
+    | `Nbd of Nbd_lwt_unix.Client.t
+    | `Local of Block.t
+  ]
+  type 'a io = 'a Lwt.t
+  type page_aligned_buffer = Cstruct.t
+  type error = [
+    | `Unknown of string
+    | `Unimplemented
+    | `Is_read_only
+    | `Disconnected
+  ]
+
+  let connect uri = match Uri.scheme uri with
+    | Some "file" ->
+      let path = Uri.path uri in
+      ( Block.connect path
+        >>= function
+        | `Error e -> return (`Error (`Unknown (Printf.sprintf "Failed to open %s" path)))
+        | `Ok x -> return (`Ok (`Local x) ))
+    | Some "nbd" ->
+      begin match Uri.host uri with
+      | Some host ->
+        let port = match Uri.port uri with None -> 10809 | Some x -> x in
+        Nbd_lwt_unix.connect host port
+        >>= fun channel ->
+        Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
+        >>= fun (t, _, _) ->
+        return (`Ok (`Nbd t))
+      | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
+      end
+    | _ -> return (`Error (`Unknown "unknown scheme"))
+
+  type info = {
+    read_write: bool;
+    sector_size: int;
+    size_sectors: int64;
+  }
+
+  let get_info = function
+    | `Nbd t ->
+      Nbd_lwt_unix.Client.get_info t
+      >>= fun info ->
+      return {
+        read_write = info.Nbd_lwt_unix.Client.read_write;
+        sector_size = info.Nbd_lwt_unix.Client.sector_size;
+        size_sectors = info.Nbd_lwt_unix.Client.size_sectors
+      }
+    | `Local t ->
+      Block.get_info t
+      >>= fun info ->
+      return {
+        read_write = info.Block.read_write;
+        sector_size = info.Block.sector_size;
+        size_sectors = info.Block.size_sectors
+      }
+
+  let read t = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.read t
+    | `Local t -> Block.read t
+
+  let write t = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.write t
+    | `Local t -> Block.write t
+
+  let disconnect t = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.disconnect t
+    | `Local t -> Block.disconnect t
+end
+
 open Common
 open Cmdliner
 
@@ -106,40 +183,41 @@ module Impl = struct
   let mirror common filename port secondary =
     let filename = require "filename" filename in
     let secondary = require "secondary" secondary in
-    let stats = Unix.LargeFile.stat filename in
-    let size = stats.Unix.LargeFile.st_size in
-    let flags = [] in
     let t =
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
-      let module M = Mirror.Make(Block)(Block) in
-      ( Block.connect filename
+      let module M = Mirror.Make(Device)(Device) in
+      ( Device.connect (Uri.of_string filename)
         >>= function
         | `Error _ ->
           Printf.fprintf stderr "Failed to open %s\n%!" filename;
           exit 1
         | `Ok primary ->
-          (* Connect to the secondary *)
-          Block.connect secondary
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" secondary;
-            exit 1
-          | `Ok secondary ->
-            let progress_cb = function
-            | `Complete ->
-              Printf.fprintf stderr "Mirror synchronised\n%!"
-            | `Percent x ->
-              Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
-            M.connect ~progress_cb primary secondary
+          begin
+            (* Connect to the secondary *)
+            Device.connect (Uri.of_string secondary)
             >>= function
-            | `Error e ->
-              Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
+            | `Error _ ->
+              Printf.fprintf stderr "Failed to open %s\n%!" secondary;
               exit 1
-            | `Ok m ->
-              return m
+            | `Ok secondary ->
+              begin
+                let progress_cb = function
+                | `Complete ->
+                  Printf.fprintf stderr "Mirror synchronised\n%!"
+                | `Percent x ->
+                  Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
+                M.connect ~progress_cb primary secondary
+                >>= function
+                | `Error e ->
+                  Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
+                  exit 1
+                | `Ok m ->
+                  return m
+              end
+          end
       ) >>= fun m ->
       while_lwt true do
         lwt (fd, _) = Lwt_unix.accept sock in
@@ -190,12 +268,13 @@ let mirror_cmd =
     `S "DESCRIPTION";
     `P "Create a server which allows a client to access a disk using NBD.";
     `P "The server will pass I/O through to a primary disk underneath, while also mirroring the contents to a secondary.";
+    `S "EXAMPLES";
   ] @ help in
   let filename =
-    let doc = "Disk (file or block device) to expose" in
-    Arg.(value & pos 0 (some file) None & info [] ~doc) in
+    let doc = "URI naming the primary disk" in
+    Arg.(value & pos 0 (some string) None & info [] ~doc) in
   let secondary =
-    let doc = "NBD URL for the secondary disk" in
+    let doc = "URI naming the secondary disk" in
     Arg.(value & pos 1 (some string) None & info [] ~doc) in
   let port =
     let doc = "Local port to listen for connections on" in

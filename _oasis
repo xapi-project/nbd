@@ -27,7 +27,7 @@ Executable "nbd-tool"
   Path: cli
   MainIs: main.ml
   Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax, mirage-block-unix
+  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax, mirage-block-unix, uri
 
 Executable "test"
   CompiledObject: best
