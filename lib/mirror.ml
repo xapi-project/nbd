@@ -140,14 +140,20 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     lock: Region_lock.t;
     result: [ `Ok of unit | `Error of error ] Lwt.t;
     mutable percent_complete: int;
+    progress_cb: [ `Percent of int | `Complete ] -> unit;
     mutable disconnected: bool;
   }
 
   let start_copy t u =
-    let block = 1024 in
-    let buffer = Cstruct.create (t.info.sector_size * block) in
+    let buffer = Io_page.(to_cstruct (get 1024)) in
+    (* round to the nearest sector *)
+    let block = Cstruct.len buffer / t.info.sector_size in
+    let buffer = Cstruct.(sub buffer 0 (block * t.info.sector_size)) in
     let rec loop sector =
-      t.percent_complete <- Int64.(to_int (div (mul sector 100L) t.info.size_sectors));
+      let percent_complete = Int64.(to_int (div (mul sector 100L) t.info.size_sectors)) in
+      if percent_complete <> t.percent_complete
+      then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
+      t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.size_sectors then begin
         Lwt.wakeup u (`Ok ());
         return ()
@@ -175,7 +181,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
 
   let get_info t = return t.info
 
-  let connect primary secondary =
+  let connect ?(progress_cb = fun _ -> ()) primary secondary =
     Primary.get_info primary
     >>= fun primary_info ->
     Secondary.get_info secondary
@@ -215,8 +221,9 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       let lock = Region_lock.make () in
       let result, u = Lwt.task () in
       let percent_complete = 0 in
-      let t = { primary; secondary; primary_block_size; secondary_block_size; info; lock; result; percent_complete; disconnected } in
-      let _ = start_copy t u in
+      let t = { progress_cb; primary; secondary; primary_block_size; secondary_block_size;
+                info; lock; result; percent_complete; disconnected } in
+      let (_: unit Lwt.t) = start_copy t u in
       return (`Ok t)
 
   let read t ofs bufs =

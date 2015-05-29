@@ -105,6 +105,7 @@ module Impl = struct
 
   let mirror common filename port secondary =
     let filename = require "filename" filename in
+    let secondary = require "secondary" secondary in
     let stats = Unix.LargeFile.stat filename in
     let size = stats.Unix.LargeFile.st_size in
     let flags = [] in
@@ -113,6 +114,33 @@ module Impl = struct
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
+      let module M = Mirror.Make(Block)(Block) in
+      ( Block.connect filename
+        >>= function
+        | `Error _ ->
+          Printf.fprintf stderr "Failed to open %s\n%!" filename;
+          exit 1
+        | `Ok primary ->
+          (* Connect to the secondary *)
+          Block.connect secondary
+          >>= function
+          | `Error _ ->
+            Printf.fprintf stderr "Failed to open %s\n%!" secondary;
+            exit 1
+          | `Ok secondary ->
+            let progress_cb = function
+            | `Complete ->
+              Printf.fprintf stderr "Mirror synchronised\n%!"
+            | `Percent x ->
+              Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
+            M.connect ~progress_cb primary secondary
+            >>= function
+            | `Error e ->
+              Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
+              exit 1
+            | `Ok m ->
+              return m
+      ) >>= fun m ->
       while_lwt true do
         lwt (fd, _) = Lwt_unix.accept sock in
         (* Background thread per connection *)
@@ -120,21 +148,7 @@ module Impl = struct
           let channel = Nbd_lwt_unix.of_fd fd in
           Server.connect channel ()
           >>= fun (name, t) ->
-          Block.connect filename
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" filename;
-            exit 1
-          | `Ok primary ->
-            (* Connect to the secondary *)
-            let module M = Mirror.Make(Block)(Block) in
-            M.connect primary primary
-            >>= function
-            | `Error e ->
-              Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
-              exit 1
-            | `Ok m ->
-              Server.serve t (module M) m in
+          Server.serve t (module M) m in
         return ()
       done in
     Lwt_main.run t;
