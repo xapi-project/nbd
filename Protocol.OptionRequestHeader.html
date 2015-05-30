@@ -1,0 +1,56 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Protocol.NegotiateResponse.html">
+<link rel="next" href="Protocol.ExportName.html">
+<link rel="Up" href="Protocol.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="S" rel="Chapter" href="S.html">
+<link title="Protocol" rel="Chapter" href="Protocol.html">
+<link title="Result" rel="Chapter" href="Result.html">
+<link title="Client" rel="Chapter" href="Client.html">
+<link title="Channel" rel="Chapter" href="Channel.html">
+<link title="Server" rel="Chapter" href="Server.html">
+<link title="Mux" rel="Chapter" href="Mux.html">
+<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.OptionRequestHeader</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Protocol.NegotiateResponse.html" title="Protocol.NegotiateResponse">Previous</a>
+&nbsp;<a class="up" href="Protocol.html" title="Protocol">Up</a>
+&nbsp;<a class="post" href="Protocol.ExportName.html" title="Protocol.ExportName">Next</a>
+</div>
+<h1>Module <a href="type_Protocol.OptionRequestHeader.html">Protocol.OptionRequestHeader</a></h1>
+
+<pre><span class="keyword">module</span> OptionRequestHeader: <code class="code">sig</code> <a href="Protocol.OptionRequestHeader.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = {</code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.ty">ty</span>&nbsp;: <code class="type"><a href="Protocol.Option.html#TYPEt">Protocol.Option.t</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.length">length</span>&nbsp;: <code class="type">int32</code>;</code></td>
+
+</tr></table>
+}
+
+
+
+<pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
+<pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.OptionRequestHeader.html#TYPEt">t</a> -> unit</code></pre>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.OptionRequestHeader.html#TYPEt">t</a> ]</code></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.OptionRequestHeader.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.OptionRequestHeader.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>
