@@ -12,11 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** Channels represent connections between clients and servers. *)
+
 type channel = {
-  read:  Cstruct.t -> unit Lwt.t;
-  write: Cstruct.t -> unit Lwt.t;
-  close: unit -> unit Lwt.t;
+  read:  Cstruct.t -> unit Lwt.t; (** Read a block of data from the channel *)
+  write: Cstruct.t -> unit Lwt.t; (** Write a block of data to the channel *)
+  close: unit -> unit Lwt.t; (** Close the channel *)
 }
+(** An open channel to an NBD client or server. *)
 
 val connect: string -> int -> channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
