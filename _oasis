@@ -37,5 +37,5 @@ Executable "test"
   Install: false
 
 Test test
-  Command:            ./test.native
+  Command:            ./test.native -runner sequential
   Run:                true

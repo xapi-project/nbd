@@ -56,38 +56,33 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       m: Lwt_mutex.t;
     }
 
-    (* Acquire an exclusive lock on [offset:offset+length]. While this lock
-       is held, other threads will block. *)
-    let with_exclusive_lock t offset length f =
+    (* Exclusively lock up to [offset'] *)
+    let extend_right t offset' =
       Lwt_mutex.with_lock t.m
         (fun () ->
           let rec wait () =
-            if List.fold_left (||) false (List.map (overlap (offset, length)) t.active) then begin
+            let length = Int64.(to_int (sub offset' (fst t.exclusive_lock))) in
+            if List.fold_left (||) false (List.map (overlap (fst t.exclusive_lock, length)) t.active) then begin
               Lwt_condition.wait ~mutex:t.m t.c
               >>= fun () ->
               wait ()
-            end else return () in
+            end else return length in
           wait ()
-          >>= fun () ->
-          t.exclusive_lock <- (offset, length);
+          >>= fun length ->
+          t.exclusive_lock <- (fst t.exclusive_lock, length);
+          Lwt_condition.broadcast t.c ();
           return ()
         )
-      >>= fun () ->
-      let unlock () =
-        Lwt_mutex.with_lock t.m
-          (fun () ->
-            t.exclusive_lock <- (-1L, 0);
-            Lwt_condition.broadcast t.c ();
-            return ()
-          ) in
-      Lwt.catch
+
+    (* Release lock up to [offset'] *)
+    let release_left t offset' =
+      Lwt_mutex.with_lock t.m
         (fun () ->
-          f () >>= fun r ->
-          unlock () >>= fun () ->
-          return r)
-        (fun e ->
-          unlock () >>= fun () ->
-          fail e)
+          let length = Int64.(to_int (sub (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock))) offset')) in
+          t.exclusive_lock <- (offset', length);
+          Lwt_condition.broadcast t.c ();
+          return ()
+        )
 
     (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
        a region while it is being actively mirrored, which could cause the old data
@@ -123,7 +118,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
         )
 
     let make () =
-      let exclusive_lock = (-1L, 0) in
+      let exclusive_lock = (0L, 0) in
       let active = [] in
       let c = Lwt_condition.create () in
       let m = Lwt_mutex.create () in
@@ -145,37 +140,86 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
   }
 
   let start_copy t u =
-    let buffer = Io_page.(to_cstruct (get 1024)) in
+    let buffer = Io_page.(to_cstruct (get 4096)) in
     (* round to the nearest sector *)
     let block = Cstruct.len buffer / t.info.sector_size in
     let buffer = Cstruct.(sub buffer 0 (block * t.info.sector_size)) in
-    let rec loop sector =
+    (* split into an array of slots *)
+    let nr_slots = 8 in
+    let block = block / nr_slots in
+    let slots = Array.make nr_slots (Cstruct.create 0) in
+    for i = 0 to nr_slots - 1 do
+      slots.(i) <- Cstruct.sub buffer (i * block * t.info.sector_size) (block * t.info.sector_size)
+    done;
+    (* treat the slots as a circular buffer *)
+    let producer_idx = ref 0 in
+    let consumer_idx = ref 0 in
+    let c = Lwt_condition.create () in
+
+    let rec reader sector =
+      if t.disconnected || sector = t.info.size_sectors then begin
+        return (`Ok ())
+      end else begin
+        if !producer_idx - !consumer_idx >= nr_slots then begin
+          Lwt_condition.wait c
+          >>= fun () ->
+          reader sector
+        end else begin
+          Region_lock.extend_right t.lock Int64.(add sector (of_int block))
+          >>= fun () ->
+          Primary.read t.primary Int64.(mul sector (of_int t.primary_block_size)) [ slots.(!producer_idx mod nr_slots) ]
+          >>= function
+          | `Error e ->
+            t.disconnected <- true;
+            Lwt_condition.signal c ();
+            return (`Error e)
+          | `Ok () ->
+            incr producer_idx;
+            Lwt_condition.signal c ();
+            reader Int64.(add sector (of_int block))
+        end
+      end in
+    let rec writer sector =
       let percent_complete = Int64.(to_int (div (mul sector 100L) t.info.size_sectors)) in
       if percent_complete <> t.percent_complete
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.size_sectors then begin
-        Lwt.wakeup u (`Ok ());
-        return ()
+        return (`Ok ())
       end else begin
-        Region_lock.with_exclusive_lock t.lock sector block
-          (fun () ->
-            Primary.read t.primary Int64.(mul sector (of_int t.primary_block_size)) [ buffer ]
-            >>= function
-            | `Error e ->
-              Lwt.wakeup u (`Error e);
-              return ()
-            | `Ok () ->
-              Secondary.write t.secondary Int64.(mul sector (of_int t.secondary_block_size)) [ buffer ]
-              >>= function
-              | `Error e ->
-                Lwt.wakeup u (`Error e);
-                return ()
-              | `Ok () ->
-                loop Int64.(add sector (of_int block))
-          )
+        if !consumer_idx = !producer_idx then begin
+          Lwt_condition.wait c
+          >>= fun () ->
+          writer sector
+        end else begin
+          Secondary.write t.secondary Int64.(mul sector (of_int t.secondary_block_size)) [ slots.(!consumer_idx mod nr_slots) ]
+          >>= function
+          | `Error e ->
+            t.disconnected <- true;
+            Lwt_condition.signal c ();
+            return (`Error e)
+          | `Ok () ->
+            incr consumer_idx;
+            Region_lock.release_left t.lock Int64.(add sector (of_int block))
+            >>= fun () ->
+            Lwt_condition.signal c ();
+            writer Int64.(add sector (of_int block))
+        end
       end in
-    loop 0L
+    let read_t = reader 0L in
+    let write_t = writer 0L in
+    read_t >>= fun read_result ->
+    write_t >>= fun write_result ->
+    ( match read_result, write_result with
+      | `Ok (), `Ok () ->
+        Lwt.wakeup u (`Ok ())
+      | `Error e, `Ok () ->
+        Lwt.wakeup u (`Error e)
+      | `Ok (), `Error e ->
+        Lwt.wakeup u (`Error e)
+      | `Error e, `Error ei ->
+        Lwt.wakeup u (`Error e) );
+    return ()
 
   type id = unit
 
