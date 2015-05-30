@@ -39,3 +39,10 @@ Executable "test"
 Test test
   Command:            ./test.native -runner sequential
   Run:                true
+
+Document api
+  Title: OCaml Network Block Devices
+  Type: ocamlbuild (0.3)
+  BuildTools+: ocamldoc
+  XOcamlbuildPath: .
+  XOcamlBuildLibraries: nbd

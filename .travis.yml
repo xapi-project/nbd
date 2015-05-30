@@ -1,8 +1,10 @@
 language: c
 sudo: required
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-script: bash -ex .travis-opam.sh && bash -ex .coverage.sh
+script: bash -ex .travis-opam.sh && make gh-pages && bash -ex .coverage.sh
 env:
+  global:
+  - secure "I6TN1P/Fyoctb4jEyKlDkFSiR0LjtvxU/IbZDreXKBPDhGBnQ6S2Z7SJ5q0PK03rzZ1MWwzI9fO2n9TXvpZgwYzci1VHQCBOrQxsLU9GxtPB1eP3Qs8MpG39w2yY1LdtZ63Yr+XbmRfl10Q9BkZbFNvUMmuT+7Vns2nz/DVcNgA="
   matrix:
   - OCAML_VERSION=latest
 branches:
