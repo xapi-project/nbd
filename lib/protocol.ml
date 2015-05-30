@@ -261,7 +261,7 @@ module Announcement = struct
     set_t_magic buf (match t with `V1 -> v1_magic | `V2 -> v2_magic)
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Result in
     let passwd = Cstruct.to_string (get_t_passwd buf) in
     if passwd <> expected_passwd
     then `Error (Failure "Bad magic in negotiate")
@@ -314,7 +314,7 @@ module Negotiate = struct
       set_v2_flags buf (GlobalFlag.to_int t)
 
   let unmarshal buf t =
-    let open Nbd_result in
+    let open Result in
     match t with
     | `V1 ->
        let size = get_v1_size buf in
@@ -360,7 +360,7 @@ module OptionRequestHeader = struct
     set_t_length buf t.length
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Result in
     let magic = get_t_magic buf in
     ( if Announcement.v2_magic <> magic
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
@@ -399,7 +399,7 @@ module DiskInfo = struct
   let sizeof = sizeof_t
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Result in
     let size = get_t_size buf in
     let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
     return { size; flags }
@@ -432,7 +432,7 @@ module OptionResponseHeader = struct
   let expected_magic = 0x3e889045565a9L
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Result in
     let magic = get_t_magic buf in
     ( if expected_magic <> magic
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
@@ -462,7 +462,7 @@ module Server = struct
   let sizeof t = sizeof_t + (String.length t.name)
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Result in
     let length = Int32.to_int (get_t_length buf) in
     let buf = Cstruct.shift buf sizeof_t in
     let name = Cstruct.(to_string (sub buf 0 length)) in
@@ -490,7 +490,7 @@ module Request = struct
   } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
-    let open Nbd_result in
+    let open Result in
     let magic = get_t_magic buf in
     ( if nbd_request_magic <> magic
       then fail (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
@@ -526,7 +526,7 @@ module Reply = struct
   } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
-    let open Nbd_result in
+    let open Result in
     let magic = get_t_magic buf in
     ( if nbd_reply_magic <> magic
       then fail (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))

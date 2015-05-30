@@ -13,8 +13,8 @@
  *)
 
 open Lwt
-open Nbd
-open Nbd_lwt_channel
+open Protocol
+open Channel
 
 type size = int64
 
@@ -31,7 +31,7 @@ module NbdRpc = struct
   type request_hdr = Request.t
   type request_body = Cstruct.t option
   type response_hdr = Reply.t
-  type response_body = [ `Ok of Cstruct.t option | `Error of Error.t ]
+  type response_body = Cstruct.t list
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
@@ -40,7 +40,7 @@ module NbdRpc = struct
     | `Ok x -> return (Some x.Reply.handle, x)
     | `Error e -> fail e
 
-  let recv_body sock req_hdr res_hdr =
+  let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
     | `Error e -> return (`Error e)
     | `Ok () ->
@@ -48,11 +48,10 @@ module NbdRpc = struct
       | Command.Read -> 
         (* TODO: use a page-aligned memory allocator *)
         let expected = Int32.to_int req_hdr.Request.len in
-        let data = Cstruct.create expected in
-        sock.read data
+        Lwt_list.iter_s sock.read response_body
         >>= fun () ->
-        return (`Ok (Some data))
-     | _ -> return (`Ok None)
+        return (`Ok ())
+     | _ -> return (`Ok ())
      end
 
   let send_one sock req_hdr req_body =
@@ -71,9 +70,31 @@ module NbdRpc = struct
     fail (Failure (Printf.sprintf "Unexpected response from server: %s" (Reply.to_string reply)))
 end
 
-module Mux = Nbd_lwt_mux.Mux(NbdRpc)
+module Rpc = Mux.Make(NbdRpc)
 
-type t = Mux.client
+type info = {
+  read_write: bool;
+  sector_size: int;
+  size_sectors: int64;
+}
+
+type t = {
+  client: Rpc.client;
+  info: info;
+  mutable disconnected: bool;
+}
+
+type id = unit
+
+let make channel size_bytes flags =
+  Rpc.create channel
+  >>= fun client ->
+  let read_write = not (List.mem PerExportFlag.Read_only flags) in
+  let sector_size = 1 in (* Note: NBD has no notion of a sector *)
+  let size_sectors = size_bytes in
+  let info = { read_write; sector_size; size_sectors } in
+  let disconnected = false in
+  return { client; info; disconnected }
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
@@ -133,7 +154,7 @@ let negotiate channel export =
     begin match Negotiate.unmarshal buf kind with
     | `Error e -> fail e
     | `Ok (Negotiate.V1 x) ->
-      Mux.create channel
+      make channel x.Negotiate.size x.Negotiate.flags
       >>= fun t ->
       return (t, x.Negotiate.size, x.Negotiate.flags)
     | `Ok (Negotiate.V2 x) ->
@@ -156,7 +177,7 @@ let negotiate channel export =
       begin match DiskInfo.unmarshal buf with
       | `Error e -> fail e
       | `Ok x ->
-        Mux.create channel
+        make channel x.DiskInfo.size x.DiskInfo.flags
         >>= fun t ->
         return (t, x.DiskInfo.size, x.DiskInfo.flags)
       | `Ok _ ->
@@ -164,27 +185,63 @@ let negotiate channel export =
       end
     end
 
-let write t data from =
+type 'a io = 'a Lwt.t
+
+type page_aligned_buffer = Cstruct.t
+
+type error = [
+  | `Unknown of string
+  | `Unimplemented
+  | `Is_read_only
+  | `Disconnected
+]
+
+let get_info t = return t.info
+
+let write_one t from buffer =
   let handle = get_handle () in
   let req_hdr = {
     Request.ty = Command.Write;
     handle; from;
-    len = Int32.of_int (Cstruct.len data)
+    len = Int32.of_int (Cstruct.len buffer)
   } in
-  Mux.rpc req_hdr (Some data) t
-  >>= function
-  | _, `Ok _ -> return (`Ok ())
-  | _, `Error e -> return (`Error e)
+  Rpc.rpc req_hdr (Some buffer) [] t.client
 
-let read t from len =
-  let handle = get_handle () in
-  let req_hdr = {
-    Request.ty = Command.Read;
-    handle; from; len
-  } in
-  let req_body = None in
-  Mux.rpc req_hdr req_body t
-  >>= function
-    | _, `Ok (Some res) -> return (`Ok res)
-    | _, `Ok None -> return (`Ok (Cstruct.create 0))
-    | _, `Error e -> return (`Error e)
+let write t from buffers =
+  if t.disconnected
+  then return (`Error `Disconnected)
+  else begin
+    let rec loop from = function
+    | [] -> return (`Ok ())
+    | b :: bs ->
+      begin write_one t from b
+      >>= function
+      | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
+      | `Error e -> return (`Error e)
+      end in
+    loop from buffers
+    >>= function
+    | `Ok x -> return (`Ok x)
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+  end
+
+let read t from buffers =
+  if t.disconnected
+  then return (`Error `Disconnected)
+  else begin
+    let handle = get_handle () in
+    let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
+    let req_hdr = {
+      Request.ty = Command.Read;
+      handle; from; len
+    } in
+    let req_body = None in
+    Rpc.rpc req_hdr req_body buffers t.client
+    >>= function
+    | `Ok x -> return (`Ok x)
+    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+  end
+
+let disconnect t =
+  t.disconnected <- true;
+  return ()

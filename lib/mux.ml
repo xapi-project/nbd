@@ -13,79 +13,81 @@
  *)
 
 (* Lwt connection multiplexer *)
+open Lwt
 
 module type RPC = sig
-	type transport
-	type id
-	type request_hdr
-	type request_body
-	type response_hdr
-	type response_body
+  type transport
+  type id
+  type request_hdr
+  type request_body
+  type response_hdr
+  type response_body
 
-	val recv_hdr : transport -> (id option * response_hdr) Lwt.t
-	val recv_body : transport -> request_hdr -> response_hdr -> response_body Lwt.t
-	val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
-	val id_of_request : request_hdr -> id
-	val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
+  val recv_hdr : transport -> (id option * response_hdr) Lwt.t
+  val recv_body : transport -> request_hdr -> response_hdr -> response_body -> [ `Ok of unit | `Error of Protocol.Error.t ] Lwt.t
+  val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
+  val id_of_request : request_hdr -> id
+  val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
 end
 
 
-module Mux = functor (R : RPC) -> struct
-	exception Unexpected_id of R.id
-	exception Shutdown
+module Make = functor (R : RPC) -> struct
+  exception Unexpected_id of R.id
+  exception Shutdown
 
-	type client = {
-		transport : R.transport;
-		outgoing_mutex: Lwt_mutex.t;
-		id_to_wakeup : (R.id, R.request_hdr * ((R.response_hdr * R.response_body) Lwt.u)) Hashtbl.t;
-		mutable dispatcher_thread : unit Lwt.t;
-		mutable dispatcher_shutting_down : bool;
-	}
+  type client = {
+    transport : R.transport;
+    outgoing_mutex: Lwt_mutex.t;
+    id_to_wakeup : (R.id, R.request_hdr * ([ `Ok of unit | `Error of Protocol.Error.t ] Lwt.u) * R.response_body) Hashtbl.t;
+    mutable dispatcher_thread : unit Lwt.t;
+    mutable dispatcher_shutting_down : bool;
+  }
 
-	let rec dispatcher t =
-		try_lwt
-			lwt (id,pkt) = R.recv_hdr t.transport in
-	        match id with 
-				| None -> R.handle_unrequested_packet t.transport pkt
-				| Some id -> 
-					if not(Hashtbl.mem t.id_to_wakeup id)
-					then raise_lwt (Unexpected_id id)
-					else begin
-						let request_hdr, waker = Hashtbl.find t.id_to_wakeup id in
-						lwt body = R.recv_body t.transport request_hdr pkt in
-						Lwt.wakeup waker (pkt,body);
-					    Hashtbl.remove t.id_to_wakeup id;
-						dispatcher t
-					end
-        with e ->
-			t.dispatcher_shutting_down <- true;
-			Hashtbl.iter (fun _ (_,u) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
-			raise_lwt e
-
-	let rpc req_hdr req_body t = 
-		let sleeper, waker = Lwt.wait () in
-		if t.dispatcher_shutting_down 
-		then raise_lwt Shutdown
-		else begin
-			let id = R.id_of_request req_hdr in
-		    Hashtbl.add t.id_to_wakeup id (req_hdr, waker);
-			lwt () = Lwt_mutex.with_lock t.outgoing_mutex
-					(fun () -> R.send_one t.transport req_hdr req_body) in
-		    sleeper
+  let rec dispatcher t =
+    try_lwt
+      lwt (id,pkt) = R.recv_hdr t.transport in
+      match id with 
+      | None -> R.handle_unrequested_packet t.transport pkt
+      | Some id -> 
+        if not(Hashtbl.mem t.id_to_wakeup id)
+        then raise_lwt (Unexpected_id id)
+        else begin
+          let request_hdr, waker, response_body = Hashtbl.find t.id_to_wakeup id in
+          R.recv_body t.transport request_hdr pkt response_body
+          >>= fun response -> 
+          Lwt.wakeup waker response;
+          Hashtbl.remove t.id_to_wakeup id;
+          dispatcher t
         end
+    with e ->
+      t.dispatcher_shutting_down <- true;
+      Hashtbl.iter (fun _ (_,u, _) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
+      raise_lwt e
 
-	let create transport = 
-		let t = {
-			transport = transport;
-			outgoing_mutex = Lwt_mutex.create ();
-			id_to_wakeup = Hashtbl.create 10;
-			dispatcher_thread = Lwt.return ();
-			dispatcher_shutting_down = false; } in
-		t.dispatcher_thread <- dispatcher t;
-		Lwt.return t
-		
+  let rpc req_hdr req_body response_body t = 
+    let sleeper, waker = Lwt.wait () in
+    if t.dispatcher_shutting_down 
+    then raise_lwt Shutdown
+    else begin
+      let id = R.id_of_request req_hdr in
+      Hashtbl.add t.id_to_wakeup id (req_hdr, waker, response_body);
+      lwt () = Lwt_mutex.with_lock t.outgoing_mutex
+          (fun () -> R.send_one t.transport req_hdr req_body) in
+      sleeper
+    end
+
+  let create transport = 
+    let t = {
+      transport = transport;
+      outgoing_mutex = Lwt_mutex.create ();
+      id_to_wakeup = Hashtbl.create 10;
+      dispatcher_thread = Lwt.return ();
+      dispatcher_shutting_down = false; } in
+    t.dispatcher_thread <- dispatcher t;
+    Lwt.return t
+
 end
-                        
+
 
 (*
 module TestPacket = struct
@@ -103,7 +105,7 @@ module TestPacket = struct
 		recv_queue : response_hdr Queue.t;
 		mutable seq : seq list;
 	}
-		
+
 	let recv_hdr t = 
 		Lwt_mutex.with_lock t.mutex (fun () ->
 			lwt () = while_lwt Queue.is_empty t.recv_queue do
@@ -141,7 +143,7 @@ end
 
 
 
-module T = Mux(TestPacket) 
+module T = Make(TestPacket) 
 
 let test () =
 	let transport = TestPacket.create () in
