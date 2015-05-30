@@ -137,6 +137,4 @@ let negotiate_suite = "Nbd protocol negotiation" >::: [
   ]
 
 let _ =
-  List.iter (fun suite -> ignore (run_test_tt suite)) [
-    negotiate_suite;
-  ]
+  OUnit2.run_test_tt_main (ounit2_of_ounit1 negotiate_suite)
