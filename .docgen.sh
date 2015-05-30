@@ -2,6 +2,7 @@
 set -ex
 
 eval `opam config env`
+oasis setup
 ./configure --enable-docs
 make doc
 
