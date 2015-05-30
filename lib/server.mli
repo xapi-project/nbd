@@ -12,4 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** A Server which allows you to expose an existing block device to
+    remote clients over NBD. *)
+
 include S.SERVER
