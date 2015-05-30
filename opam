@@ -4,6 +4,12 @@ build: [
   ["oasis" "setup"]
   ["./configure" "--prefix" prefix]
   [make]
+]
+build-test: [
+  ["./configure" "--enable-tests"]
+  [make "test"]
+]
+install: [
   [make "install" "BINDIR=%{bin}%"]
 ]
 remove: [
@@ -12,8 +18,8 @@ remove: [
 ]
 depends: [
   "oasis"
-  "ounit"
-  "ocamlfind"
+  "ounit" {test}
+  "ocamlfind" {build}
   "lwt"
   "cstruct" {> "1.0.0"}
   "cmdliner"
