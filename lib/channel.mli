@@ -20,9 +20,3 @@ type channel = {
   close: unit -> unit Lwt.t; (** Close the channel *)
 }
 (** An open channel to an NBD client or server. *)
-
-val connect: string -> int -> channel Lwt.t
-(** [connect hostname port] connects to host:port and returns
-    a channel. *)
-
-val of_fd: Lwt_unix.file_descr -> channel
