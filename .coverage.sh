@@ -20,7 +20,7 @@ oasis setup
 make
 
 find . -name bisect* | xargs rm -f
-./test_pci.native -runner sequential
+./test.native -runner sequential
 
 bisect-report bisect*.out -I _build -text report
 bisect-report bisect*.out -I _build -summary-only -text summary
