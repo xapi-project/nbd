@@ -46,3 +46,9 @@ setup.data : setup.ml
 
 setup.ml : _oasis
 	oasis setup
+
+gh-pages:
+	bash .docgen.sh
+
+coverage:
+	bash .coverage.sh
