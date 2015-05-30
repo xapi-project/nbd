@@ -1,5 +1,5 @@
 opam-version: "1"
-maintainer: "jonathan.ludlam@eu.citrix.com"
+maintainer: "dave.scott@citrix.com"
 build: [
   ["oasis" "setup"]
   ["./configure" "--prefix" prefix]
