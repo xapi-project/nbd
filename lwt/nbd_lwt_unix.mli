@@ -11,6 +11,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+
+(** Network Block Device client and servers for Unix *)
+
 open Nbd
 open Channel
 
@@ -19,6 +22,10 @@ val connect: string -> int -> channel Lwt.t
     a channel. *)
 
 val of_fd: Lwt_unix.file_descr -> channel
+(** [of_fd fd] returns a channel from an existing file descriptor *)
 
 module Client: S.CLIENT
+(** A client allows you to access remote disks *)
+
 module Server: S.SERVER
+(** A server allows you to expose disks to remote clients *)

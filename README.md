@@ -15,3 +15,8 @@ This library installs the following ocamlfind packages:
 * `nbd.lwt` : `Lwt_unix` implementation 
 
 It also installs the `nbd-tool` command line helper.
+
+Documentation
+-------------
+
+The [API documentation is on github](https://xapi-project.github.io/nbd/index.html).

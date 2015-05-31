@@ -45,4 +45,4 @@ Document api
   Type: ocamlbuild (0.3)
   BuildTools+: ocamldoc
   XOcamlbuildPath: .
-  XOcamlBuildLibraries: nbd
+  XOcamlBuildLibraries: nbd, nbd.lwt

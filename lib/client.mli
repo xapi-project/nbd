@@ -12,4 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** An NBD client which allows you to connect to remote disks and
+    perform I/O. *)
+
 include S.CLIENT
