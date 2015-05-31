@@ -18,7 +18,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.Error</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Protocol.Error</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Protocol.html" title="Protocol">Up</a>
@@ -27,6 +28,8 @@
 <h1>Module <a href="type_Protocol.Error.html">Protocol.Error</a></h1>
 
 <pre><span class="keyword">module</span> Error: <code class="code">sig</code> <a href="Protocol.Error.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+Read and write requests can fail with an error response.<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `EINVAL | `EIO | `ENOMEM | `ENOSPC | `EPERM | `Unknown of int32 ]</code> </pre>
 <div class="info ">

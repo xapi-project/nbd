@@ -15,7 +15,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Index of modules</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Index of modules</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
@@ -28,12 +29,20 @@
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Channel.html">Channel</a> </td>
 <td><div class="info">
-<code class="code">connect hostname port</code> connects to host:port and returns
-    a channel.
+Channels represent connections between clients and servers.
+</div>
+</td></tr>
+<tr><td><a href="Nbd_lwt_unix.Client.html">Client</a> [<a href="Nbd_lwt_unix.html">Nbd_lwt_unix</a>]</td>
+<td><div class="info">
+A client allows you to access remote disks
 </div>
 </td></tr>
 <tr><td><a href="Client.html">Client</a> </td>
-<td></td></tr>
+<td><div class="info">
+An NBD client which allows you to connect to remote disks and
+    perform I/O.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.ClientFlag.html">ClientFlag</a> [<a href="Protocol.html">Protocol</a>]</td>
 <td></td></tr>
 <tr><td><a href="Protocol.Command.html">Command</a> [<a href="Protocol.html">Protocol</a>]</td>
@@ -64,6 +73,11 @@
 <tr><td><a href="Mux.html">Mux</a> </td>
 <td></td></tr>
 <tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Nbd_lwt_unix.html">Nbd_lwt_unix</a> </td>
+<td><div class="info">
+Network Block Device client and servers for Unix
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Negotiate.html">Negotiate</a> [<a href="Protocol.html">Protocol</a>]</td>
 <td></td></tr>
 <tr><td><a href="Protocol.NegotiateResponse.html">NegotiateResponse</a> [<a href="Protocol.html">Protocol</a>]</td>
@@ -82,7 +96,7 @@
 <td></td></tr>
 <tr><td><a href="Protocol.html">Protocol</a> </td>
 <td><div class="info">
-Operation not permitted
+Types representing NBD protocol requests and responses.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -95,11 +109,20 @@ Operation not permitted
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="S.html">S</a> </td>
 <td><div class="info">
-The size of a remote disk
+Common signatures used in the library.
+</div>
+</td></tr>
+<tr><td><a href="Nbd_lwt_unix.Server.html">Server</a> [<a href="Nbd_lwt_unix.html">Nbd_lwt_unix</a>]</td>
+<td><div class="info">
+A server allows you to expose disks to remote clients
 </div>
 </td></tr>
 <tr><td><a href="Server.html">Server</a> </td>
-<td></td></tr>
+<td><div class="info">
+A Server which allows you to expose an existing block device to
+    remote clients over NBD.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Server.html">Server</a> [<a href="Protocol.html">Protocol</a>]</td>
 <td></td></tr>
 </table>

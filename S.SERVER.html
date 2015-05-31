@@ -18,7 +18,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>S.SERVER</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>S.SERVER</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="S.CLIENT.html" title="S.CLIENT">Previous</a>
@@ -27,6 +28,9 @@
 <h1>Module type <a href="type_S.SERVER.html">S.SERVER</a></h1>
 
 <pre><span class="keyword">module type</span> SERVER = <code class="code">sig</code> <a href="S.SERVER.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+A Server allows you to expose an existing block device to remote clients
+      over NBD.<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
@@ -49,7 +53,7 @@ The name of an export. In the 'new style' protocol as used in nbd &gt;= 2.9.17
 
 <pre><span id="VALconnect"><span class="keyword">val</span> connect</span> : <code class="type"><a href="Channel.html#TYPEchannel">Channel.channel</a> -><br>       ?offer:<a href="S.SERVER.html#TYPEname">name</a> list -> unit -> (<a href="S.SERVER.html#TYPEname">name</a> * <a href="S.SERVER.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 <code class="code">connect channel ?offer ()</code> performs the 'new style' initial handshake
-      and options negotiation. If ?offer is provided then these names will be returned
+      and options negotiation. If <code class="code">?offer</code> is provided then these names will be returned
       if the client requests a list of exports, otherwise we will return EPERM.
       The client's choice of name is returned which must be looked up by the
       application. If the name is invalid, the only option is to close the connection.

@@ -19,7 +19,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.Option</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Protocol.Option</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Protocol.ClientFlag.html" title="Protocol.ClientFlag">Previous</a>
@@ -29,6 +30,9 @@
 <h1>Module <a href="type_Protocol.Option.html">Protocol.Option</a></h1>
 
 <pre><span class="keyword">module</span> Option: <code class="code">sig</code> <a href="Protocol.Option.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+In the 'newstyle' negotiation there is an opportunity for the client
+      to negotiate options with the server. These are the known options.<br>
 
 <pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = </code></pre><table class="typetable">
 <tr>
@@ -36,32 +40,49 @@
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.ExportName"><span class="constructor">ExportName</span></span></code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The client would like to connect to a given disk/export by
+                     name<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.Abort"><span class="constructor">Abort</span></span></code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The client would like to quit.<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.List"><span class="constructor">List</span></span></code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The client would like to receive a list of known
+                     disk/exports.<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.Unknown"><span class="constructor">Unknown</span></span> <span class="keyword">of</span> <code class="type">int32</code></code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+This option is unknown to this implementation<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 
 
 
 <pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Option.html#TYPEt">t</a> -> string</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Option.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.Option.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.Option.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+This option is unknown to this implementation<br>
+</div>
+</body></html>

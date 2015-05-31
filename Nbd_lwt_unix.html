@@ -1,0 +1,51 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Mirror.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="S" rel="Chapter" href="S.html">
+<link title="Protocol" rel="Chapter" href="Protocol.html">
+<link title="Result" rel="Chapter" href="Result.html">
+<link title="Client" rel="Chapter" href="Client.html">
+<link title="Channel" rel="Chapter" href="Channel.html">
+<link title="Server" rel="Chapter" href="Server.html">
+<link title="Mux" rel="Chapter" href="Mux.html">
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Nbd_lwt_unix</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Mirror.html" title="Mirror">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Nbd_lwt_unix.html">Nbd_lwt_unix</a></h1>
+
+<pre><span class="keyword">module</span> Nbd_lwt_unix: <code class="code">sig</code> <a href="Nbd_lwt_unix.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Network Block Device client and servers for Unix<br>
+</div>
+<hr width="100%">
+
+<pre><span id="VALconnect"><span class="keyword">val</span> connect</span> : <code class="type">string -> int -> Nbd.Channel.channel Lwt.t</code></pre><div class="info ">
+<code class="code">connect hostname port</code> connects to host:port and returns
+    a channel.<br>
+</div>
+
+<pre><span id="VALof_fd"><span class="keyword">val</span> of_fd</span> : <code class="type">Lwt_unix.file_descr -> Nbd.Channel.channel</code></pre><div class="info ">
+<code class="code">of_fd fd</code> returns a channel from an existing file descriptor<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Nbd_lwt_unix.Client.html">Client</a>: <code class="type">Nbd.S.CLIENT</code><code class="type"> </code></pre><div class="info">
+A client allows you to access remote disks
+</div>
+
+<pre><span class="keyword">module</span> <a href="Nbd_lwt_unix.Server.html">Server</a>: <code class="type">Nbd.S.SERVER</code><code class="type"> </code></pre><div class="info">
+A server allows you to expose disks to remote clients
+</div>
+</body></html>

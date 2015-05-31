@@ -19,7 +19,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Channel</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Channel</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Client.html" title="Client">Previous</a>
@@ -29,8 +30,7 @@
 <h1>Module <a href="type_Channel.html">Channel</a></h1>
 
 <pre><span class="keyword">module</span> Channel: <code class="code">sig</code> <a href="Channel.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<code class="code">connect hostname port</code> connects to host:port and returns
-    a channel.<br>
+Channels represent connections between clients and servers.<br>
 </div>
 <hr width="100%">
 
@@ -40,29 +40,35 @@
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTchannel.read">read</span>&nbsp;: <code class="type">Cstruct.t -> unit Lwt.t</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+Read a block of data from the channel<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTchannel.write">write</span>&nbsp;: <code class="type">Cstruct.t -> unit Lwt.t</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+Write a block of data to the channel<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTchannel.close">close</span>&nbsp;: <code class="type">unit -> unit Lwt.t</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+Close the channel<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 }
 
-
-
-<pre><span id="VALconnect"><span class="keyword">val</span> connect</span> : <code class="type">string -> int -> <a href="Channel.html#TYPEchannel">channel</a> Lwt.t</code></pre><div class="info ">
-<code class="code">connect hostname port</code> connects to host:port and returns
-    a channel.<br>
+<div class="info ">
+An open channel to an NBD client or server.<br>
 </div>
 
-<pre><span id="VALof_fd"><span class="keyword">val</span> of_fd</span> : <code class="type">Lwt_unix.file_descr -> <a href="Channel.html#TYPEchannel">channel</a></code></pre></body></html>
+</body></html>

@@ -19,7 +19,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.ExportName</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Protocol.ExportName</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Protocol.OptionRequestHeader.html" title="Protocol.OptionRequestHeader">Previous</a>
@@ -29,11 +30,19 @@
 <h1>Module <a href="type_Protocol.ExportName.html">Protocol.ExportName</a></h1>
 
 <pre><span class="keyword">module</span> ExportName: <code class="code">sig</code> <a href="Protocol.ExportName.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+An ExportName option payload<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">string</code> </pre>
+<div class="info ">
+The name of the export the client wishes to connect to<br>
+</div>
 
 
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type"><a href="Protocol.ExportName.html#TYPEt">t</a> -> int</code></pre>
 <pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.ExportName.html#TYPEt">t</a> -> unit</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.ExportName.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.ExportName.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.ExportName.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The name of the export the client wishes to connect to<br>
+</div>
+</body></html>

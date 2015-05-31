@@ -18,7 +18,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.Reply</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Protocol.Reply</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Protocol.Request.html" title="Protocol.Request">Previous</a>
@@ -27,6 +28,9 @@
 <h1>Module <a href="type_Protocol.Reply.html">Protocol.Reply</a></h1>
 
 <pre><span class="keyword">module</span> Reply: <code class="code">sig</code> <a href="Protocol.Reply.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+A reply sent from the server in response to a <code class="code">Request</code>. Note
+      these arrive out-of-order.<br>
 
 <pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = {</code></pre><table class="typetable">
 <tr>
@@ -34,14 +38,21 @@
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.error">error</span>&nbsp;: <code class="type">[ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ]</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+Success or failure of the
+    request<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.handle">handle</span>&nbsp;: <code class="type">int64</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The unique id in the <code class="code">Request</code><br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 }
 

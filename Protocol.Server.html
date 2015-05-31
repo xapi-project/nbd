@@ -19,7 +19,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Protocol.Server</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Protocol.Server</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Protocol.OptionResponseHeader.html" title="Protocol.OptionResponseHeader">Previous</a>
@@ -29,6 +30,9 @@
 <h1>Module <a href="type_Protocol.Server.html">Protocol.Server</a></h1>
 
 <pre><span class="keyword">module</span> Server: <code class="code">sig</code> <a href="Protocol.Server.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+In response to a <code class="code">List</code> option, the server sends a number of
+      <code class="code">Server</code> responses and then finally an <code class="code">Ack</code><br>
 
 <pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = {</code></pre><table class="typetable">
 <tr>
@@ -36,13 +40,24 @@
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
 <code><span id="TYPEELTt.name">name</span>&nbsp;: <code class="type">string</code>;</code></td>
-
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The name of an available disk.<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 }
 
+<div class="info ">
+A reponse to a <code class="code">List</code> option. Note this option is repeated, once
+      per available disk.<br>
+</div>
 
 
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type"><a href="Protocol.Server.html#TYPEt">t</a> -> int</code></pre>
 <pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.Server.html#TYPEt">t</a> ]</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Server.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.Server.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.Server.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+A reponse to a <code class="code">List</code> option. Note this option is repeated, once
+      per available disk.<br>
+</div>
+</body></html>

@@ -15,7 +15,8 @@
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
 <link title="Mux" rel="Chapter" href="Mux.html">
-<link title="Mirror" rel="Chapter" href="Mirror.html"><title>Index of values</title>
+<link title="Mirror" rel="Chapter" href="Mirror.html">
+<link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Index of values</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
@@ -38,17 +39,17 @@
 <code class="code">close t</code> shuts down the connection <code class="code">t</code> and frees any allocated resources
 </div>
 </td></tr>
+<tr><td><a href="Nbd_lwt_unix.html#VALconnect">connect</a> [<a href="Nbd_lwt_unix.html">Nbd_lwt_unix</a>]</td>
+<td><div class="info">
+<code class="code">connect hostname port</code> connects to host:port and returns
+    a channel.
+</div>
+</td></tr>
 <tr><td><a href="Mirror.Make.html#VALconnect">connect</a> [<a href="Mirror.Make.html">Mirror.Make</a>]</td>
 <td><div class="info">
 <code class="code">connect ?progress primary secondary</code> creates a block device which performs I/O
       against <code class="code">primary</code>, while building a mirror of <code class="code">primary</code> on top of
       <code class="code">secondary</code> in the background.
-</div>
-</td></tr>
-<tr><td><a href="Channel.html#VALconnect">connect</a> [<a href="Channel.html">Channel</a>]</td>
-<td><div class="info">
-<code class="code">connect hostname port</code> connects to host:port and returns
-    a channel.
 </div>
 </td></tr>
 <tr><td><a href="S.SERVER.html#VALconnect">connect</a> [<a href="S.SERVER.html">S.SERVER</a>]</td>
@@ -105,8 +106,11 @@
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
-<tr><td><a href="Channel.html#VALof_fd">of_fd</a> [<a href="Channel.html">Channel</a>]</td>
-<td></td></tr>
+<tr><td><a href="Nbd_lwt_unix.html#VALof_fd">of_fd</a> [<a href="Nbd_lwt_unix.html">Nbd_lwt_unix</a>]</td>
+<td><div class="info">
+<code class="code">of_fd fd</code> returns a channel from an existing file descriptor
+</div>
+</td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Mux.RPC.html#VALrecv_body">recv_body</a> [<a href="Mux.RPC.html">Mux.RPC</a>]</td>
 <td></td></tr>
@@ -128,25 +132,53 @@
 <tr><td><a href="Protocol.Reply.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Reply.html">Protocol.Reply</a>]</td>
 <td></td></tr>
 <tr><td><a href="Protocol.Request.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Request.html">Protocol.Request</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An I/O request sent by the client to the server.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Server.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Server.html">Protocol.Server</a>]</td>
-<td></td></tr>
+<td><div class="info">
+A reponse to a <code class="code">List</code> option.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.OptionResponseHeader.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.OptionResponseHeader.html">Protocol.OptionResponseHeader</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The header of the response sent by the server in response to
+      the client requesting an option.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.DiskInfo.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.DiskInfo.html">Protocol.DiskInfo</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Details about the export chosen by the client.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.ExportName.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.ExportName.html">Protocol.ExportName</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The name of the export the client wishes to connect to
+</div>
+</td></tr>
 <tr><td><a href="Protocol.OptionRequestHeader.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.OptionRequestHeader.html">Protocol.OptionRequestHeader</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The header of an option request sent by the client
+</div>
+</td></tr>
 <tr><td><a href="Protocol.NegotiateResponse.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.NegotiateResponse.html">Protocol.NegotiateResponse</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The client can send some flags, in response to flags set by the server.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Announcement.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Announcement.html">Protocol.Announcement</a>]</td>
 <td></td></tr>
 <tr><td><a href="Protocol.OptionResponse.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.OptionResponse.html">Protocol.OptionResponse</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The response is unknown to this implementation.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Option.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Option.html">Protocol.Option</a>]</td>
-<td></td></tr>
+<td><div class="info">
+This option is unknown to this implementation
+</div>
+</td></tr>
 <tr><td><a href="Protocol.ClientFlag.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.ClientFlag.html">Protocol.ClientFlag</a>]</td>
 <td><div class="info">
 client acknowledges omission of 124 bytes of zeroes
@@ -163,7 +195,11 @@ server supports Command.Trim
 </div>
 </td></tr>
 <tr><td><a href="Protocol.Command.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Command.html">Protocol.Command</a>]</td>
-<td></td></tr>
+<td><div class="info">
+A command which this protocol implementation doesn't
+                         suport.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Error.html#VALsexp_of_t">sexp_of_t</a> [<a href="Protocol.Error.html">Protocol.Error</a>]</td>
 <td><div class="info">
 Defined error codes which can be returned in response to a request
@@ -171,9 +207,16 @@ Defined error codes which can be returned in response to a request
 </div>
 </td></tr>
 <tr><td><a href="Protocol.Negotiate.html#VALsexp_of_v1">sexp_of_v1</a> [<a href="Protocol.Negotiate.html">Protocol.Negotiate</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The original <code class="code">V1</code> protocol supports only one disk.
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Negotiate.html#VALsexp_of_v2">sexp_of_v2</a> [<a href="Protocol.Negotiate.html">Protocol.Negotiate</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The 'newstyle' <code class="code">V2</code> protocol supports an option negotiation
+      phase and a number of sub-options <code class="code">GlobalFlag.t</code>s
+</div>
+</td></tr>
 <tr><td><a href="Protocol.Reply.html#VALsizeof">sizeof</a> [<a href="Protocol.Reply.html">Protocol.Reply</a>]</td>
 <td></td></tr>
 <tr><td><a href="Protocol.Request.html#VALsizeof">sizeof</a> [<a href="Protocol.Request.html">Protocol.Request</a>]</td>
