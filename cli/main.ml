@@ -206,7 +206,7 @@ module Impl = struct
               begin
                 let progress_cb = function
                 | `Complete ->
-                  Printf.fprintf stderr "Mirror synchronised\n%!"; exit 0
+                  Printf.fprintf stderr "Mirror synchronised\n%!"
                 | `Percent x ->
                   Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
                 M.connect ~progress_cb primary secondary
