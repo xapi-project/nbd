@@ -1,3 +1,12 @@
+2.0.0 (13-Jan-2015):
+* New Mirage-style (i.e. Cstruct/Io_page-based) API
+* Support for v2 of the NBD protocol (i.e. multiple disks over the same port)
+* Preliminary support for disk mirroring
+* CLI tool to query the size of remote disks
+* travis: add lots of v1/v2 unit tests
+* travis: add code coverage testing via coveralls.io
+* travis: generate and upload API documentation
+
 1.0.1 (30-Jan-2014):
 * Switch to a polymorphic variant type for results
 * Include modules missing from 1.0.0
