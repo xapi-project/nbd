@@ -135,7 +135,9 @@ let list channel =
           | `Ok server ->
             loop (server.Server.name :: acc)
           | `Error e -> fail e
-          end in
+          end
+        | `Ok _ ->
+          fail (Failure "Server's OptionResponse had an invalid type") in
       loop []
     end
 
