@@ -153,9 +153,6 @@ module Impl = struct
 
   let serve common filename port =
     let filename = require "filename" filename in
-    let stats = Unix.LargeFile.stat filename in
-    let size = stats.Unix.LargeFile.st_size in
-    let flags = [] in
     let t =
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in

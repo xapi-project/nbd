@@ -45,9 +45,8 @@ module NbdRpc = struct
     | `Error e -> return (`Error e)
     | `Ok () ->
       begin match req_hdr.Request.ty with
-      | Command.Read -> 
+      | Command.Read ->
         (* TODO: use a page-aligned memory allocator *)
-        let expected = Int32.to_int req_hdr.Request.len in
         Lwt_list.iter_s sock.read response_body
         >>= fun () ->
         return (`Ok ())
@@ -61,7 +60,6 @@ module NbdRpc = struct
     match req_body with
     | None -> return ()
     | Some data ->
-      let expected = Cstruct.len data in
       sock.write data
 
   let id_of_request req = req.Request.handle
@@ -180,8 +178,6 @@ let negotiate channel export =
         make channel x.DiskInfo.size x.DiskInfo.flags
         >>= fun t ->
         return (t, x.DiskInfo.size, x.DiskInfo.flags)
-      | `Ok _ ->
-        fail (Failure "Expected to receive size and flags from the server")
       end
     end
 

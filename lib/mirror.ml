@@ -271,7 +271,6 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       return (`Ok t)
 
   let read t ofs bufs =
-    let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
     Primary.read t.primary ofs bufs
 
   let write t ofs bufs =
