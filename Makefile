@@ -52,3 +52,11 @@ gh-pages:
 
 coverage:
 	bash .coverage.sh
+
+.PHONY: reindent
+reindent:
+	ocp-indent --syntax cstruct -i lib/*.mli
+	ocp-indent --syntax cstruct -i lib/*.ml
+	ocp-indent --syntax cstruct -i lib_test/*.ml
+	ocp-indent --syntax cstruct -i cli/*.ml
+
