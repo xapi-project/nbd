@@ -64,39 +64,39 @@ let connect channel ?offer () =
       channel.read payload
       >>= fun () ->
       begin match hdr.OptionRequestHeader.ty with
-      | Option.ExportName -> return (Cstruct.to_string payload, make channel)
-      | Option.Abort -> fail (Failure "client requested abort")
-      | Option.Unknown x ->
-        OptionResponseHeader.(marshal res { request_type = Option.Unknown x; response_type = OptionResponse.Unsupported; length = 0l });
-        channel.write res
-        >>= fun () ->
-        loop ()
-      | Option.List ->
-        begin match offer with
-        | None ->
-          OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Policy; length = 0l });
+        | Option.ExportName -> return (Cstruct.to_string payload, make channel)
+        | Option.Abort -> fail (Failure "client requested abort")
+        | Option.Unknown x ->
+          OptionResponseHeader.(marshal res { request_type = Option.Unknown x; response_type = OptionResponse.Unsupported; length = 0l });
           channel.write res
           >>= fun () ->
           loop ()
-        | Some offers ->
-          let rec advertise = function
-          | [] ->
-            OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Ack; length = 0l });
-            channel.write res
-          | x :: xs ->
-            let l = String.length x in
-            OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Server; length = Int32.of_int l});
-            channel.write res
-            >>= fun () ->
-            let name = Cstruct.create l in
-            Cstruct.blit_from_string x 0 name 0 l;
-            channel.write name
-            >>= fun () ->
-            advertise xs in
-          advertise offers
-          >>= fun () ->
-          loop ()
-        end
+        | Option.List ->
+          begin match offer with
+            | None ->
+              OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Policy; length = 0l });
+              channel.write res
+              >>= fun () ->
+              loop ()
+            | Some offers ->
+              let rec advertise = function
+                | [] ->
+                  OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Ack; length = 0l });
+                  channel.write res
+                | x :: xs ->
+                  let l = String.length x in
+                  OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Server; length = Int32.of_int l});
+                  channel.write res
+                  >>= fun () ->
+                  let name = Cstruct.create l in
+                  Cstruct.blit_from_string x 0 name 0 l;
+                  channel.write name
+                  >>= fun () ->
+                  advertise xs in
+              advertise offers
+              >>= fun () ->
+              loop ()
+          end
       end in
   loop ()
 
@@ -117,19 +117,19 @@ let next t =
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = `Ok () };
-      t.channel.write t.reply
-      >>= fun () ->
-      match payload with
-      | None -> return ()
-      | Some data -> t.channel.write data
+       Reply.marshal t.reply { Reply.handle; error = `Ok () };
+       t.channel.write t.reply
+       >>= fun () ->
+       match payload with
+       | None -> return ()
+       | Some data -> t.channel.write data
     )
 
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-      Reply.marshal t.reply { Reply.handle; error = `Error code };
-      t.channel.write t.reply
+       Reply.marshal t.reply { Reply.handle; error = `Error code };
+       t.channel.write t.reply
     )
 
 let serve t (type t) block (b:t) =

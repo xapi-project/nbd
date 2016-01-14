@@ -36,33 +36,31 @@ module NbdRpc = struct
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
     lwt () = sock.read buf in
-    match Reply.unmarshal buf with
-    | `Ok x -> return (Some x.Reply.handle, x)
-    | `Error e -> fail e
+  match Reply.unmarshal buf with
+  | `Ok x -> return (Some x.Reply.handle, x)
+  | `Error e -> fail e
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
     | `Error e -> return (`Error e)
     | `Ok () ->
       begin match req_hdr.Request.ty with
-      | Command.Read -> 
-        (* TODO: use a page-aligned memory allocator *)
-        let expected = Int32.to_int req_hdr.Request.len in
-        Lwt_list.iter_s sock.read response_body
-        >>= fun () ->
-        return (`Ok ())
-     | _ -> return (`Ok ())
-     end
+        | Command.Read ->
+          (* TODO: use a page-aligned memory allocator *)
+          Lwt_list.iter_s sock.read response_body
+          >>= fun () ->
+          return (`Ok ())
+        | _ -> return (`Ok ())
+      end
 
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
     Request.marshal buf req_hdr;
     lwt () = sock.write buf in
-    match req_body with
-    | None -> return ()
-    | Some data ->
-      let expected = Cstruct.len data in
-      sock.write data
+  match req_body with
+  | None -> return ()
+  | Some data ->
+    sock.write data
 
   let id_of_request req = req.Request.handle
 
@@ -107,38 +105,40 @@ let list channel =
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-    | `Error e -> fail e
-    | `Ok (Negotiate.V1 x) ->
-      return (`Error `Unsupported)
-    | `Ok (Negotiate.V2 x) ->
-      let buf = Cstruct.create NegotiateResponse.sizeof in
-      let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
-      NegotiateResponse.marshal buf flags;
-      channel.write buf
-      >>= fun () ->
-      let buf = Cstruct.create OptionRequestHeader.sizeof in
-      OptionRequestHeader.(marshal buf { ty = Option.List; length = 0l });
-      channel.write buf
-      >>= fun () ->
-      let buf = Cstruct.create OptionResponseHeader.sizeof in
-      let rec loop acc =
-        channel.read buf
+      | `Error e -> fail e
+      | `Ok (Negotiate.V1 x) ->
+        return (`Error `Unsupported)
+      | `Ok (Negotiate.V2 x) ->
+        let buf = Cstruct.create NegotiateResponse.sizeof in
+        let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
+        NegotiateResponse.marshal buf flags;
+        channel.write buf
         >>= fun () ->
-        match OptionResponseHeader.unmarshal buf with
-        | `Error e -> fail e
-        | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
-        | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
-          return (`Error `Policy)
-        | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
-          let buf' = Cstruct.create (Int32.to_int length) in
-          channel.read buf'
+        let buf = Cstruct.create OptionRequestHeader.sizeof in
+        OptionRequestHeader.(marshal buf { ty = Option.List; length = 0l });
+        channel.write buf
+        >>= fun () ->
+        let buf = Cstruct.create OptionResponseHeader.sizeof in
+        let rec loop acc =
+          channel.read buf
           >>= fun () ->
-          begin match Server.unmarshal buf' with
-          | `Ok server ->
-            loop (server.Server.name :: acc)
+          match OptionResponseHeader.unmarshal buf with
           | `Error e -> fail e
-          end in
-      loop []
+          | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
+          | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
+            return (`Error `Policy)
+          | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
+            let buf' = Cstruct.create (Int32.to_int length) in
+            channel.read buf'
+            >>= fun () ->
+            begin match Server.unmarshal buf' with
+              | `Ok server ->
+                loop (server.Server.name :: acc)
+              | `Error e -> fail e
+            end
+          | `Ok _ ->
+            fail (Failure "Server's OptionResponse had an invalid type") in
+        loop []
     end
 
 let negotiate channel export =
@@ -152,37 +152,35 @@ let negotiate channel export =
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-    | `Error e -> fail e
-    | `Ok (Negotiate.V1 x) ->
-      make channel x.Negotiate.size x.Negotiate.flags
-      >>= fun t ->
-      return (t, x.Negotiate.size, x.Negotiate.flags)
-    | `Ok (Negotiate.V2 x) ->
-      let buf = Cstruct.create NegotiateResponse.sizeof in
-      let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
-      NegotiateResponse.marshal buf flags;
-      channel.write buf
-      >>= fun () ->
-      let buf = Cstruct.create OptionRequestHeader.sizeof in
-      OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
-      channel.write buf
-      >>= fun () ->
-      let buf = Cstruct.create (ExportName.sizeof export) in
-      ExportName.marshal buf export;
-      channel.write buf
-      >>= fun () ->
-      let buf = Cstruct.create DiskInfo.sizeof in
-      channel.read buf
-      >>= fun () ->
-      begin match DiskInfo.unmarshal buf with
       | `Error e -> fail e
-      | `Ok x ->
-        make channel x.DiskInfo.size x.DiskInfo.flags
+      | `Ok (Negotiate.V1 x) ->
+        make channel x.Negotiate.size x.Negotiate.flags
         >>= fun t ->
-        return (t, x.DiskInfo.size, x.DiskInfo.flags)
-      | `Ok _ ->
-        fail (Failure "Expected to receive size and flags from the server")
-      end
+        return (t, x.Negotiate.size, x.Negotiate.flags)
+      | `Ok (Negotiate.V2 x) ->
+        let buf = Cstruct.create NegotiateResponse.sizeof in
+        let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
+        NegotiateResponse.marshal buf flags;
+        channel.write buf
+        >>= fun () ->
+        let buf = Cstruct.create OptionRequestHeader.sizeof in
+        OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
+        channel.write buf
+        >>= fun () ->
+        let buf = Cstruct.create (ExportName.sizeof export) in
+        ExportName.marshal buf export;
+        channel.write buf
+        >>= fun () ->
+        let buf = Cstruct.create DiskInfo.sizeof in
+        channel.read buf
+        >>= fun () ->
+        begin match DiskInfo.unmarshal buf with
+          | `Error e -> fail e
+          | `Ok x ->
+            make channel x.DiskInfo.size x.DiskInfo.flags
+            >>= fun t ->
+            return (t, x.DiskInfo.size, x.DiskInfo.flags)
+        end
     end
 
 type 'a io = 'a Lwt.t
@@ -212,13 +210,13 @@ let write t from buffers =
   then return (`Error `Disconnected)
   else begin
     let rec loop from = function
-    | [] -> return (`Ok ())
-    | b :: bs ->
-      begin write_one t from b
-      >>= function
-      | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
-      | `Error e -> return (`Error e)
-      end in
+      | [] -> return (`Ok ())
+      | b :: bs ->
+        begin write_one t from b
+          >>= function
+          | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
+          | `Error e -> return (`Error e)
+        end in
     loop from buffers
     >>= function
     | `Ok x -> return (`Ok x)
