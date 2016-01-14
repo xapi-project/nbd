@@ -30,6 +30,7 @@ Executable "nbd-tool"
   BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax, mirage-block-unix, uri
 
 Executable "test"
+  Build$: flag(tests)
   CompiledObject: best
   Path: lib_test
   MainIs: test.ml
