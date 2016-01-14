@@ -18,12 +18,12 @@ module Error: sig
   (** Read and write requests can fail with an error response. *)
 
   type t = [
-  | `EPERM  (** Operation not permitted *)
-  | `EIO    (** Input/output error *)
-  | `ENOMEM (** Cannot allocate memory *)
-  | `EINVAL (** Invalid argument *)
-  | `ENOSPC (** No space left on device *)
-  | `Unknown of int32
+    | `EPERM  (** Operation not permitted *)
+    | `EIO    (** Input/output error *)
+    | `ENOMEM (** Cannot allocate memory *)
+    | `EINVAL (** Invalid argument *)
+    | `ENOSPC (** No space left on device *)
+    | `Unknown of int32
   ] with sexp
   (** Defined error codes which can be returned in response to a request
       in the data-pushing phase. *)
@@ -35,16 +35,16 @@ module Command: sig
   (** Once a connection has been established, the client can submit commands. *)
 
   type t =
-  | Read  (** Read a block of data *)
-  | Write (** Write a block of data *)
-  | Disc  (** Disconnect: server must flush all outstanding commands and then
-              will close the connection *)
-  | Flush (** A flush request or write barrier. All requests received before
-              this one will have completed before this command is acknowledged. *)
-  | Trim  (** A hint that a data region is nolonger required and may be
-              discarded. *)
-  | Unknown of int32 (** A command which this protocol implementation doesn't
-                         suport. *)
+    | Read  (** Read a block of data *)
+    | Write (** Write a block of data *)
+    | Disc  (** Disconnect: server must flush all outstanding commands and then
+                will close the connection *)
+    | Flush (** A flush request or write barrier. All requests received before
+                this one will have completed before this command is acknowledged. *)
+    | Trim  (** A hint that a data region is nolonger required and may be
+                discarded. *)
+    | Unknown of int32 (** A command which this protocol implementation doesn't
+                           suport. *)
   with sexp
 
   val to_string: t -> string
@@ -55,11 +55,11 @@ module PerExportFlag: sig
       be returned from the server when the negotiation is complete. *)
 
   type t =
-  | Read_only   (** export is read/only. Writes will receive EPERM *)
-  | Send_flush  (** server supports Command.Flush *)
-  | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
-  | Rotational  (** let the client schedule I/O for a rotational medium *)
-  | Send_trim   (** server supports Command.Trim *)
+    | Read_only   (** export is read/only. Writes will receive EPERM *)
+    | Send_flush  (** server supports Command.Flush *)
+    | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
+    | Rotational  (** let the client schedule I/O for a rotational medium *)
+    | Send_trim   (** server supports Command.Trim *)
   with sexp
   (** Per-export flags *)
 
@@ -150,7 +150,7 @@ module Negotiate: sig
   type t =
     | V1 of v1
     | V2 of v2
-  (** The initial greeting sent by the server *)
+    (** The initial greeting sent by the server *)
 
   val to_string: t -> string
 
@@ -276,7 +276,7 @@ module Reply: sig
 
   type t = {
     error : [ `Ok of unit | `Error of Error.t ]; (** Success or failure of the
-    request *)
+                                                     request *)
     handle : int64; (** The unique id in the [Request] *)
   } with sexp
 

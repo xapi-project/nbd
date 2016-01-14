@@ -69,27 +69,27 @@ let v2_list_export_success = [
 let make_client_channel n =
   let next = ref n in
   let rec read buf = match !next with
-  | `Server x :: rest ->
-    let available = min (Cstruct.len buf) (String.length x) in
-    Cstruct.blit_from_string x 0 buf 0 available;
-    next := if available = String.length x then rest else `Server (String.sub x available (String.length x - available)) :: rest;
-    let buf = Cstruct.shift buf available in
-    if Cstruct.len buf = 0
-    then return ()
-    else read buf
-  | `Client _ :: _ -> fail (Failure "Client tried to read but it should have written")
-  | [] -> fail (Failure "Client tried to read but the stream was empty") in
+    | `Server x :: rest ->
+      let available = min (Cstruct.len buf) (String.length x) in
+      Cstruct.blit_from_string x 0 buf 0 available;
+      next := if available = String.length x then rest else `Server (String.sub x available (String.length x - available)) :: rest;
+      let buf = Cstruct.shift buf available in
+      if Cstruct.len buf = 0
+      then return ()
+      else read buf
+    | `Client _ :: _ -> fail (Failure "Client tried to read but it should have written")
+    | [] -> fail (Failure "Client tried to read but the stream was empty") in
   let rec write buf = match !next with
-  | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
-  | `Client x :: rest ->
-    let available = min (Cstruct.len buf) (String.length x) in
-    Cstruct.blit_from_string x 0 buf 0 available;
-    next := if available = String.length x then rest else `Client (String.sub x available (String.length x - available)) :: rest;
-    let buf = Cstruct.shift buf available in
-    if Cstruct.len buf = 0
-    then return ()
-    else write buf
-  | [] -> fail (Failure "Client tried to write but the stream was empty") in
+    | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
+    | `Client x :: rest ->
+      let available = min (Cstruct.len buf) (String.length x) in
+      Cstruct.blit_from_string x 0 buf 0 available;
+      next := if available = String.length x then rest else `Client (String.sub x available (String.length x - available)) :: rest;
+      let buf = Cstruct.shift buf available in
+      if Cstruct.len buf = 0
+      then return ()
+      else write buf
+    | [] -> fail (Failure "Client tried to write but the stream was empty") in
   let close () = return () in
   { Channel.read; write; close }
 
@@ -97,43 +97,43 @@ let client_negotiation =
   "Perform a negotiation using the second version of the protocol from the
    client's side."
   >:: fun () ->
-  let t =
-    let channel = make_client_channel v2_negotiation in
-    Client.negotiate channel "export1"
-    >>= fun (t, size, flags) ->
-    return () in
-  Lwt_main.run t
+    let t =
+      let channel = make_client_channel v2_negotiation in
+      Client.negotiate channel "export1"
+      >>= fun (t, size, flags) ->
+      return () in
+    Lwt_main.run t
 
 let list_disabled =
   "Check that if we request a list of exports and are denied, the error is
    reported properly."
   >:: fun () ->
-  let t =
-    let channel = make_client_channel v2_list_export_disabled in
-    Client.list channel
-    >>= function
-    | `Error `Policy ->
-      return ()
-    | _ -> failwith "Expected to receive a Policy error" in
-  Lwt_main.run t
+    let t =
+      let channel = make_client_channel v2_list_export_disabled in
+      Client.list channel
+      >>= function
+      | `Error `Policy ->
+        return ()
+      | _ -> failwith "Expected to receive a Policy error" in
+    Lwt_main.run t
 
 let list_success =
   "Check that if we request a list of exports, a list is returned and parsed
    properly."
   >:: fun () ->
-  let t =
-    let channel = make_client_channel v2_list_export_success in
-    Client.list channel
-    >>= function
-    | `Ok [ "export1" ] ->
-      return ()
-    | _ -> failwith "Expected to receive a list of exports" in
-  Lwt_main.run t
+    let t =
+      let channel = make_client_channel v2_list_export_success in
+      Client.list channel
+      >>= function
+      | `Ok [ "export1" ] ->
+        return ()
+      | _ -> failwith "Expected to receive a list of exports" in
+    Lwt_main.run t
 
 let negotiate_suite = "Nbd protocol negotiation" >::: [
-  client_negotiation;
-  list_disabled;
-  list_success;
+    client_negotiation;
+    list_disabled;
+    list_success;
   ]
 
 let _ =

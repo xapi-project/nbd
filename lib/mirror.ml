@@ -60,28 +60,28 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     let extend_right t offset' =
       Lwt_mutex.with_lock t.m
         (fun () ->
-          let rec wait () =
-            let length = Int64.(to_int (sub offset' (fst t.exclusive_lock))) in
-            if List.fold_left (||) false (List.map (overlap (fst t.exclusive_lock, length)) t.active) then begin
-              Lwt_condition.wait ~mutex:t.m t.c
-              >>= fun () ->
-              wait ()
-            end else return length in
-          wait ()
-          >>= fun length ->
-          t.exclusive_lock <- (fst t.exclusive_lock, length);
-          Lwt_condition.broadcast t.c ();
-          return ()
+           let rec wait () =
+             let length = Int64.(to_int (sub offset' (fst t.exclusive_lock))) in
+             if List.fold_left (||) false (List.map (overlap (fst t.exclusive_lock, length)) t.active) then begin
+               Lwt_condition.wait ~mutex:t.m t.c
+               >>= fun () ->
+               wait ()
+             end else return length in
+           wait ()
+           >>= fun length ->
+           t.exclusive_lock <- (fst t.exclusive_lock, length);
+           Lwt_condition.broadcast t.c ();
+           return ()
         )
 
     (* Release lock up to [offset'] *)
     let release_left t offset' =
       Lwt_mutex.with_lock t.m
         (fun () ->
-          let length = Int64.(to_int (sub (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock))) offset')) in
-          t.exclusive_lock <- (offset', length);
-          Lwt_condition.broadcast t.c ();
-          return ()
+           let length = Int64.(to_int (sub (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock))) offset')) in
+           t.exclusive_lock <- (offset', length);
+           Lwt_condition.broadcast t.c ();
+           return ()
         )
 
     (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
@@ -90,31 +90,31 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     let with_lock t offset length f =
       Lwt_mutex.with_lock t.m
         (fun () ->
-          let rec loop () =
-            if overlap t.exclusive_lock (offset, length) then begin
-              Lwt_condition.wait ~mutex:t.m t.c
-              >>= fun () ->
-              loop ()
-            end else begin
-              (* if the copy might catch up with us then mark the region as locked *)
-              let unlock =
-                if before t.exclusive_lock (offset, length) then begin
-                  t.active <- (offset, length) :: t.active;
-                  fun () ->
-                    t.active <- List.filter (fun (o, l) -> o <> offset || l <> length) t.active;
-                    Lwt_condition.broadcast t.c ()
-                end else
-                  fun () -> () in
-              Lwt.catch
-                (fun () ->
-                  f () >>= fun r ->
-                  unlock ();
-                  return r
-                ) (fun e ->
-                  unlock ();
-                  fail e)
-            end in
-          loop ()
+           let rec loop () =
+             if overlap t.exclusive_lock (offset, length) then begin
+               Lwt_condition.wait ~mutex:t.m t.c
+               >>= fun () ->
+               loop ()
+             end else begin
+               (* if the copy might catch up with us then mark the region as locked *)
+               let unlock =
+                 if before t.exclusive_lock (offset, length) then begin
+                   t.active <- (offset, length) :: t.active;
+                   fun () ->
+                     t.active <- List.filter (fun (o, l) -> o <> offset || l <> length) t.active;
+                     Lwt_condition.broadcast t.c ()
+                 end else
+                   fun () -> () in
+               Lwt.catch
+                 (fun () ->
+                    f () >>= fun r ->
+                    unlock ();
+                    return r
+                 ) (fun e ->
+                     unlock ();
+                     fail e)
+             end in
+           loop ()
         )
 
     let make () =
@@ -280,11 +280,11 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     let secondary_ofs = Int64.(mul ofs (of_int t.secondary_block_size)) in
     Region_lock.with_lock t.lock ofs length
       (fun () ->
-        Primary.write t.primary primary_ofs bufs
-        >>= function
-        | `Error e -> return (`Error e)
-        | `Ok () ->
-          Secondary.write t.secondary secondary_ofs bufs
+         Primary.write t.primary primary_ofs bufs
+         >>= function
+         | `Error e -> return (`Error e)
+         | `Ok () ->
+           Secondary.write t.secondary secondary_ofs bufs
       )
 
   let disconnect t =
@@ -293,4 +293,3 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     >>= fun _ ->
     return ()
 end
-

@@ -43,14 +43,14 @@ module Device = struct
         | `Ok x -> return (`Ok (`Local x) ))
     | Some "nbd" ->
       begin match Uri.host uri with
-      | Some host ->
-        let port = match Uri.port uri with None -> 10809 | Some x -> x in
-        Nbd_lwt_unix.connect host port
-        >>= fun channel ->
-        Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
-        >>= fun (t, _, _) ->
-        return (`Ok (`Nbd t))
-      | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
+        | Some host ->
+          let port = match Uri.port uri with None -> 10809 | Some x -> x in
+          Nbd_lwt_unix.connect host port
+          >>= fun channel ->
+          Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
+          >>= fun (t, _, _) ->
+          return (`Ok (`Nbd t))
+        | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
       end
     | _ -> return (`Error (`Unknown "unknown scheme"))
 
@@ -97,24 +97,24 @@ open Cmdliner
 (* Help sections common to all commands *)
 
 let _common_options = "COMMON OPTIONS"
-let help = [ 
- `S _common_options; 
- `P "These options are common to all commands.";
- `S "MORE HELP";
- `P "Use `$(mname) $(i,COMMAND) --help' for help on a single command."; `Noblank;
- `S "BUGS"; `P (Printf.sprintf "Check bug reports at %s" project_url);
+let help = [
+  `S _common_options;
+  `P "These options are common to all commands.";
+  `S "MORE HELP";
+  `P "Use `$(mname) $(i,COMMAND) --help' for help on a single command."; `Noblank;
+  `S "BUGS"; `P (Printf.sprintf "Check bug reports at %s" project_url);
 ]
 
 (* Options common to all commands *)
-let common_options_t = 
-  let docs = _common_options in 
-  let debug = 
+let common_options_t =
+  let docs = _common_options in
+  let debug =
     let doc = "Give only debug output." in
     Arg.(value & flag & info ["debug"] ~docs ~doc) in
   let verb =
     let doc = "Give verbose output." in
-    let verbose = true, Arg.info ["v"; "verbose"] ~docs ~doc in 
-    Arg.(last & vflag_all [false] [verbose]) in 
+    let verbose = true, Arg.info ["v"; "verbose"] ~docs ~doc in
+    Arg.(last & vflag_all [false] [verbose]) in
   Term.(pure Common.make $ debug $ verb)
 
 module Impl = struct
@@ -159,75 +159,75 @@ module Impl = struct
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
       while_lwt true do
-        lwt (fd, _) = Lwt_unix.accept sock in
-        (* Background thread per connection *)
-        let _ =
-          let channel = Nbd_lwt_unix.of_fd fd in
-          Server.connect channel ()
-          >>= fun (name, t) ->
-          Block.connect filename
+  lwt (fd, _) = Lwt_unix.accept sock in
+(* Background thread per connection *)
+let _ =
+  let channel = Nbd_lwt_unix.of_fd fd in
+  Server.connect channel ()
+  >>= fun (name, t) ->
+  Block.connect filename
+  >>= function
+  | `Error _ ->
+    Printf.fprintf stderr "Failed to open %s\n%!" filename;
+    exit 1
+  | `Ok b ->
+    Server.serve t (module Block) b in
+return ()
+done in
+Lwt_main.run t;
+`Ok ()
+
+let mirror common filename port secondary =
+  let filename = require "filename" filename in
+  let secondary = require "secondary" secondary in
+  let t =
+    let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+    let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
+    Lwt_unix.bind sock sockaddr;
+    Lwt_unix.listen sock 5;
+    let module M = Mirror.Make(Device)(Device) in
+    ( Device.connect (Uri.of_string filename)
+      >>= function
+      | `Error _ ->
+        Printf.fprintf stderr "Failed to open %s\n%!" filename;
+        exit 1
+      | `Ok primary ->
+        begin
+          (* Connect to the secondary *)
+          Device.connect (Uri.of_string secondary)
           >>= function
           | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" filename;
+            Printf.fprintf stderr "Failed to open %s\n%!" secondary;
             exit 1
-          | `Ok b ->
-            Server.serve t (module Block) b in
-        return ()
-      done in
-    Lwt_main.run t;
-    `Ok ()
-
-  let mirror common filename port secondary =
-    let filename = require "filename" filename in
-    let secondary = require "secondary" secondary in
-    let t =
-      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
-      let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-      Lwt_unix.bind sock sockaddr;
-      Lwt_unix.listen sock 5;
-      let module M = Mirror.Make(Device)(Device) in
-      ( Device.connect (Uri.of_string filename)
-        >>= function
-        | `Error _ ->
-          Printf.fprintf stderr "Failed to open %s\n%!" filename;
-          exit 1
-        | `Ok primary ->
-          begin
-            (* Connect to the secondary *)
-            Device.connect (Uri.of_string secondary)
-            >>= function
-            | `Error _ ->
-              Printf.fprintf stderr "Failed to open %s\n%!" secondary;
-              exit 1
-            | `Ok secondary ->
-              begin
-                let progress_cb = function
+          | `Ok secondary ->
+            begin
+              let progress_cb = function
                 | `Complete ->
                   Printf.fprintf stderr "Mirror synchronised\n%!"
                 | `Percent x ->
                   Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
-                M.connect ~progress_cb primary secondary
-                >>= function
-                | `Error e ->
-                  Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
-                  exit 1
-                | `Ok m ->
-                  return m
-              end
-          end
-      ) >>= fun m ->
-      while_lwt true do
-        lwt (fd, _) = Lwt_unix.accept sock in
-        (* Background thread per connection *)
-        let _ =
-          let channel = Nbd_lwt_unix.of_fd fd in
-          Server.connect channel ()
-          >>= fun (name, t) ->
-          Server.serve t (module M) m in
-        return ()
-      done in
-    Lwt_main.run t;
-    `Ok ()
+              M.connect ~progress_cb primary secondary
+              >>= function
+              | `Error e ->
+                Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
+                exit 1
+              | `Ok m ->
+                return m
+            end
+        end
+    ) >>= fun m ->
+    while_lwt true do
+  lwt (fd, _) = Lwt_unix.accept sock in
+(* Background thread per connection *)
+let _ =
+  let channel = Nbd_lwt_unix.of_fd fd in
+  Server.connect channel ()
+  >>= fun (name, t) ->
+  Server.serve t (module M) m in
+return ()
+done in
+Lwt_main.run t;
+`Ok ()
 end
 
 let size_cmd =
@@ -294,15 +294,15 @@ let list_cmd =
   Term.(ret(pure Impl.list $ common_options_t $ host $ port)),
   Term.info "list" ~sdocs:_common_options ~doc ~man
 
-let default_cmd = 
+let default_cmd =
   let doc = "manipulate NBD clients and servers" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
-       
+
 let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
 
 let _ =
-  match Term.eval_choice default_cmd cmds with 
+  match Term.eval_choice default_cmd cmds with
   | `Error _ -> exit 1
   | _ -> exit 0

@@ -57,13 +57,13 @@ module PerExportFlag = struct
   let of_int32 x =
     let flags = Int32.to_int x in
     let is_set i mask = i land mask = mask in
-      List.map snd 
-        (List.filter (fun (mask,_) -> is_set flags mask)
-          [ nbd_flag_read_only, Read_only;
-            nbd_flag_send_flush, Send_flush;
-            nbd_flag_send_fua, Send_fua;
-            nbd_flag_rotational, Rotational;
-            nbd_flag_send_trim, Send_trim; ])
+    List.map snd 
+      (List.filter (fun (mask,_) -> is_set flags mask)
+         [ nbd_flag_read_only, Read_only;
+           nbd_flag_send_flush, Send_flush;
+           nbd_flag_send_fua, Send_fua;
+           nbd_flag_rotational, Rotational;
+           nbd_flag_send_trim, Send_trim; ])
 
   let to_int flags =
     let one = function
@@ -87,10 +87,10 @@ module GlobalFlag = struct
 
   let of_int flags =
     let is_set i mask = i land mask = mask in
-      List.map snd 
-        (List.filter (fun (mask,_) -> is_set flags mask)
-          [ nbd_flag_fixed_newstyle, Fixed_newstyle;
-            nbd_flag_no_zeroes, No_zeroes; ])
+    List.map snd 
+      (List.filter (fun (mask,_) -> is_set flags mask)
+         [ nbd_flag_fixed_newstyle, Fixed_newstyle;
+           nbd_flag_no_zeroes, No_zeroes; ])
 
   let to_int flags =
     let one = function
@@ -111,10 +111,10 @@ module ClientFlag = struct
   let of_int32 flags =
     let flags = Int32.to_int flags in
     let is_set i mask = i land mask = mask in
-      List.map snd 
-        (List.filter (fun (mask,_) -> is_set flags mask)
-          [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
-            nbd_flag_c_no_zeroes, No_zeroes; ])
+    List.map snd 
+      (List.filter (fun (mask,_) -> is_set flags mask)
+         [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
+           nbd_flag_c_no_zeroes, No_zeroes; ])
 
   let to_int32 flags =
     let one = function
@@ -126,12 +126,12 @@ end
 
 module Error = struct
   type t = [
-  | `EPERM
-  | `EIO
-  | `ENOMEM
-  | `EINVAL
-  | `ENOSPC
-  | `Unknown of int32
+    | `EPERM
+    | `EIO
+    | `ENOMEM
+    | `EINVAL
+    | `ENOSPC
+    | `Unknown of int32
   ] with sexp
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
@@ -166,20 +166,20 @@ module Command = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 = function 
-  | 0l -> Read 
-  | 1l -> Write 
-  | 2l -> Disc 
-  | 3l -> Flush 
-  | 4l -> Trim
-  | c  -> Unknown c
+    | 0l -> Read 
+    | 1l -> Write 
+    | 2l -> Disc 
+    | 3l -> Flush 
+    | 4l -> Trim
+    | c  -> Unknown c
 
   let to_int32 = function 
-  | Read -> 0l 
-  | Write -> 1l 
-  | Disc -> 2l 
-  | Flush -> 3l 
-  | Trim -> 4l
-  | Unknown c -> c
+    | Read -> 0l 
+    | Write -> 1l 
+    | Disc -> 2l 
+    | Flush -> 3l 
+    | Trim -> 4l
+    | Unknown c -> c
 
 end
 
@@ -194,16 +194,16 @@ module Option = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 = function
-  | 1l -> ExportName
-  | 2l -> Abort
-  | 3l -> List
-  | c -> Unknown c
+    | 1l -> ExportName
+    | 2l -> Abort
+    | 3l -> List
+    | c -> Unknown c
 
   let to_int32 = function
-  | ExportName -> 1l
-  | Abort -> 2l
-  | List -> 3l
-  | Unknown c -> c
+    | ExportName -> 1l
+    | Abort -> 2l
+    | List -> 3l
+    | Unknown c -> c
 end
 
 module OptionResponse = struct
@@ -220,22 +220,22 @@ module OptionResponse = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 = function
-  | 1l -> Ack
-  | 2l -> Server
-  | -2147483647l -> Unsupported
-  | -2147483646l -> Policy
-  | -2147483645l -> Invalid
-  | -2147483644l -> Platform
-  | x -> Unknown x
+    | 1l -> Ack
+    | 2l -> Server
+    | -2147483647l -> Unsupported
+    | -2147483646l -> Policy
+    | -2147483645l -> Invalid
+    | -2147483644l -> Platform
+    | x -> Unknown x
 
   let to_int32 = function
-  | Ack -> 1l
-  | Server -> 2l
-  | Unsupported -> -2147483647l
-  | Policy -> -2147483646l
-  | Invalid -> -2147483645l
-  | Platform -> -2147483644l;
-  | Unknown x -> x
+    | Ack -> 1l
+    | Server -> 2l
+    | Unsupported -> -2147483647l
+    | Policy -> -2147483646l
+    | Invalid -> -2147483645l
+    | Platform -> -2147483644l;
+    | Unknown x -> x
 
 end
 
@@ -245,9 +245,9 @@ module Announcement = struct
   type t = [ `V1 | `V2 ] with sexp
 
   cstruct t {
-    uint8_t passwd[8];
-    uint64_t magic;
-  } as big_endian
+      uint8_t passwd[8];
+      uint64_t magic;
+    } as big_endian
 
   let sizeof = sizeof_t
 
@@ -270,9 +270,9 @@ module Announcement = struct
       if magic = v1_magic
       then return `V1
       else
-        if magic = v2_magic
-        then return `V2
-        else `Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
+      if magic = v2_magic
+      then return `V2
+      else `Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
 end
 
 module Negotiate = struct
@@ -291,14 +291,14 @@ module Negotiate = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   cstruct v1 {
-    uint64_t size;
-    uint32_t flags;
-    uint8_t padding[124]
-  } as big_endian
+      uint64_t size;
+      uint32_t flags;
+      uint8_t padding[124]
+    } as big_endian
 
   cstruct v2 {
-    uint16_t flags;
-  } as big_endian
+      uint16_t flags;
+    } as big_endian
 
   let sizeof = function
     | `V1 -> sizeof_v1
@@ -317,12 +317,12 @@ module Negotiate = struct
     let open Result in
     match t with
     | `V1 ->
-       let size = get_v1_size buf in
-       let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
-       return (V1 { size; flags })
+      let size = get_v1_size buf in
+      let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
+      return (V1 { size; flags })
     | `V2 ->
-       let flags = GlobalFlag.of_int (get_v2_flags buf) in
-       return (V2 flags)
+      let flags = GlobalFlag.of_int (get_v2_flags buf) in
+      return (V2 flags)
 end
 
 module NegotiateResponse = struct
@@ -347,10 +347,10 @@ module OptionRequestHeader = struct
   } with sexp
 
   cstruct t {
-    uint64_t magic;
-    uint32_t ty;
-    uint32_t length;
-  } as big_endian
+      uint64_t magic;
+      uint32_t ty;
+      uint32_t length;
+    } as big_endian
 
   let sizeof = sizeof_t
 
@@ -391,10 +391,10 @@ module DiskInfo = struct
   } with sexp
 
   cstruct t {
-    uint64_t size;
-    uint16_t flags;
-    uint8_t padding[124];
-  } as big_endian
+      uint64_t size;
+      uint16_t flags;
+      uint8_t padding[124];
+    } as big_endian
 
   let sizeof = sizeof_t
 
@@ -413,11 +413,11 @@ end
    should result in reply packets as follows: *)
 module OptionResponseHeader = struct
   cstruct t {
-    uint64_t magic;
-    uint32_t request_type;
-    uint32_t response_type;
-    uint32_t length;
-  } as big_endian
+      uint64_t magic;
+      uint32_t request_type;
+      uint32_t response_type;
+      uint32_t length;
+    } as big_endian
 
   type t = {
     request_type: Option.t;
@@ -456,8 +456,8 @@ module Server = struct
   } with sexp
 
   cstruct t {
-    uint32_t length;
-  } as big_endian
+      uint32_t length;
+    } as big_endian
 
   let sizeof t = sizeof_t + (String.length t.name)
 
@@ -482,12 +482,12 @@ module Request = struct
       (Command.to_string t.ty) t.handle t.from t.len
 
   cstruct t {
-    uint32_t magic;
-    uint32_t ty;
-    uint64_t handle;
-    uint64_t from;
-    uint32_t len
-  } as big_endian
+      uint32_t magic;
+      uint32_t ty;
+      uint64_t handle;
+      uint64_t from;
+      uint32_t len
+    } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
     let open Result in
@@ -510,7 +510,7 @@ module Request = struct
     set_t_from buf t.from;
     set_t_len buf t.len
 end
-	
+
 module Reply = struct
   type t = {
     error : [ `Ok of unit | `Error of Error.t ];
@@ -520,10 +520,10 @@ module Reply = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   cstruct t {
-    uint32_t magic;
-    uint32_t error;
-    uint64_t handle
-  } as big_endian
+      uint32_t magic;
+      uint32_t error;
+      uint64_t handle
+    } as big_endian
 
   let unmarshal (buf: Cstruct.t) =
     let open Result in
