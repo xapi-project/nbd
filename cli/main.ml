@@ -158,24 +158,25 @@ module Impl = struct
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
       Lwt_unix.bind sock sockaddr;
       Lwt_unix.listen sock 5;
-      while_lwt true do
-  lwt (fd, _) = Lwt_unix.accept sock in
-(* Background thread per connection *)
-let _ =
-  let channel = Nbd_lwt_unix.of_fd fd in
-  Server.connect channel ()
-  >>= fun (name, t) ->
-  Block.connect filename
-  >>= function
-  | `Error _ ->
-    Printf.fprintf stderr "Failed to open %s\n%!" filename;
-    exit 1
-  | `Ok b ->
-    Server.serve t (module Block) b in
-return ()
-done in
-Lwt_main.run t;
-`Ok ()
+      let rec loop () =
+        Lwt_unix.accept sock
+        >>= fun (fd, _) ->
+        (* Background thread per connection *)
+        let _ =
+          let channel = Nbd_lwt_unix.of_fd fd in
+          Server.connect channel ()
+          >>= fun (name, t) ->
+          Block.connect filename
+          >>= function
+          | `Error _ ->
+            Printf.fprintf stderr "Failed to open %s\n%!" filename;
+            exit 1
+          | `Ok b ->
+            Server.serve t (module Block) b in
+        loop () in
+      loop () in
+    Lwt_main.run t;
+    `Ok ()
 
 let mirror common filename port secondary =
   let filename = require "filename" filename in
@@ -216,18 +217,19 @@ let mirror common filename port secondary =
             end
         end
     ) >>= fun m ->
-    while_lwt true do
-  lwt (fd, _) = Lwt_unix.accept sock in
-(* Background thread per connection *)
-let _ =
-  let channel = Nbd_lwt_unix.of_fd fd in
-  Server.connect channel ()
-  >>= fun (name, t) ->
-  Server.serve t (module M) m in
-return ()
-done in
-Lwt_main.run t;
-`Ok ()
+    let rec loop () =
+      Lwt_unix.accept sock
+      >>= fun (fd, _) ->
+      (* Background thread per connection *)
+      let _ =
+        let channel = Nbd_lwt_unix.of_fd fd in
+        Server.connect channel ()
+        >>= fun (name, t) ->
+        Server.serve t (module M) m in
+      loop () in
+    loop () in
+    Lwt_main.run t;
+    `Ok ()
 end
 
 let size_cmd =

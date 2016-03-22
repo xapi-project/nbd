@@ -35,10 +35,11 @@ module NbdRpc = struct
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
-    lwt () = sock.read buf in
-  match Reply.unmarshal buf with
-  | `Ok x -> return (Some x.Reply.handle, x)
-  | `Error e -> fail e
+    sock.read buf
+    >>= fun () ->
+    match Reply.unmarshal buf with
+    | `Ok x -> return (Some x.Reply.handle, x)
+    | `Error e -> fail e
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
@@ -56,11 +57,12 @@ module NbdRpc = struct
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
     Request.marshal buf req_hdr;
-    lwt () = sock.write buf in
-  match req_body with
-  | None -> return ()
-  | Some data ->
-    sock.write data
+    sock.write buf
+    >>= fun () ->
+    match req_body with
+    | None -> return ()
+    | Some data ->
+      sock.write data
 
   let id_of_request req = req.Request.handle
 

@@ -50,14 +50,14 @@ module PerExportFlag = struct
     | Send_fua
     | Rotational
     | Send_trim
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 x =
     let flags = Int32.to_int x in
     let is_set i mask = i land mask = mask in
-    List.map snd 
+    List.map snd
       (List.filter (fun (mask,_) -> is_set flags mask)
          [ nbd_flag_read_only, Read_only;
            nbd_flag_send_flush, Send_flush;
@@ -81,13 +81,13 @@ module GlobalFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int flags =
     let is_set i mask = i land mask = mask in
-    List.map snd 
+    List.map snd
       (List.filter (fun (mask,_) -> is_set flags mask)
          [ nbd_flag_fixed_newstyle, Fixed_newstyle;
            nbd_flag_no_zeroes, No_zeroes; ])
@@ -104,14 +104,14 @@ module ClientFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   let of_int32 flags =
     let flags = Int32.to_int flags in
     let is_set i mask = i land mask = mask in
-    List.map snd 
+    List.map snd
       (List.filter (fun (mask,_) -> is_set flags mask)
          [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
            nbd_flag_c_no_zeroes, No_zeroes; ])
@@ -132,7 +132,7 @@ module Error = struct
     | `EINVAL
     | `ENOSPC
     | `Unknown of int32
-  ] with sexp
+  ] [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -161,23 +161,23 @@ module Command = struct
     | Flush
     | Trim
     | Unknown of int32
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let of_int32 = function 
-    | 0l -> Read 
-    | 1l -> Write 
-    | 2l -> Disc 
-    | 3l -> Flush 
+  let of_int32 = function
+    | 0l -> Read
+    | 1l -> Write
+    | 2l -> Disc
+    | 3l -> Flush
     | 4l -> Trim
     | c  -> Unknown c
 
-  let to_int32 = function 
-    | Read -> 0l 
-    | Write -> 1l 
-    | Disc -> 2l 
-    | Flush -> 3l 
+  let to_int32 = function
+    | Read -> 0l
+    | Write -> 1l
+    | Disc -> 2l
+    | Flush -> 3l
     | Trim -> 4l
     | Unknown c -> c
 
@@ -189,7 +189,7 @@ module Option = struct
     | Abort
     | List
     | Unknown of int32
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -215,7 +215,7 @@ module OptionResponse = struct
     | Invalid
     | Platform
     | Unknown of int32
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -242,12 +242,14 @@ end
 (* Sent by the server to the client which includes an initial
    protocol choice *)
 module Announcement = struct
-  type t = [ `V1 | `V2 ] with sexp
+  type t = [ `V1 | `V2 ] [@@deriving sexp]
 
-  cstruct t {
-      uint8_t passwd[8];
-      uint64_t magic;
-    } as big_endian
+  [%%cstruct
+  type t = {
+      passwd: uint8_t [@len 8];
+      magic:  uint64_t;
+    } [@@big_endian]
+  ]
 
   let sizeof = sizeof_t
 
@@ -279,27 +281,30 @@ module Negotiate = struct
   type v1 = {
     size: int64;
     flags: PerExportFlag.t list;
-  } with sexp
+  } [@@deriving sexp]
 
-  type v2 = GlobalFlag.t list with sexp
+  type v2 = GlobalFlag.t list [@@deriving sexp]
 
   type t =
     | V1 of v1
     | V2 of v2
-  with sexp
+  [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  cstruct v1 {
-      uint64_t size;
-      uint32_t flags;
-      uint8_t padding[124]
-    } as big_endian
+  [%%cstruct
+  type v1 = {
+      size:    uint64_t;
+      flags:   uint32_t;
+      padding: uint8_t [@len 124];
+    } [@@big_endian]
+  ]
 
-  cstruct v2 {
-      uint16_t flags;
-    } as big_endian
-
+  [%%cstruct
+  type v2 = {
+      flags: uint16_t;
+    } [@@big_endian]
+  ]
   let sizeof = function
     | `V1 -> sizeof_v1
     | `V2 -> sizeof_v2
@@ -326,7 +331,7 @@ module Negotiate = struct
 end
 
 module NegotiateResponse = struct
-  type t = ClientFlag.t list with sexp
+  type t = ClientFlag.t list [@@deriving sexp]
 
   let sizeof = 4
 
@@ -344,14 +349,15 @@ module OptionRequestHeader = struct
   type t = {
     ty: Option.t;
     length: int32;
-  } with sexp
+  } [@@deriving sexp]
 
-  cstruct t {
-      uint64_t magic;
-      uint32_t ty;
-      uint32_t length;
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      magic:  uint64_t;
+      ty:     uint32_t;
+      length: uint32_t;
+    } [@@big_endian]
+  ]
   let sizeof = sizeof_t
 
   let marshal buf t =
@@ -373,7 +379,7 @@ end
 (* This is the option sent by the client to select a particular disk
    export. *)
 module ExportName = struct
-  type t = string with sexp
+  type t = string [@@deriving sexp]
 
   let sizeof = String.length
 
@@ -388,14 +394,15 @@ module DiskInfo = struct
   type t = {
     size: int64;
     flags: PerExportFlag.t list
-  } with sexp
+  } [@@deriving sexp]
 
-  cstruct t {
-      uint64_t size;
-      uint16_t flags;
-      uint8_t padding[124];
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      size:    uint64_t;
+      flags:   uint16_t;
+      padding: uint8_t  [@len 124];
+    } [@@big_endian]
+  ]
   let sizeof = sizeof_t
 
   let unmarshal buf =
@@ -412,18 +419,19 @@ end
 (* In the 'fixed new' style handshake, all options apart from ExportName
    should result in reply packets as follows: *)
 module OptionResponseHeader = struct
-  cstruct t {
-      uint64_t magic;
-      uint32_t request_type;
-      uint32_t response_type;
-      uint32_t length;
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      magic:         uint64_t;
+      request_type:  uint32_t;
+      response_type: uint32_t;
+      length:        uint32_t;
+    } [@@big_endian]
+  ]
   type t = {
     request_type: Option.t;
     response_type: OptionResponse.t;
     length: int32;
-  } with sexp
+  } [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -453,12 +461,13 @@ end
 module Server = struct
   type t = {
     name: string;
-  } with sexp
+  } [@@deriving sexp]
 
-  cstruct t {
-      uint32_t length;
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      length: uint32_t;
+    } [@@big_endian]
+  ]
   let sizeof t = sizeof_t + (String.length t.name)
 
   let unmarshal buf =
@@ -475,20 +484,21 @@ module Request = struct
     handle : int64;
     from : int64;
     len : int32
-  } with sexp
+  } [@@deriving sexp]
 
   let to_string t =
     Printf.sprintf "{ Command = %s; handle = %Ld; from = %Ld; len = %ld }"
       (Command.to_string t.ty) t.handle t.from t.len
 
-  cstruct t {
-      uint32_t magic;
-      uint32_t ty;
-      uint64_t handle;
-      uint64_t from;
-      uint32_t len
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      magic:  uint32_t;
+      ty:     uint32_t;
+      handle: uint64_t;
+      from:   uint64_t;
+      len:    uint32_t;
+    } [@@big_endian]
+  ]
   let unmarshal (buf: Cstruct.t) =
     let open Result in
     let magic = get_t_magic buf in
@@ -515,16 +525,17 @@ module Reply = struct
   type t = {
     error : [ `Ok of unit | `Error of Error.t ];
     handle : int64;
-  } with sexp
+  } [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  cstruct t {
-      uint32_t magic;
-      uint32_t error;
-      uint64_t handle
-    } as big_endian
-
+  [%%cstruct
+  type t = {
+      magic:  uint32_t;
+      error:  uint32_t;
+      handle: uint64_t;
+    } [@@big_endian]
+  ]
   let unmarshal (buf: Cstruct.t) =
     let open Result in
     let magic = get_t_magic buf in
