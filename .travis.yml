@@ -8,6 +8,5 @@ env:
   matrix:
   - OCAML_VERSION=latest
   - OCAML_VERSION=4.02
-  - OCAML_VERSION=4.01
 branches:
   only: master
