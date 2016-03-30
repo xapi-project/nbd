@@ -12,7 +12,7 @@ Library nbd
   CompiledObject: best
   Path: lib
   Modules: S, Protocol, Result, Client, Channel, Server, Mux, Mirror
-  BuildDepends: cstruct, cstruct.syntax, sexplib, sexplib.syntax, lwt, lwt.syntax, mirage-types.lwt, io-page
+  BuildDepends: cstruct, cstruct.ppx, sexplib, ppx_sexp_conv, lwt, mirage-types.lwt, io-page
 
 Library "nbd-lwt"
   CompiledObject: best
@@ -20,14 +20,14 @@ Library "nbd-lwt"
   Findlibname: lwt
   FindlibParent: nbd
   Modules: Nbd_lwt_unix
-  BuildDepends: nbd, lwt, lwt.unix, lwt.syntax, cstruct.lwt, mirage-types.lwt, io-page.unix, io-page
+  BuildDepends: nbd, lwt, lwt.unix, cstruct.lwt, mirage-types.lwt, io-page.unix, io-page
 
 Executable "nbd-tool"
   CompiledObject: best
   Path: cli
   MainIs: main.ml
   Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, lwt.syntax, mirage-block-unix, uri
+  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, mirage-block-unix, uri
 
 Executable "test"
   Build$: flag(tests)

@@ -24,7 +24,7 @@ module Error: sig
     | `EINVAL (** Invalid argument *)
     | `ENOSPC (** No space left on device *)
     | `Unknown of int32
-  ] with sexp
+  ] [@@deriving sexp]
   (** Defined error codes which can be returned in response to a request
       in the data-pushing phase. *)
 
@@ -45,7 +45,7 @@ module Command: sig
                 discarded. *)
     | Unknown of int32 (** A command which this protocol implementation doesn't
                            suport. *)
-  with sexp
+  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -60,7 +60,7 @@ module PerExportFlag: sig
     | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
     | Rotational  (** let the client schedule I/O for a rotational medium *)
     | Send_trim   (** server supports Command.Trim *)
-  with sexp
+  [@@deriving sexp]
   (** Per-export flags *)
 
   val to_string: t -> string
@@ -73,7 +73,7 @@ module GlobalFlag: sig
   type t =
     | Fixed_newstyle (** server supports the fixed newstyle protocol *)
     | No_zeroes      (** request to omit the 124 bytes of zeroes *)
-  with sexp
+  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -85,7 +85,7 @@ module ClientFlag: sig
   type t =
     | Fixed_newstyle (** client acknowledges use of fixed newstyle protocol *)
     | No_zeroes      (** client acknowledges omission of 124 bytes of zeroes *)
-  with sexp
+  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -101,7 +101,7 @@ module Option: sig
     | List       (** The client would like to receive a list of known
                      disk/exports. *)
     | Unknown of int32 (** This option is unknown to this implementation *)
-  with sexp
+  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -117,7 +117,7 @@ module OptionResponse: sig
     | Invalid (** The option was invalid (i.e. the client is buggy) *)
     | Platform (** The option is not supported in this platform. *)
     | Unknown of int32 (** The response is unknown to this implementation. *)
-  with sexp
+  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -126,7 +126,7 @@ module Announcement: sig
   (** The server sends an initial greeting when the connectino is opened. It
       can be of two main types: the original [V1] and a 'newstyle' [V2]. *)
 
-  type t = [ `V1 | `V2 ] with sexp
+  type t = [ `V1 | `V2 ] [@@deriving sexp]
 
   val sizeof: int
 
@@ -140,10 +140,10 @@ module Negotiate: sig
   type v1 = {
     size: int64; (** The size of the disk *)
     flags: PerExportFlag.t list; (** Flags associated with the disk *)
-  } with sexp
+  } [@@deriving sexp]
   (** The original [V1] protocol supports only one disk. *)
 
-  type v2 = GlobalFlag.t list with sexp
+  type v2 = GlobalFlag.t list [@@deriving sexp]
   (** The 'newstyle' [V2] protocol supports an option negotiation
       phase and a number of sub-options [GlobalFlag.t]s *)
 
@@ -163,7 +163,7 @@ end
 module NegotiateResponse: sig
   (** The client's initial response to the server's greeting *)
 
-  type t = ClientFlag.t list with sexp
+  type t = ClientFlag.t list [@@deriving sexp]
   (** The client can send some flags, in response to flags set by the server. *)
 
   val sizeof: int
@@ -179,7 +179,7 @@ module OptionRequestHeader: sig
   type t = {
     ty: Option.t; (** The option type *)
     length: int32; (** The length of the option data *)
-  } with sexp
+  } [@@deriving sexp]
   (** The header of an option request sent by the client *)
 
   val sizeof: int
@@ -191,7 +191,7 @@ end
 module ExportName: sig
   (** An ExportName option payload *)
 
-  type t = string with sexp
+  type t = string [@@deriving sexp]
   (** The name of the export the client wishes to connect to *)
 
   val sizeof: t -> int
@@ -206,7 +206,7 @@ module DiskInfo: sig
   type t = {
     size: int64; (** The size of the disk in bytes *)
     flags: PerExportFlag.t list; (** Flags associated with the disk *)
-  } with sexp
+  } [@@deriving sexp]
   (** Details about the export chosen by the client. *)
 
   val sizeof: int
@@ -224,7 +224,7 @@ module OptionResponseHeader: sig
     request_type: Option.t; (** The option type requested *)
     response_type: OptionResponse.t; (** The response code *)
     length: int32; (** The length of the payload associated with the response *)
-  } with sexp
+  } [@@deriving sexp]
   (** The header of the response sent by the server in response to
       the client requesting an option. *)
 
@@ -242,14 +242,14 @@ module Server: sig
 
   type t = {
     name: string; (** The name of an available disk. *)
-  } with sexp
+  } [@@deriving sexp]
   (** A reponse to a [List] option. Note this option is repeated, once
       per available disk. *)
 
   val sizeof: t -> int
 
   val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
-end  
+end
 
 module Request: sig
   (** After the negotation phase, clients send I/O requests to the server. *)
@@ -259,7 +259,7 @@ module Request: sig
     handle : int64; (** A unique handle used to match requests with responses.*)
     from : int64;   (** The start of the data region *)
     len : int32;    (** The length of the data region *)
-  } with sexp
+  } [@@deriving sexp]
   (** An I/O request sent by the client to the server. *)
 
   val to_string: t -> string
@@ -278,7 +278,7 @@ module Reply: sig
     error : [ `Ok of unit | `Error of Error.t ]; (** Success or failure of the
                                                      request *)
     handle : int64; (** The unique id in the [Request] *)
-  } with sexp
+  } [@@deriving sexp]
 
   val to_string: t -> string
 
