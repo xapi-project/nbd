@@ -20,7 +20,7 @@
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Read_only</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Send_flush</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Send_fua</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Rotational</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Send_trim</span><br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">PerExportFlag</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">PerExportFlag</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">PerExportFlag</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">PerExportFlag</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
 <span class="keyword">end</span></code></body></html>

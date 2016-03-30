@@ -32,17 +32,13 @@
 Read and write requests can fail with an error response.<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `EINVAL | `EIO | `ENOMEM | `ENOSPC | `EPERM | `Unknown of int32 ]</code> </pre>
-<div class="info ">
-Defined error codes which can be returned in response to a request
-      in the data-pushing phase.<br>
-</div>
 
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Error.html#TYPEt">t</a> -> string</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Error.html#TYPEt">t</a></code></pre>
 <pre><span id="VAL__t_of_sexp__"><span class="keyword">val</span> __t_of_sexp__</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Error.html#TYPEt">t</a></code></pre>
 <pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.Error.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
 Defined error codes which can be returned in response to a request
       in the data-pushing phase.<br>
 </div>
-</body></html>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Error.html#TYPEt">t</a> -> string</code></pre></body></html>

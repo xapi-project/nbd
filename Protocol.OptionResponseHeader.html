@@ -68,19 +68,15 @@ The length of the payload associated with the response<br>
 </tr></table>
 }
 
-<div class="info ">
-The header of the response sent by the server in response to
-      the client requesting an option.<br>
-</div>
 
 
-<pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> -> string</code></pre>
-<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> ]</code></pre>
-<pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> -> unit</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.OptionResponseHeader.html#TYPEt">t</a></code></pre>
 <pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
 The header of the response sent by the server in response to
       the client requesting an option.<br>
 </div>
-</body></html>
+
+<pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> -> string</code></pre>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> ]</code></pre>
+<pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.OptionResponseHeader.html#TYPEt">t</a> -> unit</code></pre></body></html>

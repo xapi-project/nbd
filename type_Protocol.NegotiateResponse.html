@@ -20,9 +20,9 @@
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">ClientFlag</span>.t&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sizeof&nbsp;:&nbsp;int<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;marshal&nbsp;:&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;unmarshal&nbsp;:&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">NegotiateResponse</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
 <span class="keyword">end</span></code></body></html>

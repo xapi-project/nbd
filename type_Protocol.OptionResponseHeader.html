@@ -24,11 +24,11 @@
 &nbsp;&nbsp;&nbsp;&nbsp;response_type&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponse</span>.t;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;length&nbsp;:&nbsp;int32;<br>
 &nbsp;&nbsp;}<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sizeof&nbsp;:&nbsp;int<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;unmarshal&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keyword">of</span>&nbsp;exn&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t&nbsp;]<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;marshal&nbsp;:&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">OptionResponseHeader</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
 <span class="keyword">end</span></code></body></html>

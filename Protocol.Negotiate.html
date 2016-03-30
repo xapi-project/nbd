@@ -56,17 +56,21 @@ Flags associated with the disk<br>
 </tr></table>
 }
 
-<div class="info ">
+
+
+<pre><span id="VALv1_of_sexp"><span class="keyword">val</span> v1_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Negotiate.html#TYPEv1">v1</a></code></pre>
+<pre><span id="VALsexp_of_v1"><span class="keyword">val</span> sexp_of_v1</span> : <code class="type"><a href="Protocol.Negotiate.html#TYPEv1">v1</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
 The original <code class="code">V1</code> protocol supports only one disk.<br>
 </div>
 
-
 <pre><span id="TYPEv2"><span class="keyword">type</span> <code class="type"></code>v2</span> = <code class="type"><a href="Protocol.GlobalFlag.html#TYPEt">Protocol.GlobalFlag.t</a> list</code> </pre>
-<div class="info ">
+
+
+<pre><span id="VALv2_of_sexp"><span class="keyword">val</span> v2_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Negotiate.html#TYPEv2">v2</a></code></pre>
+<pre><span id="VALsexp_of_v2"><span class="keyword">val</span> sexp_of_v2</span> : <code class="type"><a href="Protocol.Negotiate.html#TYPEv2">v2</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
 The 'newstyle' <code class="code">V2</code> protocol supports an option negotiation
       phase and a number of sub-options <code class="code">GlobalFlag.t</code>s<br>
 </div>
-
 
 <pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = </code></pre><table class="typetable">
 <tr>
@@ -92,17 +96,4 @@ The initial greeting sent by the server<br>
 <pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Negotiate.html#TYPEt">t</a> -> string</code></pre>
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type"><a href="Protocol.Announcement.html#TYPEt">Protocol.Announcement.t</a> -> int</code></pre>
 <pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.Negotiate.html#TYPEt">t</a> -> unit</code></pre>
-<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -><br>       <a href="Protocol.Announcement.html#TYPEt">Protocol.Announcement.t</a> -> [ `Error of exn | `Ok of <a href="Protocol.Negotiate.html#TYPEt">t</a> ]</code></pre>
-<pre><span id="VALv1_of_sexp"><span class="keyword">val</span> v1_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Negotiate.html#TYPEv1">v1</a></code></pre>
-<pre><span id="VALsexp_of_v1"><span class="keyword">val</span> sexp_of_v1</span> : <code class="type"><a href="Protocol.Negotiate.html#TYPEv1">v1</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The original <code class="code">V1</code> protocol supports only one disk.<br>
-</div>
-
-<pre><span id="VALv2_of_sexp"><span class="keyword">val</span> v2_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Protocol.Negotiate.html#TYPEv2">v2</a></code></pre>
-<pre><span id="VALsexp_of_v2"><span class="keyword">val</span> sexp_of_v2</span> : <code class="type"><a href="Protocol.Negotiate.html#TYPEv2">v2</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The 'newstyle' <code class="code">V2</code> protocol supports an option negotiation
-      phase and a number of sub-options <code class="code">GlobalFlag.t</code>s<br>
-</div>
-<br>
-The initial greeting sent by the server<br>
-</body></html>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -><br>       <a href="Protocol.Announcement.html#TYPEt">Protocol.Announcement.t</a> -> [ `Error of exn | `Ok of <a href="Protocol.Negotiate.html#TYPEt">t</a> ]</code></pre></body></html>
