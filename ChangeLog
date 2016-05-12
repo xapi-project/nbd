@@ -1,3 +1,6 @@
+2.1.0 (2016-05-12):
+* Uses cstruct.ppx rather than cstruct.syntax
+
 2.0.1 (2016-01-14):
 * fix an inexhaustive match exception if the server sends an unexpected
   response
