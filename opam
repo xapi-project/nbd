@@ -29,7 +29,7 @@ depends: [
   "ocamlfind" {build}
   "type_conv" {build}
   "lwt"
-  "cstruct" {> "1.0.0" & <= "1.9.0"}
+  "cstruct" {>= "1.9.0"}
   "cmdliner"
   "sexplib"
   "mirage-block-unix"
