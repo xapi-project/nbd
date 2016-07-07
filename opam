@@ -36,6 +36,7 @@ depends: [
   "io-page"
   "mirage"
   "uri"
+  "ppx_sexp_conv"
 ]
 tags: [ "org:mirage" "org:xapi-project" ]
 available: [ ocaml-version >= "4.02.0" ]
