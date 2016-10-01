@@ -37,10 +37,8 @@ module Device = struct
   let connect uri = match Uri.scheme uri with
     | Some "file" ->
       let path = Uri.path uri in
-      ( Block.connect path
-        >>= function
-        | `Error e -> return (`Error (`Unknown (Printf.sprintf "Failed to open %s" path)))
-        | `Ok x -> return (`Ok (`Local x) ))
+      ( Block.connect path >|= fun x ->
+        `Local x )
     | Some "nbd" ->
       begin match Uri.host uri with
         | Some host ->
@@ -49,10 +47,10 @@ module Device = struct
           >>= fun channel ->
           Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) ->
-          return (`Ok (`Nbd t))
-        | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
+          return (`Nbd t)
+        | None -> fail_with "Cannot connect to nbd without a host"
       end
-    | _ -> return (`Error (`Unknown "unknown scheme"))
+    | _ -> fail_with "unknown scheme"
 
   type info = {
     read_write: bool;
@@ -167,12 +165,8 @@ module Impl = struct
           Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" filename;
-            exit 1
-          | `Ok b ->
-            Server.serve t (module Block) b in
+          >>= fun b ->
+          Server.serve t (module Block) b in
         loop () in
       loop () in
     Lwt_main.run t;
