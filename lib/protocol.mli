@@ -131,7 +131,7 @@ module Announcement: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
 end
 
 module Negotiate: sig
@@ -157,7 +157,7 @@ module Negotiate: sig
   val sizeof: Announcement.t -> int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> Announcement.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> Announcement.t -> (t, exn) Result.result
 end
 
 module NegotiateResponse: sig
@@ -185,7 +185,7 @@ module OptionRequestHeader: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
 end
 
 module ExportName: sig
@@ -211,7 +211,7 @@ module DiskInfo: sig
 
   val sizeof: int
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
   val marshal: Cstruct.t -> t -> unit
 end
 
@@ -232,7 +232,7 @@ module OptionResponseHeader: sig
 
   val to_string: t -> string
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
   val marshal: Cstruct.t -> t -> unit
 end
 
@@ -248,7 +248,7 @@ module Server: sig
 
   val sizeof: t -> int
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
 end
 
 module Request: sig
@@ -267,7 +267,7 @@ module Request: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
 end
 
 module Reply: sig
@@ -285,6 +285,5 @@ module Reply: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
-
+  val unmarshal: Cstruct.t -> (t, exn) Result.result
 end

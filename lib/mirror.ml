@@ -133,7 +133,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     secondary_block_size: int; (* number of secondary sectors per info.sector_size *)
     info: info;
     lock: Region_lock.t;
-    result: [ `Ok of unit | `Error of error ] Lwt.t;
+    result: (unit, error) Result.result Lwt.t;
     mutable percent_complete: int;
     progress_cb: [ `Percent of int | `Complete ] -> unit;
     mutable disconnected: bool;
@@ -158,7 +158,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
 
     let rec reader sector =
       if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+        return (Result.Ok ())
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -172,7 +172,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
           | `Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
+            return (Result.Error e)
           | `Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
@@ -185,7 +185,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+        return (Result.Ok ())
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -197,7 +197,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
           | `Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
+            return (Result.Error e)
           | `Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
@@ -211,14 +211,14 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     read_t >>= fun read_result ->
     write_t >>= fun write_result ->
     ( match read_result, write_result with
-      | `Ok (), `Ok () ->
-        Lwt.wakeup u (`Ok ())
-      | `Error e, `Ok () ->
-        Lwt.wakeup u (`Error e)
-      | `Ok (), `Error e ->
-        Lwt.wakeup u (`Error e)
-      | `Error e, `Error ei ->
-        Lwt.wakeup u (`Error e) );
+      | Result.Ok (), Result.Ok () ->
+        Lwt.wakeup u (Result.Ok ())
+      | Result.Error e, Result.Ok () ->
+        Lwt.wakeup u (Result.Error e)
+      | Result.Ok (), Result.Error e ->
+        Lwt.wakeup u (Result.Error e)
+      | Result.Error e, Result.Error ei ->
+        Lwt.wakeup u (Result.Error e) );
     return ()
 
   type id = unit
@@ -240,24 +240,24 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     let primary_bytes = Int64.(mul primary_info.Primary.size_sectors (of_int primary_info.Primary.sector_size)) in
     let secondary_bytes = Int64.(mul secondary_info.Secondary.size_sectors (of_int secondary_info.Secondary.sector_size)) in
 
-    ( let open Nbd_result in
+    ( let open Rresult in
       ( if sector_size mod primary_info.Primary.sector_size <> 0
         || sector_size mod secondary_info.Secondary.sector_size <> 0
-        then fail (`Unknown (Printf.sprintf "Incompatible sector sizes: either primary (%d) or secondary (%d) must be an integer multiple of the other" primary_info.Primary.sector_size secondary_info.Secondary.sector_size))
-        else return ()
+        then Error (`Unknown (Printf.sprintf "Incompatible sector sizes: either primary (%d) or secondary (%d) must be an integer multiple of the other" primary_info.Primary.sector_size secondary_info.Secondary.sector_size))
+        else Ok ()
       ) >>= fun () ->
       ( if primary_bytes <> secondary_bytes
-        then fail (`Unknown (Printf.sprintf "Incompatible overall sizes: primary (%Ld bytes) and secondary (%Ld bytes) must be the same size" primary_bytes secondary_bytes))
-        else return ()
+        then Error (`Unknown (Printf.sprintf "Incompatible overall sizes: primary (%Ld bytes) and secondary (%Ld bytes) must be the same size" primary_bytes secondary_bytes))
+        else Ok ()
       ) >>= fun () ->
       ( if not secondary_info.Secondary.read_write
-        then fail (`Unknown "Cannot mirror to a read-only secondary device")
-        else return ()
+        then Error (`Unknown "Cannot mirror to a read-only secondary device")
+        else Ok ()
       )
     ) |> Lwt.return
     >>= function
-    | `Error e -> return (`Error e)
-    | `Ok () ->
+    | Result.Error e -> return (Result.Error e)
+    | Result.Ok () ->
       let disconnected = false in
       let read_write = primary_info.Primary.read_write in
       let size_sectors = Int64.(div primary_bytes (of_int sector_size)) in
@@ -268,7 +268,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       let t = { progress_cb; primary; secondary; primary_block_size; secondary_block_size;
                 info; lock; result; percent_complete; disconnected } in
       let (_: unit Lwt.t) = start_copy t u in
-      return (`Ok t)
+      return (Result.Ok t)
 
   let read t ofs bufs =
     Primary.read t.primary ofs bufs

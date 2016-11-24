@@ -58,8 +58,8 @@ let connect channel ?offer () =
     channel.read req
     >>= fun () ->
     match OptionRequestHeader.unmarshal req with
-    | `Error e -> fail e
-    | `Ok hdr ->
+    | Result.Error e -> fail e
+    | Result.Ok hdr ->
       let payload = Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length) in
       channel.read payload
       >>= fun () ->
@@ -111,8 +111,8 @@ let next t =
   t.channel.read t.request
   >>= fun () ->
   match Request.unmarshal t.request with
-  | `Ok r -> return r
-  | `Error e -> fail e
+  | Result.Ok r -> return r
+  | Result.Error e -> fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
