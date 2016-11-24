@@ -1,3 +1,7 @@
+2.1.1 (2016-11-24):
+* opam: add dependency on ppx_sexp_conv
+* rename module Result to Nbd_result to avoid clashing with lwt 2.6.0
+
 2.1.0 (2016-05-12):
 * Uses cstruct.ppx rather than cstruct.syntax
 
