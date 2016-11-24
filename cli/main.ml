@@ -138,13 +138,13 @@ module Impl = struct
       >>= fun channel ->
       Client.list channel
       >>= function
-      | `Ok disks ->
+      | Result.Ok disks ->
         List.iter print_endline disks;
         return ()
-      | `Error `Unsupported ->
+      | Result.Error `Unsupported ->
         Printf.fprintf stderr "The server does not support the query function.\n%!";
         exit 1
-      | `Error `Policy ->
+      | Result.Error `Policy ->
         Printf.fprintf stderr "The server configuration does not permit listing exports.\n%!";
         exit 2 in
     `Ok (Lwt_main.run t)
@@ -203,10 +203,10 @@ let mirror common filename port secondary =
                   Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
               M.connect ~progress_cb primary secondary
               >>= function
-              | `Error e ->
+              | Result.Error e ->
                 Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
                 exit 1
-              | `Ok m ->
+              | Result.Ok m ->
                 return m
             end
         end

@@ -25,7 +25,7 @@ module type CLIENT = sig
   type size = int64
   (** The size of a remote disk *)
 
-  val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
+  val list: channel -> (string list, [ `Policy | `Unsupported ]) Result.result Lwt.t
   (** [list channel] returns a list of exports known by the server.
       [`Error `Policy] means the server has this function disabled deliberately.
       [`Error `Unsupported] means the server is old and does not support the query
