@@ -1,6 +1,6 @@
 OASISFormat: 0.3
 Name: nbd
-Version: 2.1.0
+Version: 2.1.1
 Synopsis: Pure OCaml implementation of the Network Block Device
 Authors: Jonathan Ludlam, Dave Scott
 License: LGPL-2.1 with OCaml linking exception
