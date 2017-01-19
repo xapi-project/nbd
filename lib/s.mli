@@ -21,6 +21,8 @@ module type CLIENT = sig
 
   include V1_LWT.BLOCK
     with type page_aligned_buffer = Cstruct.t
+     and type error = [ Mirage_block.error | `Msg of string ]
+     and type write_error = [ Mirage_block.write_error | `Msg of string ]
 
   type size = int64
   (** The size of a remote disk *)
@@ -59,7 +61,7 @@ module type SERVER = sig
       application. If the name is invalid, the only option is to close the connection.
       If the name is valid then use the [serve] function. *)
 
-  val serve : t ->  (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
+  val serve : t ->  (module Mirage_block_lwt.S with type t = 'b) -> 'b -> unit Lwt.t
   (** [serve t block b] runs forever processing requests from [t], using [block]
       device type [b]. *)
 

@@ -72,15 +72,23 @@ end
 
 module Rpc = Mux.Make(NbdRpc)
 
-type info = {
-  read_write: bool;
-  sector_size: int;
-  size_sectors: int64;
-}
+(* samoht: `Msg should be the list of all possible exceptions *)
+type error = [ Mirage_block.error | `Msg of string ]
+
+(* samoht: `Msg should be the list of all possible exceptions *)
+type write_error = [ Mirage_block.write_error | `Msg of string ]
+
+let pp_error ppf = function
+  | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
+  | `Msg s -> Fmt.string ppf s
+
+let pp_write_error ppf = function
+  | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
+  | `Msg s -> Fmt.string ppf s
 
 type t = {
   client: Rpc.client;
-  info: info;
+  info: Mirage_block.info;
   mutable disconnected: bool;
 }
 
@@ -92,7 +100,7 @@ let make channel size_bytes flags =
   let read_write = not (List.mem PerExportFlag.Read_only flags) in
   let sector_size = 1 in (* Note: NBD has no notion of a sector *)
   let size_sectors = size_bytes in
-  let info = { read_write; sector_size; size_sectors } in
+  let info = { Mirage_block.read_write; sector_size; size_sectors } in
   let disconnected = false in
   return { client; info; disconnected }
 
@@ -189,13 +197,6 @@ type 'a io = 'a Lwt.t
 
 type page_aligned_buffer = Cstruct.t
 
-type error = [
-  | `Unknown of string
-  | `Unimplemented
-  | `Is_read_only
-  | `Disconnected
-]
-
 let get_info t = return t.info
 
 let write_one t from buffer =
@@ -209,7 +210,7 @@ let write_one t from buffer =
 
 let write t from buffers =
   if t.disconnected
-  then return (`Error `Disconnected)
+  then return (Result.Error `Disconnected)
   else begin
     let rec loop from = function
       | [] -> return (Result.Ok ())
@@ -221,13 +222,13 @@ let write t from buffers =
         end in
     loop from buffers
     >>= function
-    | Result.Ok x -> return (`Ok x)
-    | Result.Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | Result.Error e -> Lwt.return (Result.Error (`Msg (Protocol.Error.to_string e)))
+    | Result.Ok () -> Lwt.return (Result.Ok ())
   end
 
 let read t from buffers =
   if t.disconnected
-  then return (`Error `Disconnected)
+  then return (Result.Error `Disconnected)
   else begin
     let handle = get_handle () in
     let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
@@ -238,8 +239,8 @@ let read t from buffers =
     let req_body = None in
     Rpc.rpc req_hdr req_body buffers t.client
     >>= function
-    | Result.Ok x -> return (`Ok x)
-    | Result.Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | Result.Error e -> Lwt.return (Result.Error (`Msg (Protocol.Error.to_string e)))
+    | Result.Ok () -> Lwt.return (Result.Ok ())
   end
 
 let disconnect t =

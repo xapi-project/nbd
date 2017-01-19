@@ -33,7 +33,9 @@ depends: [
   "cstruct" {>= "1.9.0"}
   "cmdliner"
   "sexplib"
+  "mirage-types-lwt"
   "mirage-block-unix"
+  "mirage-block-lwt"
   "io-page"
   "mirage" {>= "1.1.0"}
   "uri"

@@ -12,12 +12,12 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK): sig
-  include V1_LWT.BLOCK
+module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S): sig
+  include Mirage_block_lwt.S
 
   val connect:
     ?progress_cb:([ `Percent of int | `Complete ]-> unit)
-    -> Primary.t -> Secondary.t -> (t, error) Result.result Lwt.t
+    -> Primary.t -> Secondary.t -> t Lwt.t
   (** [connect ?progress primary secondary] creates a block device which performs I/O
       against [primary], while building a mirror of [primary] on top of
       [secondary] in the background. Existing data in [secondary] will be

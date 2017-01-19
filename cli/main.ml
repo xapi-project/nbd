@@ -28,11 +28,20 @@ module Device = struct
   type 'a io = 'a Lwt.t
   type page_aligned_buffer = Cstruct.t
   type error = [
-    | `Unknown of string
-    | `Unimplemented
-    | `Is_read_only
-    | `Disconnected
+    Mirage_block.error
+    | `Msg of string
   ]
+  type write_error = [
+    Mirage_block.write_error
+    | `Msg of string
+  ]
+  let pp_error ppf = function
+    | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
+    | `Msg s -> Fmt.string ppf s
+
+  let pp_write_error ppf = function
+    | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
+    | `Msg s -> Fmt.string ppf s
 
   let connect uri = match Uri.scheme uri with
     | Some "file" ->
@@ -61,28 +70,26 @@ module Device = struct
   let get_info = function
     | `Nbd t ->
       Nbd_lwt_unix.Client.get_info t
-      >>= fun info ->
-      return {
-        read_write = info.Nbd_lwt_unix.Client.read_write;
-        sector_size = info.Nbd_lwt_unix.Client.sector_size;
-        size_sectors = info.Nbd_lwt_unix.Client.size_sectors
-      }
     | `Local t ->
       Block.get_info t
-      >>= fun info ->
-      return {
-        read_write = info.Block.read_write;
-        sector_size = info.Block.sector_size;
-        size_sectors = info.Block.size_sectors
-      }
 
-  let read t = match t with
-    | `Nbd t -> Nbd_lwt_unix.Client.read t
-    | `Local t -> Block.read t
+  let read t off bufs = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.read t off bufs
+    | `Local t ->
+      Block.read t off bufs
+      >>= function
+      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
+      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
+      | Result.Ok x -> Lwt.return (Result.Ok x)
 
-  let write t = match t with
-    | `Nbd t -> Nbd_lwt_unix.Client.write t
-    | `Local t -> Block.write t
+  let write t off bufs = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.write t off bufs
+    | `Local t ->
+      Block.write t off bufs
+      >>= function
+      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
+      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
+      | Result.Ok x -> Lwt.return (Result.Ok x)
 
   let disconnect t = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.disconnect t
@@ -182,34 +189,16 @@ let mirror common filename port secondary =
     Lwt_unix.listen sock 5;
     let module M = Mirror.Make(Device)(Device) in
     ( Device.connect (Uri.of_string filename)
-      >>= function
-      | `Error _ ->
-        Printf.fprintf stderr "Failed to open %s\n%!" filename;
-        exit 1
-      | `Ok primary ->
-        begin
-          (* Connect to the secondary *)
-          Device.connect (Uri.of_string secondary)
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" secondary;
-            exit 1
-          | `Ok secondary ->
-            begin
-              let progress_cb = function
-                | `Complete ->
-                  Printf.fprintf stderr "Mirror synchronised\n%!"
-                | `Percent x ->
-                  Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
-              M.connect ~progress_cb primary secondary
-              >>= function
-              | Result.Error e ->
-                Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
-                exit 1
-              | Result.Ok m ->
-                return m
-            end
-        end
+      >>= fun primary ->
+      (* Connect to the secondary *)
+      Device.connect (Uri.of_string secondary)
+      >>= fun secondary ->
+      let progress_cb = function
+        | `Complete ->
+          Printf.fprintf stderr "Mirror synchronised\n%!"
+        | `Percent x ->
+          Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
+      M.connect ~progress_cb primary secondary
     ) >>= fun m ->
     let rec loop () =
       Lwt_unix.accept sock

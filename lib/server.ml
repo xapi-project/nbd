@@ -133,12 +133,12 @@ let error t handle code =
     )
 
 let serve t (type t) block (b:t) =
-  let module Block = (val block: V1_LWT.BLOCK with type t = t) in
+  let module Block = (val block: Mirage_block_lwt.S with type t = t) in
 
   Block.get_info b
   >>= fun info ->
-  let size = Int64.(mul info.Block.size_sectors (of_int info.Block.sector_size)) in
-  let flags = if info.Block.read_write then [] else [ PerExportFlag.Read_only ] in
+  let size = Int64.(mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)) in
+  let flags = if info.Mirage_block.read_write then [] else [ PerExportFlag.Read_only ] in
   negotiate_end t size flags
   >>= fun t ->
 
@@ -150,7 +150,7 @@ let serve t (type t) block (b:t) =
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->
-      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
         let rec copy offset remaining =
@@ -158,11 +158,11 @@ let serve t (type t) block (b:t) =
           let subblock = Cstruct.sub block 0 n in
           t.channel.Channel.read subblock
           >>= fun () ->
-          Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | `Error e ->
+          | Result.Error e ->
             error t handle `EIO
-          | `Ok () ->
+          | Result.Ok () ->
             let remaining = remaining - n in
             if remaining > 0
             then copy Int64.(add offset (of_int n)) remaining
@@ -170,7 +170,7 @@ let serve t (type t) block (b:t) =
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Read; from; len; handle } ->
-      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
         ok t handle None
@@ -178,11 +178,11 @@ let serve t (type t) block (b:t) =
         let rec copy offset remaining =
           let n = min block_size remaining in
           let subblock = Cstruct.sub block 0 n in
-          Block.read b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | `Error e ->
+          | Result.Error e ->
             fail (Failure "Partial failure during a Block.read")
-          | `Ok () ->
+          | Result.Ok () ->
             t.channel.write subblock
             >>= fun () ->
             let remaining = remaining - n in
