@@ -11,7 +11,7 @@ Library nbd
   Pack: true
   CompiledObject: best
   Path: lib
-  Modules: S, Protocol, Nbd_result, Client, Channel, Server, Mux, Mirror
+  Modules: S, Protocol, Client, Channel, Server, Mux, Mirror
   BuildDepends: cstruct, cstruct.ppx, sexplib, ppx_sexp_conv, lwt,
     mirage-types-lwt, mirage-block, mirage-block-lwt, io-page, result, rresult
 
