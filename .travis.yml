@@ -8,6 +8,6 @@ env:
   - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
   matrix:
   - OCAML_VERSION=4.03
-  - OCAML_VERSION=4.02
+  - OCAML_VERSION=4.04
 branches:
   only: master
