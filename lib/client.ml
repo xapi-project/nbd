@@ -73,19 +73,17 @@ end
 
 module Rpc = Mux.Make(NbdRpc)
 
-(* samoht: `Msg should be the list of all possible exceptions *)
-type error = [ Mirage_block.error | `Msg of string ]
+type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
 
-(* samoht: `Msg should be the list of all possible exceptions *)
-type write_error = [ Mirage_block.write_error | `Msg of string ]
+type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
 
 let pp_error ppf = function
   | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
-  | `Msg s -> Fmt.string ppf s
+  | `Protocol_error e -> Fmt.string ppf (Protocol.Error.to_string e)
 
 let pp_write_error ppf = function
   | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
-  | `Msg s -> Fmt.string ppf s
+  | `Protocol_error e -> Fmt.string ppf (Protocol.Error.to_string e)
 
 type t = {
   client: Rpc.client;
@@ -223,7 +221,7 @@ let write t from buffers =
         end in
     loop from buffers
     >>= function
-    | Error e -> Lwt.return (Error (`Msg (Protocol.Error.to_string e)))
+    | Error e -> Lwt.return (Error (`Protocol_error e))
     | Ok () -> Lwt.return (Ok ())
   end
 
@@ -240,7 +238,7 @@ let read t from buffers =
     let req_body = None in
     Rpc.rpc req_hdr req_body buffers t.client
     >>= function
-    | Error e -> Lwt.return (Error (`Msg (Protocol.Error.to_string e)))
+    | Error e -> Lwt.return (Error (`Protocol_error e))
     | Ok () -> Lwt.return (Ok ())
   end
 

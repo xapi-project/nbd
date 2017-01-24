@@ -22,8 +22,8 @@ module type CLIENT = sig
 
   include V1_LWT.BLOCK
     with type page_aligned_buffer = Cstruct.t
-     and type error = [ Mirage_block.error | `Msg of string ]
-     and type write_error = [ Mirage_block.write_error | `Msg of string ]
+     and type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
+     and type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
 
   type size = int64
   (** The size of a remote disk *)

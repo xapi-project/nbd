@@ -29,19 +29,19 @@ module Device = struct
   type page_aligned_buffer = Cstruct.t
   type error = [
     Mirage_block.error
-    | `Msg of string
+    | `Protocol_error of Nbd.Protocol.Error.t
   ]
   type write_error = [
     Mirage_block.write_error
-    | `Msg of string
+    | `Protocol_error of Nbd.Protocol.Error.t
   ]
   let pp_error ppf = function
     | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
-    | `Msg s -> Fmt.string ppf s
+    | `Protocol_error e -> Fmt.string ppf (Nbd.Protocol.Error.to_string e)
 
   let pp_write_error ppf = function
     | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
-    | `Msg s -> Fmt.string ppf s
+    | `Protocol_error e -> Fmt.string ppf (Nbd.Protocol.Error.to_string e)
 
   let connect uri = match Uri.scheme uri with
     | Some "file" ->
