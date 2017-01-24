@@ -15,6 +15,7 @@
 open OUnit
 open Nbd
 open Lwt
+open Result
 
 let v2_negotiation = [
   `Server "NBDMAGIC";
@@ -112,7 +113,7 @@ let list_disabled =
       let channel = make_client_channel v2_list_export_disabled in
       Client.list channel
       >>= function
-      | Result.Error `Policy ->
+      | Error `Policy ->
         return ()
       | _ -> failwith "Expected to receive a Policy error" in
     Lwt_main.run t
@@ -125,7 +126,7 @@ let list_success =
       let channel = make_client_channel v2_list_export_success in
       Client.list channel
       >>= function
-      | Result.Ok [ "export1" ] ->
+      | Ok [ "export1" ] ->
         return ()
       | _ -> failwith "Expected to receive a list of exports" in
     Lwt_main.run t

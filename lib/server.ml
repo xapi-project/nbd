@@ -15,6 +15,7 @@
 open Lwt
 open Protocol
 open Channel
+open Result
 
 type name = string
 
@@ -58,8 +59,8 @@ let connect channel ?offer () =
     channel.read req
     >>= fun () ->
     match OptionRequestHeader.unmarshal req with
-    | Result.Error e -> fail e
-    | Result.Ok hdr ->
+    | Error e -> fail e
+    | Ok hdr ->
       let payload = Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length) in
       channel.read payload
       >>= fun () ->
@@ -111,8 +112,8 @@ let next t =
   t.channel.read t.request
   >>= fun () ->
   match Request.unmarshal t.request with
-  | Result.Ok r -> return r
-  | Result.Error e -> fail e
+  | Ok r -> return r
+  | Error e -> fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
@@ -160,9 +161,9 @@ let serve t (type t) block (b:t) =
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Result.Error e ->
+          | Error e ->
             error t handle `EIO
-          | Result.Ok () ->
+          | Ok () ->
             let remaining = remaining - n in
             if remaining > 0
             then copy Int64.(add offset (of_int n)) remaining
@@ -180,9 +181,9 @@ let serve t (type t) block (b:t) =
           let subblock = Cstruct.sub block 0 n in
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Result.Error e ->
+          | Error e ->
             fail (Failure "Partial failure during a Block.read")
-          | Result.Ok () ->
+          | Ok () ->
             t.channel.write subblock
             >>= fun () ->
             let remaining = remaining - n in

@@ -12,6 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 open Lwt
+open Result
 
 module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
   type 'a io = 'a Lwt.t
@@ -141,7 +142,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     secondary_block_size: int; (* number of secondary sectors per info.sector_size *)
     info: Mirage_block.info;
     lock: Region_lock.t;
-    result: (unit, Secondary.write_error) Result.result Lwt.t;
+    result: (unit, Secondary.write_error) result Lwt.t;
     mutable percent_complete: int;
     progress_cb: [ `Percent of int | `Complete ] -> unit;
     mutable disconnected: bool;
@@ -166,7 +167,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
 
     let rec reader sector =
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        return (Result.Ok ())
+        return (Ok ())
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -177,11 +178,11 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
           >>= fun () ->
           Primary.read t.primary Int64.(mul sector (of_int t.primary_block_size)) [ slots.(!producer_idx mod nr_slots) ]
           >>= function
-          | Result.Error e ->
+          | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (Result.Error e)
-          | Result.Ok () ->
+            return (Error e)
+          | Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
             reader Int64.(add sector (of_int block))
@@ -193,7 +194,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        return (Result.Ok ())
+        return (Ok ())
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -202,11 +203,11 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
         end else begin
           Secondary.write t.secondary Int64.(mul sector (of_int t.secondary_block_size)) [ slots.(!consumer_idx mod nr_slots) ]
           >>= function
-          | Result.Error e ->
+          | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (Result.Error e)
-          | Result.Ok () ->
+            return (Error e)
+          | Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
             >>= fun () ->
@@ -219,14 +220,14 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     read_t >>= fun read_result ->
     write_t >>= fun write_result ->
     ( match read_result, write_result with
-      | Result.Ok (), Result.Ok () ->
-        Lwt.wakeup u (Result.Ok ())
-      | Result.Error `Unimplemented, _ ->
-        Lwt.wakeup u (Result.Error `Unimplemented)
-      | Result.Error `Disconnected, _ ->
-        Lwt.wakeup u (Result.Error `Disconnected)
-      | Result.Ok (), Result.Error e ->
-        Lwt.wakeup u (Result.Error e) );
+      | Ok (), Ok () ->
+        Lwt.wakeup u (Ok ())
+      | Error `Unimplemented, _ ->
+        Lwt.wakeup u (Error `Unimplemented)
+      | Error `Disconnected, _ ->
+        Lwt.wakeup u (Error `Disconnected)
+      | Ok (), Error e ->
+        Lwt.wakeup u (Error e) );
     return ()
 
   type id = unit
@@ -264,8 +265,8 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       )
     ) |> Lwt.return
     >>= function
-    | Result.Error (`Msg x) -> Lwt.fail_with x
-    | Result.Ok () ->
+    | Error (`Msg x) -> Lwt.fail_with x
+    | Ok () ->
       let disconnected = false in
       let read_write = primary_info.Mirage_block.read_write in
       let size_sectors = Int64.(div primary_bytes (of_int sector_size)) in
@@ -281,8 +282,8 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
   let read t ofs bufs =
     Primary.read t.primary ofs bufs
     >>= function
-    | Result.Error e -> return (Result.Error (`Primary e))
-    | Result.Ok x -> return (Result.Ok x)
+    | Error e -> return (Error (`Primary e))
+    | Ok x -> return (Ok x)
 
   let write t ofs bufs =
     let total_length_bytes = List.(fold_left (+) 0 (map Cstruct.len bufs)) in
@@ -293,12 +294,12 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       (fun () ->
          Primary.write t.primary primary_ofs bufs
          >>= function
-         | Result.Error e -> return (Result.Error (`Primary e))
-         | Result.Ok () ->
+         | Error e -> return (Error (`Primary e))
+         | Ok () ->
            Secondary.write t.secondary secondary_ofs bufs
            >>= function
-           | Result.Error e -> return (Result.Error (`Secondary e))
-           | Result.Ok () -> return (Result.Ok ())
+           | Error e -> return (Error (`Secondary e))
+           | Ok () -> return (Ok ())
       )
 
   let disconnect t =

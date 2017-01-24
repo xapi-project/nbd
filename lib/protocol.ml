@@ -15,6 +15,7 @@
 (* NBD client library *)
 
 open Sexplib.Std
+open Result
 
 let nbd_cmd_read = 0l
 let nbd_cmd_write = 1l
