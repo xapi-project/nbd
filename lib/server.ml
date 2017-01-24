@@ -118,7 +118,7 @@ let next t =
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-       Reply.marshal t.reply { Reply.handle; error = `Ok () };
+       Reply.marshal t.reply { Reply.handle; error = Ok () };
        t.channel.write t.reply
        >>= fun () ->
        match payload with
@@ -129,7 +129,7 @@ let ok t handle payload =
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-       Reply.marshal t.reply { Reply.handle; error = `Error code };
+       Reply.marshal t.reply { Reply.handle; error = Error code };
        t.channel.write t.reply
     )
 

@@ -277,8 +277,7 @@ module Reply: sig
       these arrive out-of-order. *)
 
   type t = {
-    error : [ `Ok of unit | `Error of Error.t ]; (** Success or failure of the
-                                                     request *)
+    error : (unit, Error.t) result; (** Success or failure of the request *)
     handle : int64; (** The unique id in the [Request] *)
   } [@@deriving sexp]
 

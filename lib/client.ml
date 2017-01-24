@@ -44,8 +44,8 @@ module NbdRpc = struct
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
-    | `Error e -> return (Error e)
-    | `Ok () ->
+    | Error e -> return (Error e)
+    | Ok () ->
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)

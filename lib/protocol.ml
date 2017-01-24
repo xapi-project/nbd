@@ -17,6 +17,13 @@
 open Sexplib.Std
 open Result
 
+(* We need to serialise/deserialise result values *)
+type ('a, 'b) _result = [ `Ok of 'a | `Error of 'b ] [@@deriving sexp]
+let result_of_sexp a b s = match _result_of_sexp a b s with
+  | `Ok x -> Ok x | `Error y -> Error y
+let sexp_of_result a b r =
+  sexp_of__result a b (match r with Ok x -> `Ok x | Error y -> `Error y)
+
 let nbd_cmd_read = 0l
 let nbd_cmd_write = 1l
 let nbd_cmd_disc = 2l
@@ -520,7 +527,7 @@ end
 
 module Reply = struct
   type t = {
-    error : [ `Ok of unit | `Error of Error.t ];
+    error : (unit, Error.t) result;
     handle : int64;
   } [@@deriving sexp]
 
@@ -540,7 +547,7 @@ module Reply = struct
       then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
       else Ok () ) >>= fun () ->
     let error = get_t_error buf in
-    let error = if error = 0l then `Ok () else `Error (Error.of_int32 error) in
+    let error = if error = 0l then Ok () else Error (Error.of_int32 error) in
     let handle = get_t_handle buf in
     Ok { error; handle }
 
@@ -549,8 +556,8 @@ module Reply = struct
   let marshal (buf: Cstruct.t) t =
     set_t_magic buf nbd_reply_magic;
     let error = match t.error with
-      | `Ok () -> 0l
-      | `Error e -> Error.to_int32 e in
+      | Ok () -> 0l
+      | Error e -> Error.to_int32 e in
     set_t_error buf error;
     set_t_handle buf t.handle
 end
