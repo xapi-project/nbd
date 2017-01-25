@@ -266,15 +266,15 @@ module Announcement = struct
     let open Nbd_result in
     let passwd = Cstruct.to_string (get_t_passwd buf) in
     if passwd <> expected_passwd
-    then `Error (Failure "Bad magic in negotiate")
+    then Error (Failure "Bad magic in negotiate")
     else
       let magic = get_t_magic buf in
       if magic = v1_magic
-      then return `V1
+      then Ok `V1
       else
       if magic = v2_magic
-      then return `V2
-      else `Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
+      then Ok `V2
+      else Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
 end
 
 module Negotiate = struct
@@ -324,10 +324,10 @@ module Negotiate = struct
     | `V1 ->
       let size = get_v1_size buf in
       let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
-      return (V1 { size; flags })
+      Ok (V1 { size; flags })
     | `V2 ->
       let flags = GlobalFlag.of_int (get_v2_flags buf) in
-      return (V2 flags)
+      Ok (V2 flags)
 end
 
 module NegotiateResponse = struct
@@ -366,14 +366,14 @@ module OptionRequestHeader = struct
     set_t_length buf t.length
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Rresult in
     let magic = get_t_magic buf in
     ( if Announcement.v2_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
-      else return () ) >>= fun () ->
+      then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
+      else Ok () ) >>= fun () ->
     let ty = Option.of_int32 (get_t_ty buf) in
     let length = get_t_length buf in
-    return { ty; length }
+    Ok { ty; length }
 end
 
 (* This is the option sent by the client to select a particular disk
@@ -409,7 +409,7 @@ module DiskInfo = struct
     let open Nbd_result in
     let size = get_t_size buf in
     let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
-    return { size; flags }
+    Ok { size; flags }
 
   let marshal buf t =
     set_t_size buf t.size;
@@ -440,15 +440,15 @@ module OptionResponseHeader = struct
   let expected_magic = 0x3e889045565a9L
 
   let unmarshal buf =
-    let open Nbd_result in
+    let open Rresult in
     let magic = get_t_magic buf in
     ( if expected_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
-      else return () ) >>= fun () ->
+      then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
+      else Ok () ) >>= fun () ->
     let request_type = Option.of_int32 (get_t_request_type buf) in
     let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
     let length = get_t_length buf in
-    return { request_type; response_type; length }
+    Ok { request_type; response_type; length }
 
   let marshal buf t =
     set_t_magic buf expected_magic;
@@ -475,7 +475,7 @@ module Server = struct
     let length = Int32.to_int (get_t_length buf) in
     let buf = Cstruct.shift buf sizeof_t in
     let name = Cstruct.(to_string (sub buf 0 length)) in
-    return { name }
+    Ok { name }
 end
 
 module Request = struct
@@ -500,16 +500,16 @@ module Request = struct
     } [@@big_endian]
   ]
   let unmarshal (buf: Cstruct.t) =
-    let open Nbd_result in
+    let open Rresult in
     let magic = get_t_magic buf in
     ( if nbd_request_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
-      else return () ) >>= fun () ->
+      then Error (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
+      else Ok () ) >>= fun () ->
     let ty = Command.of_int32 (get_t_ty buf) in
     let handle = get_t_handle buf in
     let from = get_t_from buf in
     let len = get_t_len buf in
-    return { ty; handle; from; len }
+    Ok { ty; handle; from; len }
 
   let sizeof = sizeof_t
 
@@ -537,15 +537,15 @@ module Reply = struct
     } [@@big_endian]
   ]
   let unmarshal (buf: Cstruct.t) =
-    let open Nbd_result in
+    let open Rresult in
     let magic = get_t_magic buf in
     ( if nbd_reply_magic <> magic
-      then fail (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
-      else return () ) >>= fun () ->
+      then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
+      else Ok () ) >>= fun () ->
     let error = get_t_error buf in
     let error = if error = 0l then `Ok () else `Error (Error.of_int32 error) in
     let handle = get_t_handle buf in
-    return { error; handle }
+    Ok { error; handle }
 
   let sizeof = sizeof_t
 

@@ -112,7 +112,7 @@ let list_disabled =
       let channel = make_client_channel v2_list_export_disabled in
       Client.list channel
       >>= function
-      | `Error `Policy ->
+      | Result.Error `Policy ->
         return ()
       | _ -> failwith "Expected to receive a Policy error" in
     Lwt_main.run t
@@ -125,7 +125,7 @@ let list_success =
       let channel = make_client_channel v2_list_export_success in
       Client.list channel
       >>= function
-      | `Ok [ "export1" ] ->
+      | Result.Ok [ "export1" ] ->
         return ()
       | _ -> failwith "Expected to receive a list of exports" in
     Lwt_main.run t

@@ -38,20 +38,20 @@ module NbdRpc = struct
     sock.read buf
     >>= fun () ->
     match Reply.unmarshal buf with
-    | `Ok x -> return (Some x.Reply.handle, x)
-    | `Error e -> fail e
+    | Result.Ok x -> return (Some x.Reply.handle, x)
+    | Result.Error e -> fail e
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
-    | `Error e -> return (`Error e)
+    | `Error e -> return (Result.Error e)
     | `Ok () ->
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)
           Lwt_list.iter_s sock.read response_body
           >>= fun () ->
-          return (`Ok ())
-        | _ -> return (`Ok ())
+          return (Result.Ok ())
+        | _ -> return (Result.Ok ())
       end
 
   let send_one sock req_hdr req_body =
@@ -101,16 +101,16 @@ let list channel =
   channel.read buf
   >>= fun () ->
   match Announcement.unmarshal buf with
-  | `Error e -> fail e
-  | `Ok kind ->
+  | Result.Error e -> fail e
+  | Result.Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-      | `Error e -> fail e
-      | `Ok (Negotiate.V1 x) ->
-        return (`Error `Unsupported)
-      | `Ok (Negotiate.V2 x) ->
+      | Result.Error e -> fail e
+      | Result.Ok (Negotiate.V1 x) ->
+        return (Result.Error `Unsupported)
+      | Result.Ok (Negotiate.V2 x) ->
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
         NegotiateResponse.marshal buf flags;
@@ -125,20 +125,20 @@ let list channel =
           channel.read buf
           >>= fun () ->
           match OptionResponseHeader.unmarshal buf with
-          | `Error e -> fail e
-          | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
-          | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
-            return (`Error `Policy)
-          | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
+          | Result.Error e -> fail e
+          | Result.Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (Result.Ok acc)
+          | Result.Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
+            return (Result.Error `Policy)
+          | Result.Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
             let buf' = Cstruct.create (Int32.to_int length) in
             channel.read buf'
             >>= fun () ->
             begin match Server.unmarshal buf' with
-              | `Ok server ->
+              | Result.Ok server ->
                 loop (server.Server.name :: acc)
-              | `Error e -> fail e
+              | Result.Error e -> fail e
             end
-          | `Ok _ ->
+          | Result.Ok _ ->
             fail (Failure "Server's OptionResponse had an invalid type") in
         loop []
     end
@@ -148,18 +148,18 @@ let negotiate channel export =
   channel.read buf
   >>= fun () ->
   match Announcement.unmarshal buf with
-  | `Error e -> fail e
-  | `Ok kind ->
+  | Result.Error e -> fail e
+  | Result.Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-      | `Error e -> fail e
-      | `Ok (Negotiate.V1 x) ->
+      | Result.Error e -> fail e
+      | Result.Ok (Negotiate.V1 x) ->
         make channel x.Negotiate.size x.Negotiate.flags
         >>= fun t ->
         return (t, x.Negotiate.size, x.Negotiate.flags)
-      | `Ok (Negotiate.V2 x) ->
+      | Result.Ok (Negotiate.V2 x) ->
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
         NegotiateResponse.marshal buf flags;
@@ -177,8 +177,8 @@ let negotiate channel export =
         channel.read buf
         >>= fun () ->
         begin match DiskInfo.unmarshal buf with
-          | `Error e -> fail e
-          | `Ok x ->
+          | Result.Error e -> fail e
+          | Result.Ok x ->
             make channel x.DiskInfo.size x.DiskInfo.flags
             >>= fun t ->
             return (t, x.DiskInfo.size, x.DiskInfo.flags)
@@ -212,17 +212,17 @@ let write t from buffers =
   then return (`Error `Disconnected)
   else begin
     let rec loop from = function
-      | [] -> return (`Ok ())
+      | [] -> return (Result.Ok ())
       | b :: bs ->
         begin write_one t from b
           >>= function
-          | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
-          | `Error e -> return (`Error e)
+          | Result.Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
+          | Result.Error e -> return (Result.Error e)
         end in
     loop from buffers
     >>= function
-    | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | Result.Ok x -> return (`Ok x)
+    | Result.Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let read t from buffers =
@@ -238,8 +238,8 @@ let read t from buffers =
     let req_body = None in
     Rpc.rpc req_hdr req_body buffers t.client
     >>= function
-    | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | Result.Ok x -> return (`Ok x)
+    | Result.Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let disconnect t =
