@@ -20,6 +20,7 @@ module type CLIENT = sig
       a specific disk and then issue read and write requests. *)
 
   include V1_LWT.BLOCK
+    with type page_aligned_buffer = Cstruct.t
 
   type size = int64
   (** The size of a remote disk *)
