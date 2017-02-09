@@ -34,6 +34,8 @@ module Mux = functor (R : RPC) -> struct
 	exception Unexpected_id of R.id
 	exception Shutdown
 
+	let cookie = "SCTX-2481-fix"
+
 	type client = {
 		transport : R.transport;
 		outgoing_mutex: Lwt_mutex.t;
@@ -43,9 +45,10 @@ module Mux = functor (R : RPC) -> struct
 	}
 
 	let rec dispatcher t =
-		try_lwt
-			lwt (id,pkt) = R.recv_hdr t.transport in
-	        match id with 
+		lwt () = 
+			try_lwt
+				lwt (id,pkt) = R.recv_hdr t.transport in
+				match id with 
 				| None -> R.handle_unrequested_packet t.transport pkt
 				| Some id -> 
 					if not(Hashtbl.mem t.id_to_wakeup id)
@@ -54,13 +57,15 @@ module Mux = functor (R : RPC) -> struct
 						let request_hdr, waker = Hashtbl.find t.id_to_wakeup id in
 						lwt body = R.recv_body t.transport request_hdr pkt in
 						Lwt.wakeup waker (pkt,body);
-					    Hashtbl.remove t.id_to_wakeup id;
-						dispatcher t
+						Hashtbl.remove t.id_to_wakeup id;
+						Lwt.return ()
 					end
-        with e ->
-			t.dispatcher_shutting_down <- true;
-			Hashtbl.iter (fun _ (_,u) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
-			raise_lwt e
+			with e ->
+				t.dispatcher_shutting_down <- true;
+				Hashtbl.iter (fun _ (_,u) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
+				raise_lwt e
+		in
+		dispatcher t
 
 	let rpc req_hdr req_body t = 
 		let sleeper, waker = Lwt.wait () in
