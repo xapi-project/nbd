@@ -36,3 +36,11 @@ Executable "nbd-test-lwt"
   MainIs: nbd_test_lwt.ml
   BuildDepends: nbd.lwt
   Install: false
+
+Executable "nbd-mux-test"
+  CompiledObject:   best
+  Path: lib_test
+  MainIs: nbd_mux_test.ml
+  BuildDepends: nbd.lwt, rpclib.json, rpclib.syntax
+  Install: false
+

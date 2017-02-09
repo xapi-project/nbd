@@ -39,3 +39,7 @@ configure:
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 # OASIS_STOP
+
+test: all
+	./nbd_mux_test.native
+	

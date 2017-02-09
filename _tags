@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: a389524f07fcb80bee1d33979ec73eed)
+# DO NOT EDIT (digest: dff0c040ab5891d95fd1b51d36a28702)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
+true: annot, bin_annot
 <**/.svn>: -traverse
 <**/.svn>: not_hygienic
 ".bzr": -traverse
@@ -15,16 +16,16 @@
 "_darcs": not_hygienic
 # Library nbd
 "lib/nbd.cmxs": use_nbd
-<lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_cstruct.syntax
+<lib/*.ml{,i,y}>: pkg_cstruct
+<lib/*.ml{,i,y}>: pkg_cstruct.syntax
 # Library nbd-lwt
 "lwt/nbd-lwt.cmxs": use_nbd-lwt
-<lwt/*.ml{,i}>: pkg_cstruct
-<lwt/*.ml{,i}>: pkg_cstruct.syntax
-<lwt/*.ml{,i}>: pkg_lwt
-<lwt/*.ml{,i}>: pkg_lwt.syntax
-<lwt/*.ml{,i}>: pkg_lwt.unix
-<lwt/*.ml{,i}>: use_nbd
+<lwt/*.ml{,i,y}>: pkg_cstruct
+<lwt/*.ml{,i,y}>: pkg_cstruct.syntax
+<lwt/*.ml{,i,y}>: pkg_lwt
+<lwt/*.ml{,i,y}>: pkg_lwt.syntax
+<lwt/*.ml{,i,y}>: pkg_lwt.unix
+<lwt/*.ml{,i,y}>: use_nbd
 # Executable nbd-tool
 "cli/main.byte": pkg_cmdliner
 "cli/main.byte": pkg_cstruct
@@ -34,14 +35,14 @@
 "cli/main.byte": pkg_lwt.unix
 "cli/main.byte": use_nbd
 "cli/main.byte": use_nbd-lwt
-<cli/*.ml{,i}>: pkg_cmdliner
-<cli/*.ml{,i}>: pkg_cstruct
-<cli/*.ml{,i}>: pkg_cstruct.syntax
-<cli/*.ml{,i}>: pkg_lwt
-<cli/*.ml{,i}>: pkg_lwt.syntax
-<cli/*.ml{,i}>: pkg_lwt.unix
-<cli/*.ml{,i}>: use_nbd
-<cli/*.ml{,i}>: use_nbd-lwt
+<cli/*.ml{,i,y}>: pkg_cmdliner
+<cli/*.ml{,i,y}>: pkg_cstruct
+<cli/*.ml{,i,y}>: pkg_cstruct.syntax
+<cli/*.ml{,i,y}>: pkg_lwt
+<cli/*.ml{,i,y}>: pkg_lwt.syntax
+<cli/*.ml{,i,y}>: pkg_lwt.unix
+<cli/*.ml{,i,y}>: use_nbd
+<cli/*.ml{,i,y}>: use_nbd-lwt
 # Executable nbd-test-lwt
 "lib_test/nbd_test_lwt.byte": pkg_cstruct
 "lib_test/nbd_test_lwt.byte": pkg_cstruct.syntax
@@ -50,12 +51,24 @@
 "lib_test/nbd_test_lwt.byte": pkg_lwt.unix
 "lib_test/nbd_test_lwt.byte": use_nbd
 "lib_test/nbd_test_lwt.byte": use_nbd-lwt
-<lib_test/*.ml{,i}>: pkg_cstruct
-<lib_test/*.ml{,i}>: pkg_cstruct.syntax
-<lib_test/*.ml{,i}>: pkg_lwt
-<lib_test/*.ml{,i}>: pkg_lwt.syntax
-<lib_test/*.ml{,i}>: pkg_lwt.unix
-<lib_test/*.ml{,i}>: use_nbd
-<lib_test/*.ml{,i}>: use_nbd-lwt
+# Executable nbd-mux-test
+<lib_test/nbd_mux_test.{native,byte}>: pkg_cstruct
+<lib_test/nbd_mux_test.{native,byte}>: pkg_cstruct.syntax
+<lib_test/nbd_mux_test.{native,byte}>: pkg_lwt
+<lib_test/nbd_mux_test.{native,byte}>: pkg_lwt.syntax
+<lib_test/nbd_mux_test.{native,byte}>: pkg_lwt.unix
+<lib_test/nbd_mux_test.{native,byte}>: pkg_rpclib.json
+<lib_test/nbd_mux_test.{native,byte}>: pkg_rpclib.syntax
+<lib_test/nbd_mux_test.{native,byte}>: use_nbd
+<lib_test/nbd_mux_test.{native,byte}>: use_nbd-lwt
+<lib_test/*.ml{,i,y}>: pkg_cstruct
+<lib_test/*.ml{,i,y}>: pkg_cstruct.syntax
+<lib_test/*.ml{,i,y}>: pkg_lwt
+<lib_test/*.ml{,i,y}>: pkg_lwt.syntax
+<lib_test/*.ml{,i,y}>: pkg_lwt.unix
+<lib_test/*.ml{,i,y}>: pkg_rpclib.json
+<lib_test/*.ml{,i,y}>: pkg_rpclib.syntax
+<lib_test/*.ml{,i,y}>: use_nbd
+<lib_test/*.ml{,i,y}>: use_nbd-lwt
 # OASIS_STOP
 true: annot, bin_annot, principal, debug, strict_sequence
