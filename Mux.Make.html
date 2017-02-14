@@ -85,6 +85,6 @@
 
 
 
-<pre><span id="VALdispatcher"><span class="keyword">val</span> dispatcher</span> : <code class="type"><a href="Mux.Make.html#TYPEclient">client</a> -> unit Lwt.t</code></pre>
+<pre><span id="VALdispatcher"><span class="keyword">val</span> dispatcher</span> : <code class="type"><a href="Mux.Make.html#TYPEclient">client</a> -> 'a Lwt.t</code></pre>
 <pre><span id="VALrpc"><span class="keyword">val</span> rpc</span> : <code class="type">R.request_hdr -><br>       R.request_body -><br>       R.response_body -><br>       <a href="Mux.Make.html#TYPEclient">client</a> -> [ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ] Lwt.t</code></pre>
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">R.transport -> <a href="Mux.Make.html#TYPEclient">client</a> Lwt.t</code></pre></body></html>
