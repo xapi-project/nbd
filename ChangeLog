@@ -1,3 +1,6 @@
+2.1.2 (2017-02-14):
+* Fix a memory leak in the dispatcher
+
 2.1.1 (2016-11-24):
 * opam: add dependency on ppx_sexp_conv
 * rename module Result to Nbd_result to avoid clashing with lwt 2.6.0
