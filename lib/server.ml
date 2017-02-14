@@ -15,6 +15,7 @@
 open Lwt
 open Protocol
 open Channel
+open Result
 
 type name = string
 
@@ -58,8 +59,8 @@ let connect channel ?offer () =
     channel.read req
     >>= fun () ->
     match OptionRequestHeader.unmarshal req with
-    | `Error e -> fail e
-    | `Ok hdr ->
+    | Error e -> fail e
+    | Ok hdr ->
       let payload = Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length) in
       channel.read payload
       >>= fun () ->
@@ -111,13 +112,13 @@ let next t =
   t.channel.read t.request
   >>= fun () ->
   match Request.unmarshal t.request with
-  | `Ok r -> return r
-  | `Error e -> fail e
+  | Ok r -> return r
+  | Error e -> fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
     (fun () ->
-       Reply.marshal t.reply { Reply.handle; error = `Ok () };
+       Reply.marshal t.reply { Reply.handle; error = Ok () };
        t.channel.write t.reply
        >>= fun () ->
        match payload with
@@ -128,17 +129,17 @@ let ok t handle payload =
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
-       Reply.marshal t.reply { Reply.handle; error = `Error code };
+       Reply.marshal t.reply { Reply.handle; error = Error code };
        t.channel.write t.reply
     )
 
 let serve t (type t) block (b:t) =
-  let module Block = (val block: V1_LWT.BLOCK with type t = t) in
+  let module Block = (val block: Mirage_block_lwt.S with type t = t) in
 
   Block.get_info b
   >>= fun info ->
-  let size = Int64.(mul info.Block.size_sectors (of_int info.Block.sector_size)) in
-  let flags = if info.Block.read_write then [] else [ PerExportFlag.Read_only ] in
+  let size = Int64.(mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)) in
+  let flags = if info.Mirage_block.read_write then [] else [ PerExportFlag.Read_only ] in
   negotiate_end t size flags
   >>= fun t ->
 
@@ -150,7 +151,7 @@ let serve t (type t) block (b:t) =
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->
-      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
         let rec copy offset remaining =
@@ -158,11 +159,11 @@ let serve t (type t) block (b:t) =
           let subblock = Cstruct.sub block 0 n in
           t.channel.Channel.read subblock
           >>= fun () ->
-          Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | `Error e ->
+          | Error e ->
             error t handle `EIO
-          | `Ok () ->
+          | Ok () ->
             let remaining = remaining - n in
             if remaining > 0
             then copy Int64.(add offset (of_int n)) remaining
@@ -170,7 +171,7 @@ let serve t (type t) block (b:t) =
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Read; from; len; handle } ->
-      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
         ok t handle None
@@ -178,11 +179,11 @@ let serve t (type t) block (b:t) =
         let rec copy offset remaining =
           let n = min block_size remaining in
           let subblock = Cstruct.sub block 0 n in
-          Block.read b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+          Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | `Error e ->
+          | Error e ->
             fail (Failure "Partial failure during a Block.read")
-          | `Ok () ->
+          | Ok () ->
             t.channel.write subblock
             >>= fun () ->
             let remaining = remaining - n in

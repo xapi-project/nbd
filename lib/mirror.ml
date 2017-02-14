@@ -12,30 +12,39 @@
  * GNU Lesser General Public License for more details.
  *)
 open Lwt
+open Result
 
-module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
+module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
   type 'a io = 'a Lwt.t
 
   type page_aligned_buffer = Cstruct.t
 
   type error = [
-    | `Unknown of string
-    | `Unimplemented
-    | `Is_read_only
-    | `Disconnected
+    Mirage_block.error
+    | `Primary of Primary.error
+    | `Secondary of Secondary.error
+  ]
+  type write_error = [
+    Mirage_block.write_error
+    | `Primary of Primary.write_error
+    | `Secondary of Secondary.write_error
   ]
 
-  let string_of_error = function
-    | `Unknown x -> x
-    | `Unimplemented -> "Unimplemented"
-    | `Is_read_only -> "Device is read-only"
-    | `Disconnected -> "Device has been disconnected"
+  let pp_error ppf = function
+    | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
+    | `Primary p -> Primary.pp_error ppf p
+    | `Secondary s -> Secondary.pp_error ppf s
 
-  type info = {
-    read_write: bool;
-    sector_size: int;
-    size_sectors: int64;
-  }
+  let pp_write_error ppf = function
+    | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
+    | `Primary p -> Primary.pp_write_error ppf p
+    | `Secondary s -> Secondary.pp_write_error ppf s
+
+  let string_of_error x =
+    let b = Buffer.create 32 in
+    let f = Format.formatter_of_buffer b in
+    pp_error f x;
+    Buffer.contents b
 
   module Region_lock = struct
     (* We need to prevent the background mirror thread racing with an I/O write
@@ -131,9 +140,9 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     secondary: Secondary.t;
     primary_block_size: int; (* number of primary sectors per info.sector_size *)
     secondary_block_size: int; (* number of secondary sectors per info.sector_size *)
-    info: info;
+    info: Mirage_block.info;
     lock: Region_lock.t;
-    result: [ `Ok of unit | `Error of error ] Lwt.t;
+    result: (unit, Secondary.write_error) result Lwt.t;
     mutable percent_complete: int;
     progress_cb: [ `Percent of int | `Complete ] -> unit;
     mutable disconnected: bool;
@@ -142,14 +151,14 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
   let start_copy t u =
     let buffer = Io_page.(to_cstruct (get 4096)) in
     (* round to the nearest sector *)
-    let block = Cstruct.len buffer / t.info.sector_size in
-    let buffer = Cstruct.(sub buffer 0 (block * t.info.sector_size)) in
+    let block = Cstruct.len buffer / t.info.Mirage_block.sector_size in
+    let buffer = Cstruct.(sub buffer 0 (block * t.info.Mirage_block.sector_size)) in
     (* split into an array of slots *)
     let nr_slots = 8 in
     let block = block / nr_slots in
     let slots = Array.make nr_slots (Cstruct.create 0) in
     for i = 0 to nr_slots - 1 do
-      slots.(i) <- Cstruct.sub buffer (i * block * t.info.sector_size) (block * t.info.sector_size)
+      slots.(i) <- Cstruct.sub buffer (i * block * t.info.Mirage_block.sector_size) (block * t.info.Mirage_block.sector_size)
     done;
     (* treat the slots as a circular buffer *)
     let producer_idx = ref 0 in
@@ -157,8 +166,8 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     let c = Lwt_condition.create () in
 
     let rec reader sector =
-      if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+      if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
+        return (Ok ())
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -169,23 +178,23 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
           >>= fun () ->
           Primary.read t.primary Int64.(mul sector (of_int t.primary_block_size)) [ slots.(!producer_idx mod nr_slots) ]
           >>= function
-          | `Error e ->
+          | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
-          | `Ok () ->
+            return (Error e)
+          | Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
             reader Int64.(add sector (of_int block))
         end
       end in
     let rec writer sector =
-      let percent_complete = Int64.(to_int (div (mul sector 100L) t.info.size_sectors)) in
+      let percent_complete = Int64.(to_int (div (mul sector 100L) t.info.Mirage_block.size_sectors)) in
       if percent_complete <> t.percent_complete
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
-      if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+      if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
+        return (Ok ())
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -194,11 +203,11 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
         end else begin
           Secondary.write t.secondary Int64.(mul sector (of_int t.secondary_block_size)) [ slots.(!consumer_idx mod nr_slots) ]
           >>= function
-          | `Error e ->
+          | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
-          | `Ok () ->
+            return (Error e)
+          | Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
             >>= fun () ->
@@ -211,14 +220,14 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     read_t >>= fun read_result ->
     write_t >>= fun write_result ->
     ( match read_result, write_result with
-      | `Ok (), `Ok () ->
-        Lwt.wakeup u (`Ok ())
-      | `Error e, `Ok () ->
-        Lwt.wakeup u (`Error e)
-      | `Ok (), `Error e ->
-        Lwt.wakeup u (`Error e)
-      | `Error e, `Error ei ->
-        Lwt.wakeup u (`Error e) );
+      | Ok (), Ok () ->
+        Lwt.wakeup u (Ok ())
+      | Error `Unimplemented, _ ->
+        Lwt.wakeup u (Error `Unimplemented)
+      | Error `Disconnected, _ ->
+        Lwt.wakeup u (Error `Disconnected)
+      | Ok (), Error e ->
+        Lwt.wakeup u (Error e) );
     return ()
 
   type id = unit
@@ -231,60 +240,66 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     Secondary.get_info secondary
     >>= fun secondary_info ->
 
-    let sector_size = max primary_info.Primary.sector_size secondary_info.Secondary.sector_size in
+    let sector_size = max primary_info.Mirage_block.sector_size secondary_info.Mirage_block.sector_size in
     (* We need our chosen sector_size to be an integer multiple of
        both primary and secondary sector sizes. This should be the
        very common case e.g. 4096 and 512; 512 and 1 *)
-    let primary_block_size = sector_size / primary_info.Primary.sector_size in
-    let secondary_block_size = sector_size / secondary_info.Secondary.sector_size in
-    let primary_bytes = Int64.(mul primary_info.Primary.size_sectors (of_int primary_info.Primary.sector_size)) in
-    let secondary_bytes = Int64.(mul secondary_info.Secondary.size_sectors (of_int secondary_info.Secondary.sector_size)) in
+    let primary_block_size = sector_size / primary_info.Mirage_block.sector_size in
+    let secondary_block_size = sector_size / secondary_info.Mirage_block.sector_size in
+    let primary_bytes = Int64.(mul primary_info.Mirage_block.size_sectors (of_int primary_info.Mirage_block.sector_size)) in
+    let secondary_bytes = Int64.(mul secondary_info.Mirage_block.size_sectors (of_int secondary_info.Mirage_block.sector_size)) in
 
-    ( let open Nbd_result in
-      ( if sector_size mod primary_info.Primary.sector_size <> 0
-        || sector_size mod secondary_info.Secondary.sector_size <> 0
-        then fail (`Unknown (Printf.sprintf "Incompatible sector sizes: either primary (%d) or secondary (%d) must be an integer multiple of the other" primary_info.Primary.sector_size secondary_info.Secondary.sector_size))
-        else return ()
+    ( let open Rresult in
+      ( if sector_size mod primary_info.Mirage_block.sector_size <> 0
+        || sector_size mod secondary_info.Mirage_block.sector_size <> 0
+        then Error (`Msg (Printf.sprintf "Incompatible sector sizes: either primary (%d) or secondary (%d) must be an integer multiple of the other" primary_info.Mirage_block.sector_size secondary_info.Mirage_block.sector_size))
+        else Ok ()
       ) >>= fun () ->
       ( if primary_bytes <> secondary_bytes
-        then fail (`Unknown (Printf.sprintf "Incompatible overall sizes: primary (%Ld bytes) and secondary (%Ld bytes) must be the same size" primary_bytes secondary_bytes))
-        else return ()
+        then Error (`Msg (Printf.sprintf "Incompatible overall sizes: primary (%Ld bytes) and secondary (%Ld bytes) must be the same size" primary_bytes secondary_bytes))
+        else Ok ()
       ) >>= fun () ->
-      ( if not secondary_info.Secondary.read_write
-        then fail (`Unknown "Cannot mirror to a read-only secondary device")
-        else return ()
+      ( if not secondary_info.Mirage_block.read_write
+        then Error (`Msg "Cannot mirror to a read-only secondary device")
+        else Ok ()
       )
     ) |> Lwt.return
     >>= function
-    | `Error e -> return (`Error e)
-    | `Ok () ->
+    | Error (`Msg x) -> Lwt.fail_with x
+    | Ok () ->
       let disconnected = false in
-      let read_write = primary_info.Primary.read_write in
+      let read_write = primary_info.Mirage_block.read_write in
       let size_sectors = Int64.(div primary_bytes (of_int sector_size)) in
-      let info = { read_write; sector_size; size_sectors } in
+      let info = { Mirage_block.read_write; sector_size; size_sectors } in
       let lock = Region_lock.make () in
       let result, u = Lwt.task () in
       let percent_complete = 0 in
       let t = { progress_cb; primary; secondary; primary_block_size; secondary_block_size;
                 info; lock; result; percent_complete; disconnected } in
       let (_: unit Lwt.t) = start_copy t u in
-      return (`Ok t)
+      return t
 
   let read t ofs bufs =
     Primary.read t.primary ofs bufs
+    >>= function
+    | Error e -> return (Error (`Primary e))
+    | Ok x -> return (Ok x)
 
   let write t ofs bufs =
     let total_length_bytes = List.(fold_left (+) 0 (map Cstruct.len bufs)) in
-    let length = total_length_bytes / t.info.sector_size in
+    let length = total_length_bytes / t.info.Mirage_block.sector_size in
     let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
     let secondary_ofs = Int64.(mul ofs (of_int t.secondary_block_size)) in
     Region_lock.with_lock t.lock ofs length
       (fun () ->
          Primary.write t.primary primary_ofs bufs
          >>= function
-         | `Error e -> return (`Error e)
-         | `Ok () ->
+         | Error e -> return (Error (`Primary e))
+         | Ok () ->
            Secondary.write t.secondary secondary_ofs bufs
+           >>= function
+           | Error e -> return (Error (`Secondary e))
+           | Ok () -> return (Ok ())
       )
 
   let disconnect t =

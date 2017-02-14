@@ -28,19 +28,26 @@ module Device = struct
   type 'a io = 'a Lwt.t
   type page_aligned_buffer = Cstruct.t
   type error = [
-    | `Unknown of string
-    | `Unimplemented
-    | `Is_read_only
-    | `Disconnected
+    Mirage_block.error
+    | `Protocol_error of Nbd.Protocol.Error.t
   ]
+  type write_error = [
+    Mirage_block.write_error
+    | `Protocol_error of Nbd.Protocol.Error.t
+  ]
+  let pp_error ppf = function
+    | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
+    | `Protocol_error e -> Fmt.string ppf (Nbd.Protocol.Error.to_string e)
+
+  let pp_write_error ppf = function
+    | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
+    | `Protocol_error e -> Fmt.string ppf (Nbd.Protocol.Error.to_string e)
 
   let connect uri = match Uri.scheme uri with
     | Some "file" ->
       let path = Uri.path uri in
-      ( Block.connect path
-        >>= function
-        | `Error e -> return (`Error (`Unknown (Printf.sprintf "Failed to open %s" path)))
-        | `Ok x -> return (`Ok (`Local x) ))
+      ( Block.connect path >|= fun x ->
+        `Local x )
     | Some "nbd" ->
       begin match Uri.host uri with
         | Some host ->
@@ -49,10 +56,10 @@ module Device = struct
           >>= fun channel ->
           Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) ->
-          return (`Ok (`Nbd t))
-        | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
+          return (`Nbd t)
+        | None -> fail_with "Cannot connect to nbd without a host"
       end
-    | _ -> return (`Error (`Unknown "unknown scheme"))
+    | _ -> fail_with "unknown scheme"
 
   type info = {
     read_write: bool;
@@ -63,28 +70,26 @@ module Device = struct
   let get_info = function
     | `Nbd t ->
       Nbd_lwt_unix.Client.get_info t
-      >>= fun info ->
-      return {
-        read_write = info.Nbd_lwt_unix.Client.read_write;
-        sector_size = info.Nbd_lwt_unix.Client.sector_size;
-        size_sectors = info.Nbd_lwt_unix.Client.size_sectors
-      }
     | `Local t ->
       Block.get_info t
-      >>= fun info ->
-      return {
-        read_write = info.Block.read_write;
-        sector_size = info.Block.sector_size;
-        size_sectors = info.Block.size_sectors
-      }
 
-  let read t = match t with
-    | `Nbd t -> Nbd_lwt_unix.Client.read t
-    | `Local t -> Block.read t
+  let read t off bufs = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.read t off bufs
+    | `Local t ->
+      Block.read t off bufs
+      >>= function
+      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
+      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
+      | Result.Ok x -> Lwt.return (Result.Ok x)
 
-  let write t = match t with
-    | `Nbd t -> Nbd_lwt_unix.Client.write t
-    | `Local t -> Block.write t
+  let write t off bufs = match t with
+    | `Nbd t -> Nbd_lwt_unix.Client.write t off bufs
+    | `Local t ->
+      Block.write t off bufs
+      >>= function
+      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
+      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
+      | Result.Ok x -> Lwt.return (Result.Ok x)
 
   let disconnect t = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.disconnect t
@@ -140,13 +145,13 @@ module Impl = struct
       >>= fun channel ->
       Client.list channel
       >>= function
-      | `Ok disks ->
+      | Result.Ok disks ->
         List.iter print_endline disks;
         return ()
-      | `Error `Unsupported ->
+      | Result.Error `Unsupported ->
         Printf.fprintf stderr "The server does not support the query function.\n%!";
         exit 1
-      | `Error `Policy ->
+      | Result.Error `Policy ->
         Printf.fprintf stderr "The server configuration does not permit listing exports.\n%!";
         exit 2 in
     `Ok (Lwt_main.run t)
@@ -167,12 +172,8 @@ module Impl = struct
           Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" filename;
-            exit 1
-          | `Ok b ->
-            Server.serve t (module Block) b in
+          >>= fun b ->
+          Server.serve t (module Block) b in
         loop () in
       loop () in
     Lwt_main.run t;
@@ -188,34 +189,16 @@ let mirror common filename port secondary =
     Lwt_unix.listen sock 5;
     let module M = Mirror.Make(Device)(Device) in
     ( Device.connect (Uri.of_string filename)
-      >>= function
-      | `Error _ ->
-        Printf.fprintf stderr "Failed to open %s\n%!" filename;
-        exit 1
-      | `Ok primary ->
-        begin
-          (* Connect to the secondary *)
-          Device.connect (Uri.of_string secondary)
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" secondary;
-            exit 1
-          | `Ok secondary ->
-            begin
-              let progress_cb = function
-                | `Complete ->
-                  Printf.fprintf stderr "Mirror synchronised\n%!"
-                | `Percent x ->
-                  Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
-              M.connect ~progress_cb primary secondary
-              >>= function
-              | `Error e ->
-                Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
-                exit 1
-              | `Ok m ->
-                return m
-            end
-        end
+      >>= fun primary ->
+      (* Connect to the secondary *)
+      Device.connect (Uri.of_string secondary)
+      >>= fun secondary ->
+      let progress_cb = function
+        | `Complete ->
+          Printf.fprintf stderr "Mirror synchronised\n%!"
+        | `Percent x ->
+          Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
+      M.connect ~progress_cb primary secondary
     ) >>= fun m ->
     let rec loop () =
       Lwt_unix.accept sock

@@ -12,6 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 open Channel
+open Result
 
 (** Common signatures used in the library. *)
 
@@ -19,13 +20,14 @@ module type CLIENT = sig
   (** A Client allows you to list the disks available on a server, connect to
       a specific disk and then issue read and write requests. *)
 
-  include V1_LWT.BLOCK
-    with type page_aligned_buffer = Cstruct.t
+  include Mirage_block_lwt.S
+    with type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
+     and type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
 
   type size = int64
   (** The size of a remote disk *)
 
-  val list: channel -> [ `Ok of string list | `Error of [ `Policy | `Unsupported ] ] Lwt.t
+  val list: channel -> (string list, [ `Policy | `Unsupported ]) result Lwt.t
   (** [list channel] returns a list of exports known by the server.
       [`Error `Policy] means the server has this function disabled deliberately.
       [`Error `Unsupported] means the server is old and does not support the query
@@ -59,7 +61,7 @@ module type SERVER = sig
       application. If the name is invalid, the only option is to close the connection.
       If the name is valid then use the [serve] function. *)
 
-  val serve : t ->  (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
+  val serve : t ->  (module Mirage_block_lwt.S with type t = 'b) -> 'b -> unit Lwt.t
   (** [serve t block b] runs forever processing requests from [t], using [block]
       device type [b]. *)
 

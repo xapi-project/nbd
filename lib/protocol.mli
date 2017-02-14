@@ -14,6 +14,8 @@
 
 (** Types representing NBD protocol requests and responses. *)
 
+open Result
+
 module Error: sig
   (** Read and write requests can fail with an error response. *)
 
@@ -131,7 +133,7 @@ module Announcement: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
 end
 
 module Negotiate: sig
@@ -157,7 +159,7 @@ module Negotiate: sig
   val sizeof: Announcement.t -> int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> Announcement.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> Announcement.t -> (t, exn) result
 end
 
 module NegotiateResponse: sig
@@ -185,7 +187,7 @@ module OptionRequestHeader: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
 end
 
 module ExportName: sig
@@ -211,7 +213,7 @@ module DiskInfo: sig
 
   val sizeof: int
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
   val marshal: Cstruct.t -> t -> unit
 end
 
@@ -232,7 +234,7 @@ module OptionResponseHeader: sig
 
   val to_string: t -> string
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
   val marshal: Cstruct.t -> t -> unit
 end
 
@@ -248,7 +250,7 @@ module Server: sig
 
   val sizeof: t -> int
 
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
 end
 
 module Request: sig
@@ -267,7 +269,7 @@ module Request: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
+  val unmarshal: Cstruct.t -> (t, exn) result
 end
 
 module Reply: sig
@@ -275,8 +277,7 @@ module Reply: sig
       these arrive out-of-order. *)
 
   type t = {
-    error : [ `Ok of unit | `Error of Error.t ]; (** Success or failure of the
-                                                     request *)
+    error : (unit, Error.t) result; (** Success or failure of the request *)
     handle : int64; (** The unique id in the [Request] *)
   } [@@deriving sexp]
 
@@ -285,6 +286,5 @@ module Reply: sig
   val sizeof: int
 
   val marshal: Cstruct.t -> t -> unit
-  val unmarshal: Cstruct.t -> [ `Ok of t | `Error of exn ]
-
+  val unmarshal: Cstruct.t -> (t, exn) result
 end
