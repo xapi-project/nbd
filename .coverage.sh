@@ -22,9 +22,9 @@ make
 find . -name bisect* | xargs rm -f
 ./test.native -runner sequential
 
-bisect-report bisect*.out -I _build -text report
-bisect-report bisect*.out -I _build -summary-only -text summary
-(cd _build; bisect-report ../bisect*.out -html ../report-html)
+bisect-ppx-report bisect*.out -I _build -text report
+bisect-ppx-report bisect*.out -I _build -summary-only -text summary
+(cd _build; bisect-ppx-report ../bisect*.out -html ../report-html)
 
 if [ -n "$TRAVIS" ]; then
   echo "\$TRAVIS set; running ocveralls and sending to coveralls.io..."
