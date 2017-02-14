@@ -44,27 +44,28 @@ module Make = functor (R : RPC) -> struct
   }
 
   let rec dispatcher t =
-    Lwt.catch
-    (fun () ->
-      R.recv_hdr t.transport
-      >>= fun (id, pkt) ->
-      match id with
-      | None -> R.handle_unrequested_packet t.transport pkt
-      | Some id ->
-        if not(Hashtbl.mem t.id_to_wakeup id)
-        then fail (Unexpected_id id)
-        else begin
-          let request_hdr, waker, response_body = Hashtbl.find t.id_to_wakeup id in
-          R.recv_body t.transport request_hdr pkt response_body
-          >>= fun response ->
-          Lwt.wakeup waker response;
-          Hashtbl.remove t.id_to_wakeup id;
-          dispatcher t
-        end
-    ) (fun e ->
-      t.dispatcher_shutting_down <- true;
-      Hashtbl.iter (fun _ (_,u, _) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
-      fail e)
+    let th = Lwt.catch
+      (fun () ->
+        R.recv_hdr t.transport
+        >>= fun (id, pkt) ->
+        match id with
+        | None -> R.handle_unrequested_packet t.transport pkt
+        | Some id ->
+          if not(Hashtbl.mem t.id_to_wakeup id)
+          then fail (Unexpected_id id)
+          else begin
+            let request_hdr, waker, response_body = Hashtbl.find t.id_to_wakeup id in
+            R.recv_body t.transport request_hdr pkt response_body
+            >>= fun response ->
+            Lwt.wakeup waker response;
+            Hashtbl.remove t.id_to_wakeup id;
+            Lwt.return ()
+          end
+      ) (fun e ->
+        t.dispatcher_shutting_down <- true;
+        Hashtbl.iter (fun _ (_,u, _) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
+        fail e)
+    in th >>= fun () -> dispatcher t
 
 let rpc req_hdr req_body response_body t =
   let sleeper, waker = Lwt.wait () in
