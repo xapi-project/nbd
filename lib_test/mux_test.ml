@@ -43,7 +43,7 @@ module TestPacket = struct
 
   let recv_body t req_hdr rsp_hdr rsp_body =
     Bytes.blit rsp_hdr.res_payload 0 rsp_body 0 (Bytes.length rsp_hdr.res_payload);
-    Lwt.return (`Ok ())
+    Lwt.return (Ok ())
 
   let send_one t x _ =
     Lwt_mutex.with_lock t.mutex (fun () ->
@@ -82,8 +82,8 @@ let (>>|=) m f =
   (* Check for an `Ok result in an Lwt thread, and fail the
      thread if it's an Error *)
   m >>= function
-  | `Ok x -> f x
-  | `Error x -> Lwt.fail (Failure (Nbd.Protocol.Error.to_string x))
+  | Ok x -> f x
+  | Error x -> Lwt.fail (Failure (Nbd.Protocol.Error.to_string x))
 
 
 let test_rpc =
@@ -168,6 +168,6 @@ let test_exception_handling =
       TestPacket.queue_response { res_id=None; res_payload="exception" } transport >>= fun () ->
       let t1 = T.rpc p1 p1.req_payload response1 client in
       TestPacket.queue_response r2 transport >>= fun () ->
-      Lwt.catch  (fun () -> t1 >>= function `Ok _ -> Lwt.return false | `Error _ -> Lwt.return true)
+      Lwt.catch  (fun () -> t1 >>= function Ok _ -> Lwt.return false | Error _ -> Lwt.return true)
         (fun e -> Printf.printf "Exception: %s\n%!" (Printexc.to_string e); Lwt.return true)
     in assert_bool "Exception handled" (Lwt_main.run t)
