@@ -14,7 +14,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -65,5 +64,5 @@ Details about the export chosen by the client.<br>
 </div>
 
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
-<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.DiskInfo.html#TYPEt">t</a> ]</code></pre>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> (<a href="Protocol.DiskInfo.html#TYPEt">t</a>, exn) Result.result</code></pre>
 <pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.DiskInfo.html#TYPEt">t</a> -> unit</code></pre></body></html>

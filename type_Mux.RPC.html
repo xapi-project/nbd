@@ -9,7 +9,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -18,25 +17,24 @@
 <link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Mux.RPC</title>
 </head>
 <body>
-<code class="code"><span class="keyword">sig</span><br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;transport<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;request_hdr<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;request_body<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;response_hdr<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;response_body<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;recv_hdr&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.id&nbsp;option&nbsp;*&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr)&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;recv_body&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_body&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;<span class="keyword">of</span>&nbsp;unit&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;send_one&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_body&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id_of_request&nbsp;:&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.id<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;handle_unrequested_packet&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
+<code class="code"><span class="keyword">sig</span>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;transport
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;request_hdr
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;request_body
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;response_hdr
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;response_body
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;recv_hdr&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.id&nbsp;option&nbsp;*&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr)&nbsp;<span class="constructor">Lwt</span>.t
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;recv_body&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_body&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(unit,&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t)&nbsp;<span class="constructor">Result</span>.result&nbsp;<span class="constructor">Lwt</span>.t
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;send_one&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_body&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id_of_request&nbsp;:&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.id
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;handle_unrequested_packet&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">RPC</span>.response_hdr&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t
 <span class="keyword">end</span></code></body></html>

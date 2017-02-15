@@ -13,7 +13,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -60,7 +59,7 @@ The name of an export. In the 'new style' protocol as used in nbd &gt;= 2.9.17
       If the name is valid then use the <code class="code">serve</code> function.<br>
 </div>
 
-<pre><span id="VALserve"><span class="keyword">val</span> serve</span> : <code class="type"><a href="S.SERVER.html#TYPEt">t</a> -> (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALserve"><span class="keyword">val</span> serve</span> : <code class="type"><a href="S.SERVER.html#TYPEt">t</a> -><br>       (module Mirage_block_lwt.S with type t = 'b) -> 'b -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">serve t block b</code> runs forever processing requests from <code class="code">t</code>, using <code class="code">block</code>
       device type <code class="code">b</code>.<br>
 </div>

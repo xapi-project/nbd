@@ -12,7 +12,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -46,7 +45,7 @@
 
 
 <pre><span id="VALrecv_hdr"><span class="keyword">val</span> recv_hdr</span> : <code class="type"><a href="Mux.RPC.html#TYPEtransport">transport</a> -> (<a href="Mux.RPC.html#TYPEid">id</a> option * <a href="Mux.RPC.html#TYPEresponse_hdr">response_hdr</a>) Lwt.t</code></pre>
-<pre><span id="VALrecv_body"><span class="keyword">val</span> recv_body</span> : <code class="type"><a href="Mux.RPC.html#TYPEtransport">transport</a> -><br>       <a href="Mux.RPC.html#TYPErequest_hdr">request_hdr</a> -><br>       <a href="Mux.RPC.html#TYPEresponse_hdr">response_hdr</a> -><br>       <a href="Mux.RPC.html#TYPEresponse_body">response_body</a> -> [ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ] Lwt.t</code></pre>
+<pre><span id="VALrecv_body"><span class="keyword">val</span> recv_body</span> : <code class="type"><a href="Mux.RPC.html#TYPEtransport">transport</a> -><br>       <a href="Mux.RPC.html#TYPErequest_hdr">request_hdr</a> -><br>       <a href="Mux.RPC.html#TYPEresponse_hdr">response_hdr</a> -><br>       <a href="Mux.RPC.html#TYPEresponse_body">response_body</a> -> (unit, <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a>) Result.result Lwt.t</code></pre>
 <pre><span id="VALsend_one"><span class="keyword">val</span> send_one</span> : <code class="type"><a href="Mux.RPC.html#TYPEtransport">transport</a> -><br>       <a href="Mux.RPC.html#TYPErequest_hdr">request_hdr</a> -> <a href="Mux.RPC.html#TYPErequest_body">request_body</a> -> unit Lwt.t</code></pre>
 <pre><span id="VALid_of_request"><span class="keyword">val</span> id_of_request</span> : <code class="type"><a href="Mux.RPC.html#TYPErequest_hdr">request_hdr</a> -> <a href="Mux.RPC.html#TYPEid">id</a></code></pre>
 <pre><span id="VALhandle_unrequested_packet"><span class="keyword">val</span> handle_unrequested_packet</span> : <code class="type"><a href="Mux.RPC.html#TYPEtransport">transport</a> -> <a href="Mux.RPC.html#TYPEresponse_hdr">response_hdr</a> -> unit Lwt.t</code></pre></body></html>

@@ -14,7 +14,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -86,4 +85,4 @@ An I/O request sent by the client to the server.<br>
 <pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Request.html#TYPEt">t</a> -> string</code></pre>
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
 <pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.Request.html#TYPEt">t</a> -> unit</code></pre>
-<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.Request.html#TYPEt">t</a> ]</code></pre></body></html>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> (<a href="Protocol.Request.html#TYPEt">t</a>, exn) Result.result</code></pre></body></html>

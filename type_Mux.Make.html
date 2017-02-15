@@ -9,7 +9,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -18,26 +17,26 @@
 <link title="Nbd_lwt_unix" rel="Chapter" href="Nbd_lwt_unix.html"><title>Mux.Make</title>
 </head>
 <body>
-<code class="code"><span class="keyword">functor</span>&nbsp;(<span class="constructor">R</span>&nbsp;:&nbsp;<span class="constructor">RPC</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;<span class="keyword">sig</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">exception</span>&nbsp;<span class="constructor">Unexpected_id</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">R</span>.id<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">exception</span>&nbsp;<span class="constructor">Shutdown</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;client&nbsp;=&nbsp;{<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;transport&nbsp;:&nbsp;<span class="constructor">R</span>.transport;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;outgoing_mutex&nbsp;:&nbsp;<span class="constructor">Lwt_mutex</span>.t;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id_to_wakeup&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">R</span>.id,<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_hdr&nbsp;*&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;<span class="keyword">of</span>&nbsp;unit&nbsp;]&nbsp;<span class="constructor">Lwt</span>.u&nbsp;*<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.response_body)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Hashtbl</span>.t;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;dispatcher_thread&nbsp;:&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;dispatcher_shutting_down&nbsp;:&nbsp;bool;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;}<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;dispatcher&nbsp;:&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;rpc&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_body&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.response_body&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;<span class="keyword">of</span>&nbsp;unit&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;<span class="constructor">R</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="constructor">Lwt</span>.t<br>
+<code class="code"><span class="keyword">functor</span>&nbsp;(<span class="constructor">R</span>&nbsp;:&nbsp;<span class="constructor">RPC</span>)&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;<span class="keyword">sig</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">exception</span>&nbsp;<span class="constructor">Unexpected_id</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">R</span>.id
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">exception</span>&nbsp;<span class="constructor">Shutdown</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;client&nbsp;=&nbsp;{
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;transport&nbsp;:&nbsp;<span class="constructor">R</span>.transport;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;outgoing_mutex&nbsp;:&nbsp;<span class="constructor">Lwt_mutex</span>.t;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id_to_wakeup&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">R</span>.id,
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_hdr&nbsp;*&nbsp;(unit,&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t)&nbsp;<span class="constructor">Result</span>.result&nbsp;<span class="constructor">Lwt</span>.u&nbsp;*
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.response_body)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Hashtbl</span>.t;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;dispatcher_thread&nbsp;:&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;dispatcher_shutting_down&nbsp;:&nbsp;bool;
+&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;dispatcher&nbsp;:&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;<span class="constructor">Lwt</span>.t
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;rpc&nbsp;:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_hdr&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.request_body&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">R</span>.response_body&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(unit,&nbsp;<span class="constructor">Protocol</span>.<span class="constructor">Error</span>.t)&nbsp;<span class="constructor">Result</span>.result&nbsp;<span class="constructor">Lwt</span>.t
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;<span class="constructor">R</span>.transport&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Mux</span>.<span class="constructor">Make</span>.client&nbsp;<span class="constructor">Lwt</span>.t
 &nbsp;&nbsp;<span class="keyword">end</span></code></body></html>

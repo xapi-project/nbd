@@ -13,7 +13,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -32,7 +31,7 @@
 A Client allows you to list the disks available on a server, connect to
       a specific disk and then issue read and write requests.<br>
 
-<pre><span class="keyword">include</span> V1_LWT.BLOCK</pre>
+<pre><span class="keyword">include</span> Mirage_block_lwt.S</pre>
 
 <pre><span id="TYPEsize"><span class="keyword">type</span> <code class="type"></code>size</span> = <code class="type">int64</code> </pre>
 <div class="info ">
@@ -40,7 +39,7 @@ The size of a remote disk<br>
 </div>
 
 
-<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Channel.html#TYPEchannel">Channel.channel</a> -><br>       [ `Error of [ `Policy | `Unsupported ] | `Ok of string list ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Channel.html#TYPEchannel">Channel.channel</a> -><br>       (string list, [ `Policy | `Unsupported ]) Result.result Lwt.t</code></pre><div class="info ">
 <code class="code">list channel</code> returns a list of exports known by the server.
       <code class="code">`Error `Policy</code> means the server has this function disabled deliberately.
       <code class="code">`Error `Unsupported</code> means the server is old and does not support the query

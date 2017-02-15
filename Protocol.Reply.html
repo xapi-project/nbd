@@ -13,7 +13,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -37,10 +36,9 @@ A reply sent from the server in response to a <code class="code">Request</code>.
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTt.error">error</span>&nbsp;: <code class="type">[ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ]</code>;</code></td>
+<code><span id="TYPEELTt.error">error</span>&nbsp;: <code class="type">(unit, <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a>) Result.result</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
-Success or failure of the
-                                                     request<br>
+Success or failure of the request<br>
 </div>
 </td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
@@ -63,4 +61,4 @@ The unique id in the <code class="code">Request</code><br>
 <pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Protocol.Reply.html#TYPEt">t</a> -> string</code></pre>
 <pre><span id="VALsizeof"><span class="keyword">val</span> sizeof</span> : <code class="type">int</code></pre>
 <pre><span id="VALmarshal"><span class="keyword">val</span> marshal</span> : <code class="type">Cstruct.t -> <a href="Protocol.Reply.html#TYPEt">t</a> -> unit</code></pre>
-<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> [ `Error of exn | `Ok of <a href="Protocol.Reply.html#TYPEt">t</a> ]</code></pre></body></html>
+<pre><span id="VALunmarshal"><span class="keyword">val</span> unmarshal</span> : <code class="type">Cstruct.t -> (<a href="Protocol.Reply.html#TYPEt">t</a>, exn) Result.result</code></pre></body></html>

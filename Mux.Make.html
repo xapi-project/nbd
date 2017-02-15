@@ -12,7 +12,6 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="S" rel="Chapter" href="S.html">
 <link title="Protocol" rel="Chapter" href="Protocol.html">
-<link title="Nbd_result" rel="Chapter" href="Nbd_result.html">
 <link title="Client" rel="Chapter" href="Client.html">
 <link title="Channel" rel="Chapter" href="Channel.html">
 <link title="Server" rel="Chapter" href="Server.html">
@@ -64,7 +63,7 @@
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTclient.id_to_wakeup">id_to_wakeup</span>&nbsp;: <code class="type">(R.id,<br>        R.request_hdr * [ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ] Lwt.u *<br>        R.response_body)<br>       Hashtbl.t</code>;</code></td>
+<code><span id="TYPEELTclient.id_to_wakeup">id_to_wakeup</span>&nbsp;: <code class="type">(R.id,<br>        R.request_hdr * (unit, <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a>) Result.result Lwt.u *<br>        R.response_body)<br>       Hashtbl.t</code>;</code></td>
 
 </tr>
 <tr>
@@ -86,5 +85,5 @@
 
 
 <pre><span id="VALdispatcher"><span class="keyword">val</span> dispatcher</span> : <code class="type"><a href="Mux.Make.html#TYPEclient">client</a> -> 'a Lwt.t</code></pre>
-<pre><span id="VALrpc"><span class="keyword">val</span> rpc</span> : <code class="type">R.request_hdr -><br>       R.request_body -><br>       R.response_body -><br>       <a href="Mux.Make.html#TYPEclient">client</a> -> [ `Error of <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a> | `Ok of unit ] Lwt.t</code></pre>
+<pre><span id="VALrpc"><span class="keyword">val</span> rpc</span> : <code class="type">R.request_hdr -><br>       R.request_body -><br>       R.response_body -><br>       <a href="Mux.Make.html#TYPEclient">client</a> -> (unit, <a href="Protocol.Error.html#TYPEt">Protocol.Error.t</a>) Result.result Lwt.t</code></pre>
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">R.transport -> <a href="Mux.Make.html#TYPEclient">client</a> Lwt.t</code></pre></body></html>
