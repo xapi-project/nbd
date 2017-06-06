@@ -53,10 +53,13 @@ module type SERVER = sig
   (** The name of an export. In the 'new style' protocol as used in nbd >= 2.9.17
       the client must select an export by name. *)
 
-  val connect : channel -> ?offer:name list -> unit -> (name * t) Lwt.t
-  (** [connect channel ?offer ()] performs the 'new style' initial handshake
-      and options negotiation. If [?offer] is provided then these names will be returned
-      if the client requests a list of exports, otherwise we will return EPERM.
+  val connect : cleartext_channel -> ?offer:name list -> unit -> (name * t) Lwt.t
+  (** [connect cleartext_channel ?offer ()] performs the 'new style' initial
+      handshake and options negotiation.
+      Note that FORCEDTLS mode will be used in the negotiation unless
+      [cleartext_channel.make_tls_channel] is None, signifying NOTLS mode.
+      If [?offer] is provided then these names will be returned if the client
+      requests a list of exports, otherwise we will return EPERM.
       The client's choice of name is returned which must be looked up by the
       application. If the name is invalid, the only option is to close the connection.
       If the name is valid then use the [serve] function. *)
