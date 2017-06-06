@@ -125,6 +125,9 @@ module Impl = struct
     | None -> failwith (Printf.sprintf "Please supply a %s argument" name)
     | Some x -> x
 
+  let require_str name arg =
+    require name (if arg = "" then None else Some arg)
+
   let size host port export =
     let res =
       Nbd_lwt_unix.connect host port
@@ -151,15 +154,26 @@ module Impl = struct
         exit 2 in
     `Ok (Lwt_main.run t)
 
+  (* Helper function for use within this module *)
+  let init_tls_get_server_ctx ~certfile ~ciphersuites no_tls =
+    if no_tls then None
+    else (
+      let certfile = require_str "certfile" certfile in
+      let ciphersuites = require_str "ciphersuites" ciphersuites in
+      Some (Nbd_lwt_unix.TlsServer
+        (Nbd_lwt_unix.init_tls_get_ctx ~certfile ~ciphersuites)
+      )
+    )
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-  let serve common filename port =
+  let serve common filename port certfile ciphersuites no_tls =
+    let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
     let filename = require "filename" filename in
     let handle_connection fd =
       Lwt.finalize
         (fun () ->
-           let channel = Nbd_lwt_unix.of_fd fd in
+           let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
            Lwt.finalize
              (fun () ->
                 Server.connect channel ()
@@ -176,7 +190,7 @@ module Impl = struct
                          (fun () -> Block.disconnect b))
                   (fun () -> Server.close t)
              )
-             (ignore_exn channel.close)
+             (ignore_exn channel.close_clear)
         )
         (ignore_exn (fun () -> Lwt_unix.close fd))
     in
@@ -206,7 +220,8 @@ module Impl = struct
     Lwt_main.run t;
     `Ok ()
 
-let mirror common filename port secondary =
+let mirror common filename port secondary certfile ciphersuites no_tls =
+  let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
   let filename = require "filename" filename in
   let secondary = require "secondary" secondary in
   let t =
@@ -250,7 +265,7 @@ let mirror common filename port secondary =
       >>= fun (fd, _) ->
       (* Background thread per connection *)
       let _ =
-        let channel = Nbd_lwt_unix.of_fd fd in
+        let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
         Server.connect channel ()
         >>= fun (name, t) ->
         Server.serve t (module M) m in
@@ -274,6 +289,14 @@ let size_cmd =
   Term.(ret (pure Impl.size $ host $ port $ export)),
   Term.info "size" ~version:"1.0.0" ~doc
 
+(* Used by both serve and mirror cmds *)
+let certfile =
+  let doc = "Path to file containing TLS certificate." in
+  Arg.(value & opt string "" & info ["certfile"] ~doc)
+let ciphersuites =
+  let doc = "Set of ciphersuites for TLS (specified in the format accepted by OpenSSL, stunnel etc.)" in
+  Arg.(value & opt string "!EXPORT:RSA+AES128-SHA256" & info ["ciphersuites"] ~doc)
+
 let serve_cmd =
   let doc = "serve a disk over NBD" in
   let man = [
@@ -286,7 +309,10 @@ let serve_cmd =
   let port =
     let doc = "Local port to listen for connections on" in
     Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
-  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port)),
+  let no_tls =
+    let doc = "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
+    Arg.(value & flag & info ["no-tls"] ~doc) in
+  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ certfile $ ciphersuites $ no_tls)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
 let mirror_cmd =
@@ -306,7 +332,10 @@ let mirror_cmd =
   let port =
     let doc = "Local port to listen for connections on" in
     Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
-  Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary)),
+  let no_tls =
+    let doc = "Serve using NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
+    Arg.(value & flag & info ["no-tls"] ~doc) in
+  Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary $ certfile $ ciphersuites $ no_tls)),
   Term.info "mirror" ~sdocs:_common_options ~doc ~man
 
 let list_cmd =

@@ -33,6 +33,8 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
     lwt
     lwt.unix
     mirage-types.lwt
+    ssl
+    lwt_ssl
     nbd))
   %s
   ))

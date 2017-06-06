@@ -100,6 +100,7 @@ module Option: sig
     | Abort      (** The client would like to quit. *)
     | List       (** The client would like to receive a list of known
                      disk/exports. *)
+    | StartTLS   (** The client would like to protect the session with TLS. *)
     | Unknown of int32 (** This option is unknown to this implementation *)
   [@@deriving sexp]
 
@@ -116,6 +117,7 @@ module OptionResponse: sig
     | Policy (** The option is blocked by an admin policy *)
     | Invalid (** The option was invalid (i.e. the client is buggy) *)
     | Platform (** The option is not supported in this platform. *)
+    | TlsReqd (** The option is not allowed when the connection is not using TLS. *)
     | Unknown of int32 (** The response is unknown to this implementation. *)
   [@@deriving sexp]
 

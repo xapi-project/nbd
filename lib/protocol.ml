@@ -188,6 +188,7 @@ module Option = struct
     | ExportName
     | Abort
     | List
+    | StartTLS
     | Unknown of int32
   [@@deriving sexp]
 
@@ -197,12 +198,16 @@ module Option = struct
     | 1l -> ExportName
     | 2l -> Abort
     | 3l -> List
+    (* 4 is not in use in the NBD protocol. *)
+    | 5l -> StartTLS
+    (* 6, 7, 8 are not supported in this implementation. *)
     | c -> Unknown c
 
   let to_int32 = function
     | ExportName -> 1l
     | Abort -> 2l
     | List -> 3l
+    | StartTLS -> 5l
     | Unknown c -> c
 end
 
@@ -214,6 +219,7 @@ module OptionResponse = struct
     | Policy
     | Invalid
     | Platform
+    | TlsReqd
     | Unknown of int32
   [@@deriving sexp]
 
@@ -226,6 +232,7 @@ module OptionResponse = struct
     | -2147483646l -> Policy
     | -2147483645l -> Invalid
     | -2147483644l -> Platform
+    | -2147483643l -> TlsReqd
     | x -> Unknown x
 
   let to_int32 = function
@@ -234,7 +241,8 @@ module OptionResponse = struct
     | Unsupported -> -2147483647l
     | Policy -> -2147483646l
     | Invalid -> -2147483645l
-    | Platform -> -2147483644l;
+    | Platform -> -2147483644l
+    | TlsReqd -> -2147483643l
     | Unknown x -> x
 
 end
