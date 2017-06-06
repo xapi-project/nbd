@@ -15,11 +15,14 @@ open Nbd
 open Channel
 open Lwt
 
-let of_fd fd =
+let of_fd fd role =
   let read = Lwt_cstruct.(complete (read fd)) in
   let write = Lwt_cstruct.(complete (write fd)) in
   let close () = Lwt_unix.close fd in
-  { read; write; close }
+  let make_tls = Some (fun () ->
+    Channel.tls_of_fd fd role ()
+  ) in
+  { read; write; close; is_tls=false; make_tls}
 
 let connect hostname port =
   let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
@@ -28,7 +31,7 @@ let connect hostname port =
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
   Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
   >>= fun () ->
-  return (of_fd socket)
+  return (of_fd socket Channel.Client)
 
 module Client = Nbd.Client
 module Server = Nbd.Server

@@ -12,7 +12,7 @@ Library nbd
   CompiledObject: best
   Path: lib
   Modules: S, Protocol, Client, Channel, Server, Mux, Mirror
-  BuildDepends: cstruct, cstruct.ppx, sexplib, ppx_sexp_conv, lwt
+  BuildDepends: cstruct, cstruct.ppx, sexplib, ppx_sexp_conv, lwt, threads, ssl, lwt_ssl
     ,mirage-types-lwt, mirage-block, mirage-block-lwt, io-page, result, rresult
 
 
@@ -30,7 +30,7 @@ Executable "nbd-tool"
   Path: cli
   MainIs: main.ml
   Install: true
-  BuildDepends: nbd.lwt, cmdliner, lwt, lwt.unix, mirage-block-unix, uri
+  BuildDepends: nbd, nbd.lwt, cmdliner, lwt, lwt.unix, mirage-block-unix, uri
 
 Executable "test"
   Build$: flag(tests)
