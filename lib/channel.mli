@@ -54,5 +54,3 @@ type polymorphic_channel =
 val generic_of_tls_channel: tls_channel Lwt.t -> generic_channel Lwt.t
 
 val generic_of_cleartext_channel: cleartext_channel Lwt.t -> generic_channel Lwt.t
-
-val tls_of_fd: Lwt_unix.file_descr -> tls_role -> unit -> tls_channel Lwt.t
