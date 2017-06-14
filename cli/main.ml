@@ -168,7 +168,7 @@ module Impl = struct
         >>= fun (fd, _) ->
         (* Background thread per connection *)
         let _ =
-          let channel = Nbd_lwt_unix.of_fd fd in
+          let channel = Nbd_lwt_unix.of_fd fd Channel.Server in
           Server.connect channel ()
           >>= fun (name, t) ->
           Block.connect filename
@@ -205,7 +205,7 @@ let mirror common filename port secondary =
       >>= fun (fd, _) ->
       (* Background thread per connection *)
       let _ =
-        let channel = Nbd_lwt_unix.of_fd fd in
+        let channel = Nbd_lwt_unix.of_fd fd Channel.Server in
         Server.connect channel ()
         >>= fun (name, t) ->
         Server.serve t (module M) m in

@@ -21,7 +21,7 @@ val connect: string -> int -> channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
     a channel. *)
 
-val of_fd: Lwt_unix.file_descr -> channel
+val of_fd: Lwt_unix.file_descr -> Channel.tls_role -> channel
 (** [of_fd fd] returns a channel from an existing file descriptor *)
 
 module Client: S.CLIENT
