@@ -153,28 +153,47 @@ module Impl = struct
 
   let serve common filename port =
     let filename = require "filename" filename in
+    let handle_connection fd =
+      Lwt.try_bind
+        (fun () -> Lwt.wrap (fun () -> Nbd_lwt_unix.of_fd fd))
+        (fun channel ->
+           Lwt.try_bind
+             (Server.connect channel)
+             (fun (name, t) ->
+                Lwt.finalize
+                  (fun () ->
+                     Block.connect filename
+                     >>= function
+                     | `Error _ ->
+                       Lwt.fail_with (Printf.sprintf "Failed to open %s" filename)
+                     | `Ok b ->
+                       Lwt.finalize
+                         (fun () -> Server.serve t (module Block) b)
+                         (fun () -> Block.disconnect b))
+                  (fun () -> Server.close t)
+             )
+             (fun _ -> channel.close ())
+        )
+        (fun _ -> Lwt_unix.close fd)
+    in
     let t =
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
-      let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-      Lwt_unix.bind sock sockaddr;
-      Lwt_unix.listen sock 5;
-      let rec loop () =
-        Lwt_unix.accept sock
-        >>= fun (fd, _) ->
-        (* Background thread per connection *)
-        let _ =
-          let channel = Nbd_lwt_unix.of_fd fd in
-          Server.connect channel ()
-          >>= fun (name, t) ->
-          Block.connect filename
-          >>= function
-          | `Error _ ->
-            Printf.fprintf stderr "Failed to open %s\n%!" filename;
-            exit 1
-          | `Ok b ->
-            Server.serve t (module Block) b in
-        loop () in
-      loop () in
+      Lwt.finalize
+        (fun () ->
+           let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
+           Lwt_unix.bind sock sockaddr;
+           Lwt_unix.listen sock 5;
+           let rec loop () =
+             Lwt_unix.accept sock
+             >>= fun (fd, _) ->
+             (* Background thread per connection *)
+             let _ = handle_connection fd in
+             loop ()
+           in
+           loop ()
+        )
+        (fun () -> Lwt_unix.close sock)
+    in
     Lwt_main.run t;
     `Ok ()
 
