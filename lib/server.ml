@@ -192,6 +192,8 @@ let serve t (type t) block (b:t) =
             else loop () in
         copy from (Int32.to_int request.Request.len)
       end
+    | { ty = Command.Disc; _ } ->
+      Lwt.return_unit
     | _ ->
       error t request.Request.handle `EINVAL in
   loop ()
