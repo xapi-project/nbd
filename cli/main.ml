@@ -187,7 +187,11 @@ module Impl = struct
              Lwt_unix.accept sock
              >>= fun (fd, _) ->
              (* Background thread per connection *)
-             let _ = handle_connection fd in
+             let _ =
+               Lwt.catch
+                (fun () -> handle_connection fd)
+                (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
+             in
              loop ()
            in
            loop ()
