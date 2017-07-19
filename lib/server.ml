@@ -166,7 +166,7 @@ let serve t (type t) block (b:t) =
             let remaining = remaining - n in
             if remaining > 0
             then copy Int64.(add offset (of_int n)) remaining
-            else ok t handle None in
+            else ok t handle None >>= fun () -> loop () in
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Read; from; len; handle } ->
