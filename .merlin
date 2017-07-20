@@ -1,3 +1,24 @@
-PKG cstruct cstruct.ppx sexplib ppx_sexp_conv lwt mirage-types.lwt io-page oUnit
-S lib lib_test lwt unix
+PKG cmdliner
+PKG cstruct
+PKG cstruct.lwt
+PKG cstruct.ppx
+PKG io-page
+PKG io-page.unix
+PKG lwt
+PKG lwt.unix
+PKG mirage-block-unix
+PKG mirage-types.lwt
+PKG nbd
+PKG nbd.lwt
+PKG oUnit
+PKG ppx_sexp_conv
+PKG sexplib
+PKG uri
+
 B _build/**
+
+S lib
+S lib_test
+S lwt
+S unix
+S cli
