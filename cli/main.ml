@@ -151,15 +151,19 @@ module Impl = struct
         exit 2 in
     `Ok (Lwt_main.run t)
 
+
+  let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
+
   let serve common filename port =
     let filename = require "filename" filename in
     let handle_connection fd =
-      Lwt.try_bind
-        (fun () -> Lwt.wrap (fun () -> Nbd_lwt_unix.of_fd fd))
-        (fun channel ->
-           Lwt.try_bind
-             (Server.connect channel)
-             (fun (name, t) ->
+      Lwt.finalize
+        (fun () ->
+           let channel = Nbd_lwt_unix.of_fd fd in
+           Lwt.finalize
+             (fun () ->
+                Server.connect channel ()
+                >>= fun (name, t) ->
                 Lwt.finalize
                   (fun () ->
                      Block.connect filename
@@ -172,9 +176,9 @@ module Impl = struct
                          (fun () -> Block.disconnect b))
                   (fun () -> Server.close t)
              )
-             (fun _ -> channel.close ())
+             (ignore_exn channel.close)
         )
-        (fun _ -> Lwt_unix.close fd)
+        (ignore_exn (fun () -> Lwt_unix.close fd))
     in
     let t =
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
@@ -196,7 +200,7 @@ module Impl = struct
            in
            loop ()
         )
-        (fun () -> Lwt_unix.close sock)
+        (ignore_exn (fun () -> Lwt_unix.close sock))
     in
     Lwt_main.run t;
     `Ok ()
