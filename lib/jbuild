@@ -1,0 +1,16 @@
+(library
+ ((name nbd)
+  (public_name nbd)
+  (libraries
+   (cstruct
+    io-page
+    lwt
+    mirage-block
+    mirage-block-lwt
+    mirage-types-lwt
+    result
+    rresult
+    sexplib))
+  (preprocess (pps (ppx_cstruct ppx_sexp_conv -no-check)))
+  )
+ )
