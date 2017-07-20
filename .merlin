@@ -8,8 +8,6 @@ PKG lwt
 PKG lwt.unix
 PKG mirage-block-unix
 PKG mirage-types.lwt
-PKG nbd
-PKG nbd.lwt
 PKG oUnit
 PKG ppx_sexp_conv
 PKG sexplib
