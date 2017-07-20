@@ -1,12 +1,18 @@
 language: c
 sudo: required
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-script: bash -ex .travis-opam.sh && make gh-pages && bash -ex .coverage.sh
+install:
+  - wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-opam.sh
+script:
+  - bash -ex .travis-opam.sh
+  - if [ ! -z ${XS_COV} ]; then bash -ex .coverage.sh || true; fi
 env:
   global:
-  - secure: "BcNzNHmOVQQegY8uI2sOhV5RNpW144M7omUbTIATdxMou690ydk9LJDaWowqyv9JruS6n2ZMu3UO2bf/KySxHG56iZ8mtPtUtp98llWydM37dodGLAK09SX8vD9NqOZ5JK9382Ip83s98DjLrZKdftB4FSt82aOB4erF4hB0ChM="
+    - OCAML_VERSION=4.02
+    - PACKAGE=nbd
   matrix:
-  - OCAML_VERSION=latest
-  - OCAML_VERSION=4.02
-branches:
-  only: master
+    - BASE_REMOTE=git://github.com/xapi-project/xs-opam XS_COV=1
+    - EXTRA_REMOTES=git://github.com/xapi-project/xs-opam
+matrix:
+  fast_finish: true
+  allow_failures:
+    - env: EXTRA_REMOTES=git://github.com/xapi-project/xs-opam
