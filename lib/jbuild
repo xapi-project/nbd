@@ -1,6 +1,7 @@
 (library
  ((name nbd)
   (public_name nbd)
+  (flags (:standard -w -34-32))
   (libraries
    (cstruct
     io-page
