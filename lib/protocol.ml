@@ -256,7 +256,7 @@ module Announcement = struct
   let expected_passwd = "NBDMAGIC"
 
   let v1_magic = 0x00420281861253L
-  let v2_magic = 0x49484156454F5054L
+  let v2_magic = 0x49484156454F5054L (* Ascii encoding of "IHAVEOPT" *)
 
   let marshal buf t =
     set_t_passwd expected_passwd 0 buf;
