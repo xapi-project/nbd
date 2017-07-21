@@ -9,7 +9,7 @@ build: ["jbuilder" "build" "-p" name "-j" jobs]
 depends: [
   "jbuilder" {build}
   "cmdliner"
-  "lwt"
+  "lwt" {>= "2.7.0"}
   "mirage-block-unix"
   "nbd-lwt-unix"
   "uri"

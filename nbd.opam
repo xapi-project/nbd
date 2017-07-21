@@ -14,7 +14,7 @@ depends: [
   "io-page"
   "mirage-block-lwt"
   "mirage-types-lwt" {>= "3.0.0"}
-  "lwt"
+  "lwt" {>= "2.7.0"}
   "result"
   "rresult"
   "sexplib"

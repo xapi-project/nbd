@@ -12,7 +12,7 @@ depends: [
   "cstruct-lwt"
   "io-page"
   "io-page-unix"
-  "lwt"
+  "lwt" {>= "2.7.0"}
   "mirage-types-lwt" {>= "3.0.0"}
   "mirage-block-lwt"
   "nbd"
