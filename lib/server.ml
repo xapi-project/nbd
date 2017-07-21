@@ -161,7 +161,7 @@ let serve t (type t) block (b:t) =
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Error e ->
+          | Error _ ->
             error t handle `EIO
           | Ok () ->
             let remaining = remaining - n in
@@ -181,7 +181,7 @@ let serve t (type t) block (b:t) =
           let subblock = Cstruct.sub block 0 n in
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Error e ->
+          | Error _ ->
             fail (Failure "Partial failure during a Block.read")
           | Ok () ->
             t.channel.write subblock

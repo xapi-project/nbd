@@ -24,11 +24,11 @@ let result_of_sexp a b s = match _result_of_sexp a b s with
 let sexp_of_result a b r =
   sexp_of__result a b (match r with Ok x -> `Ok x | Error y -> `Error y)
 
-let nbd_cmd_read = 0l
-let nbd_cmd_write = 1l
-let nbd_cmd_disc = 2l
-let nbd_cmd_flush = 3l
-let nbd_cmd_trim = 4l
+let _nbd_cmd_read = 0l
+let _nbd_cmd_write = 1l
+let _nbd_cmd_disc = 2l
+let _nbd_cmd_flush = 3l
+let _nbd_cmd_trim = 4l
 
 let nbd_request_magic = 0x25609513l
 let nbd_reply_magic = 0x67446698l

@@ -89,6 +89,7 @@ module Device = struct
       >>= function
       | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
       | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
+      | Result.Error `Is_read_only -> Lwt.return (Result.Error `Is_read_only)
       | Result.Ok x -> Lwt.return (Result.Ok x)
 
   let disconnect t = match t with
@@ -96,7 +97,6 @@ module Device = struct
     | `Local t -> Block.disconnect t
 end
 
-open Common
 open Cmdliner
 
 (* Help sections common to all commands *)
@@ -139,7 +139,7 @@ module Impl = struct
     Printf.printf "%Ld\n%!" size;
     `Ok ()
 
-  let list common host port =
+  let list _common host port =
     let t =
       Nbd_lwt_unix.connect host port
       >>= fun channel ->
@@ -159,7 +159,7 @@ module Impl = struct
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-  let serve common filename port =
+  let serve _common filename port =
     let filename = require "filename" filename in
     let handle_connection fd =
       Lwt.finalize
@@ -168,7 +168,7 @@ module Impl = struct
            Lwt.finalize
              (fun () ->
                 Server.connect channel ()
-                >>= fun (name, t) ->
+                >>= fun (_name, t) ->
                 Lwt.finalize
                   (fun () ->
                      Block.connect filename
@@ -188,7 +188,7 @@ module Impl = struct
         (fun () ->
            Lwt_unix.setsockopt sock Lwt_unix.SO_REUSEADDR true;
            let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-           Lwt_unix.bind sock sockaddr;
+           Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
            Lwt_unix.listen sock 5;
            let rec loop () =
              Lwt_unix.accept sock
@@ -205,16 +205,15 @@ module Impl = struct
         )
         (ignore_exn (fun () -> Lwt_unix.close sock))
     in
-    Lwt_main.run t;
-    `Ok ()
+    Lwt_main.run t
 
-let mirror common filename port secondary =
+let mirror _common filename port secondary =
   let filename = require "filename" filename in
   let secondary = require "secondary" secondary in
   let t =
     let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
     let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-    Lwt_unix.bind sock sockaddr;
+    Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
     Lwt_unix.listen sock 5;
     let module M = Mirror.Make(Device)(Device) in
     ( Device.connect (Uri.of_string filename)
@@ -236,12 +235,11 @@ let mirror common filename port secondary =
       let _ =
         let channel = Nbd_lwt_unix.of_fd fd in
         Server.connect channel ()
-        >>= fun (name, t) ->
+        >>= fun (_name, t) ->
         Server.serve t (module M) m in
       loop () in
     loop () in
-    Lwt_main.run t;
-    `Ok ()
+    Lwt_main.run t
 end
 
 let size_cmd =

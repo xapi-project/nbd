@@ -52,10 +52,10 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
 
     type region = int64 * int
 
-    let overlap (start, length) (start', length') =
+    let overlap (start, length) (start', _length') =
       start' >= start && (start' < Int64.(add start (of_int length)))
 
-    let before (start, length) (start', length') =
+    let before (start, length) (start', _length') =
       Int64.(add start (of_int length)) < start'
 
     type t = {
@@ -230,7 +230,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
         Lwt.wakeup u (Error e) );
     return ()
 
-  type id = unit
+  type _id = unit
 
   let get_info t = return t.info
 

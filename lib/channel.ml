@@ -12,8 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
-
 type channel = {
   read: Cstruct.t -> unit Lwt.t;
   write: Cstruct.t -> unit Lwt.t;
