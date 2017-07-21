@@ -1,6 +1,6 @@
 (executable
  ((name test)
-  (libraries (nbd-lwt oUnit))
+  (libraries (nbd-lwt-unix oUnit))
   ))
 
 (alias

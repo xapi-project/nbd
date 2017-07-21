@@ -9,12 +9,13 @@ build: ["jbuilder" "build" "-p" name "-j" jobs]
 build-test: ["jbuilder" "runtest" "-p" name]
 depends: [
   "jbuilder" {build}
-  "lwt"
-  "nbd"
   "cstruct-lwt"
+  "io-page"
+  "io-page-unix"
+  "lwt"
   "mirage-types-lwt" {>= "3.0.0"}
   "mirage-block-lwt"
-  "io-page"
+  "nbd"
   "ounit" {test}
 ]
 tags: [ "org:mirage" "org:xapi-project" ]
