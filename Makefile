@@ -1,4 +1,4 @@
-.PHONY: build release install uninstall clean
+.PHONY: build release install uninstall clean doc
 
 build:
 	jbuilder build @install --dev
@@ -14,3 +14,7 @@ uninstall:
 
 clean:
 	jbuilder clean
+
+# requires odoc
+doc:
+	jbuilder build @doc
