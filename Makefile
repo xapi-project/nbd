@@ -1,4 +1,4 @@
-.PHONY: build release install uninstall clean doc reindent
+.PHONY: build release install uninstall clean test doc reindent
 
 build:
 	jbuilder build @install --dev
@@ -14,6 +14,9 @@ uninstall:
 
 clean:
 	jbuilder clean
+
+test:
+	jbuilder runtest
 
 # requires odoc
 doc:
