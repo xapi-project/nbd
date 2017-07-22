@@ -1,0 +1,25 @@
+(* -*- tuareg -*- *)
+#require "unix"
+
+let find lib =
+  let ic = Unix.open_process_in ("ocamlfind query " ^ lib) in
+  let output = input_line ic in
+  close_in ic;
+  output
+
+let () = Printf.ksprintf Jbuild_plugin.V1.send {|
+(library
+ ((name nbd)
+  (public_name nbd)
+  (flags (:standard -w -34-32))
+  (libraries
+   (cstruct
+    io-page
+    lwt
+    mirage-types.lwt
+    ppx_sexp_conv
+    sexplib))
+    (flags (-ppx "%s/ppx_deriving %s/ppx_core.cma %s/ppx_sexp_conv_expander.cma %s/ppx_optcomp.cma %s/ppx_driver.cma %s/ppx_type_conv.cma %s/ppx_type_conv_deriving.cma %s/ppx_sexp_conv.cma" -ppx "ppx_cstruct --as-ppx"))
+  )
+ )
+|} (find "ppx_deriving") (find "ppx_core") (find "ppx_sexp_conv") (find "ppx_optcomp") (find "ppx_driver") (find "ppx_type_conv") (find "ppx_type_conv") (find "ppx_sexp_conv")
