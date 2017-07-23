@@ -336,10 +336,10 @@ module NegotiateResponse = struct
   let sizeof = 4
 
   let marshal buf t =
-    Cstruct.LE.set_uint32 buf 0 (ClientFlag.to_int32 t)
+    Cstruct.BE.set_uint32 buf 0 (ClientFlag.to_int32 t)
 
   let unmarshal buf =
-    ClientFlag.of_int32 (Cstruct.LE.get_uint32 buf 0)
+    ClientFlag.of_int32 (Cstruct.BE.get_uint32 buf 0)
 
 end
 
