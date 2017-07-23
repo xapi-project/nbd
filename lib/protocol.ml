@@ -110,9 +110,9 @@ module ClientFlag = struct
 
   let of_int32 flags =
     let flags = Int32.to_int flags in
-    let is_set i mask = i land mask = mask in
+    let is_set mask = mask land flags <> 0 in
     List.map snd
-      (List.filter (fun (mask,_) -> is_set flags mask)
+      (List.filter (fun (mask,_) -> is_set mask)
          [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
            nbd_flag_c_no_zeroes, No_zeroes; ])
 
