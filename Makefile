@@ -1,62 +1,32 @@
-CONFIGUREFLAGS=--enable-tests
+.PHONY: build release install uninstall clean test doc reindent
 
-# OASIS_START
-# DO NOT EDIT (digest: a3c674b4239234cbbe53afe090018954)
+build:
+	jbuilder build @install --dev
 
-SETUP = ocaml setup.ml
+release:
+	jbuilder build @install
 
-build: setup.data
-	$(SETUP) -build $(BUILDFLAGS)
+install:
+	jbuilder install
 
-doc: setup.data build
-	$(SETUP) -doc $(DOCFLAGS)
-
-test: setup.data build
-	$(SETUP) -test $(TESTFLAGS)
-
-all:
-	$(SETUP) -all $(ALLFLAGS)
-
-install: setup.data
-	$(SETUP) -install $(INSTALLFLAGS)
-
-uninstall: setup.data
-	$(SETUP) -uninstall $(UNINSTALLFLAGS)
-
-reinstall: setup.data
-	$(SETUP) -reinstall $(REINSTALLFLAGS)
+uninstall:
+	jbuilder uninstall
 
 clean:
-	$(SETUP) -clean $(CLEANFLAGS)
+	jbuilder clean
 
-distclean:
-	$(SETUP) -distclean $(DISTCLEANFLAGS)
+test:
+	jbuilder runtest
 
-setup.data:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
-
-configure:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
-
-.PHONY: build doc test all install uninstall reinstall clean distclean configure
-
-# OASIS_STOP
-
-setup.data : setup.ml
-
-setup.ml : _oasis
-	oasis setup
+# requires odoc
+doc:
+	jbuilder build @doc
 
 gh-pages:
 	bash .docgen.sh
 
-coverage:
-	bash .coverage.sh
-
-.PHONY: reindent
 reindent:
 	ocp-indent --syntax cstruct -i lib/*.mli
 	ocp-indent --syntax cstruct -i lib/*.ml
 	ocp-indent --syntax cstruct -i lib_test/*.ml
 	ocp-indent --syntax cstruct -i cli/*.ml
-
