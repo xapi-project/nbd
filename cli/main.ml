@@ -184,6 +184,7 @@ module Impl = struct
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
       Lwt.finalize
         (fun () ->
+           Lwt_unix.setsockopt sock Lwt_unix.SO_REUSEADDR true;
            let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
            Lwt_unix.bind sock sockaddr;
            Lwt_unix.listen sock 5;
