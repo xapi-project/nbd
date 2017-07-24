@@ -1,8 +1,8 @@
 Network Block Device
 ====================
 
-[![Build Status](https://travis-ci.org/xapi-project/nbd.svg?branch=master)](https://travis-ci.org/xapi-project/nbd)
-[![Coverage Status](https://coveralls.io/repos/xapi-project/nbd/badge.svg?branch=master)](https://coveralls.io/r/xapi-project/nbd?branch=master)
+[![Build Status](https://travis-ci.org/xapi-project/nbd.svg?branch=bugfix-v2.x)](https://travis-ci.org/xapi-project/nbd)
+[![Coverage Status](https://coveralls.io/repos/xapi-project/nbd/badge.svg?branch=bugfix-v2.x)](https://coveralls.io/r/xapi-project/nbd?branch=bugfix-v2.x)
 
 
 A pure OCaml implementation of the [Network Block
