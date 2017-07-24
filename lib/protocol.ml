@@ -110,9 +110,9 @@ module ClientFlag = struct
 
   let of_int32 flags =
     let flags = Int32.to_int flags in
-    let is_set i mask = i land mask = mask in
+    let is_set mask = mask land flags <> 0 in
     List.map snd
-      (List.filter (fun (mask,_) -> is_set flags mask)
+      (List.filter (fun (mask,_) -> is_set mask)
          [ nbd_flag_c_fixed_newstyle, Fixed_newstyle;
            nbd_flag_c_no_zeroes, No_zeroes; ])
 
@@ -336,10 +336,10 @@ module NegotiateResponse = struct
   let sizeof = 4
 
   let marshal buf t =
-    Cstruct.LE.set_uint32 buf 0 (ClientFlag.to_int32 t)
+    Cstruct.BE.set_uint32 buf 0 (ClientFlag.to_int32 t)
 
   let unmarshal buf =
-    ClientFlag.of_int32 (Cstruct.LE.get_uint32 buf 0)
+    ClientFlag.of_int32 (Cstruct.BE.get_uint32 buf 0)
 
 end
 
