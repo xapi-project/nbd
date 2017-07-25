@@ -9,6 +9,8 @@ pushd $COVERAGE_DIR
 
 $(which cp) -r ../* .
 
+opam install -y bisect_ppx ocveralls
+
 export COVERAGE=1
 jbuilder runtest
 
