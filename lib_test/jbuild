@@ -1,0 +1,9 @@
+(executable
+ ((name test)
+  (libraries (nbd.lwt oUnit))
+  ))
+
+(alias
+ ((name   runtest)
+  (deps   (test.exe))
+  (action (run ${<} -runner sequential))))
