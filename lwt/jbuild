@@ -1,6 +1,31 @@
+(* -*- tuareg -*- *)
+#require "unix"
+
+let flags = function
+| [] -> ""
+| pkgs -> 
+  let cmd = "ocamlfind ocamlc -verbose" ^ (
+    List.fold_left (fun acc pkg -> acc ^ " -package " ^ pkg) "" pkgs
+  ) in
+  let ic = Unix.open_process_in
+    (cmd ^ " | grep -oEe '-ppx (\"([^\"\\]|\\.)+\"|\w+)'")
+  in
+  let rec go ic acc =
+    try go ic (acc ^ " " ^ input_line ic) with End_of_file -> close_in ic; acc
+  in
+  go ic ""
+
+let is_coverage = try Unix.getenv "COVERAGE" = "1" with Not_found -> false
+
+let additional_libraries = if is_coverage then "bisect_ppx" else ""
+let rewriters =
+  ["ppx_sexp_conv"; "cstruct.ppx"] @ (if is_coverage then ["bisect_ppx"] else [])
+
+let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (library
  ((name nbd_lwt_unix)
   (public_name nbd.lwt)
+  (flags (:standard %s))
   (libraries
    (cstruct.lwt
     io-page
@@ -8,5 +33,7 @@
     lwt
     lwt.unix
     mirage-types.lwt
-    nbd))
+    nbd
+    %s))
  ))
+|} (flags rewriters) additional_libraries
