@@ -22,13 +22,10 @@ let coverage_rewriter ~full =
   | true, _    -> "bisect_ppx -simple-cases"
   | _          -> ""
 
-let rewriters = ["ppx_sexp_conv"; "cstruct.ppx"]
-
 let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (library
  ((name nbd_lwt_unix)
   (public_name nbd.lwt)
-  (flags (:standard %s))
   (libraries
    (cstruct.lwt
     io-page
@@ -39,4 +36,4 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
     nbd))
   %s
   ))
-|} (flags rewriters) (coverage_rewriter ~full:true)
+|} (coverage_rewriter ~full:true)
