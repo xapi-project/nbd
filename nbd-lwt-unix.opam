@@ -6,7 +6,6 @@ homepage: "https://github.com/xapi-project/nbd"
 dev-repo: "https://github.com/xapi-project/nbd.git"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 build: ["jbuilder" "build" "-p" name "-j" jobs]
-build-test: ["jbuilder" "runtest" "-p" name]
 depends: [
   "jbuilder" {build}
   "cstruct-lwt"
