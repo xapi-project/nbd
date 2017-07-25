@@ -10,25 +10,20 @@ if [ -z "$KEEP" ]; then trap "popd; rm -rf $COVERAGE_DIR" EXIT; fi
 
 $(which cp) -r ../* .
 
-eval `opam config env`
-opam install -y bisect_ppx oasis ocveralls
+opam pin add bisect_ppx --dev-repo -y
+opam install ocveralls -y
 
-sed -i '/BuildDepends:/ s/$/, bisect_ppx/' _oasis
-oasis setup
+export COVERAGE=1
+jbuilder runtest
 
-./configure --enable-tests
-make
-
-find . -name bisect* | xargs rm -f
-./test.native -runner sequential
-
-bisect-ppx-report bisect*.out -I _build -text report
-bisect-ppx-report bisect*.out -I _build -summary-only -text summary
-(cd _build; bisect-ppx-report ../bisect*.out -html ../report-html)
+outs=$(find . | grep bisect.*.out)
+bisect-ppx-report -I $(dirname $outs[1]) -text report $outs
+bisect-ppx-report -I $(dirname $outs[1]) -summary-only -text summary $outs
+if [ -n "$HTML" ]; then bisect-ppx-report -I $(dirname $outs[1]) -html ../html-report $outs; fi
 
 if [ -n "$TRAVIS" ]; then
   echo "\$TRAVIS set; running ocveralls and sending to coveralls.io..."
-  ocveralls --prefix _build bisect*.out --send
+  ocveralls --prefix _build/default $outs --send
 else
   echo "\$TRAVIS not set; displaying results of bisect-report..."
   cat report

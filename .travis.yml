@@ -12,7 +12,12 @@ env:
     - DISTRO=debian-stable
     - PACKAGE=nbd
   matrix:
-    - BASE_REMOTE=git://github.com/xapi-project/xs-opam
+    # We need to pass some Travis environment variables to the container to
+    # enable uploading to coveralls and detection of Travis CI.
+    # Also, set TESTS to false to avoid running them twice.
+    - BASE_REMOTE=git://github.com/xapi-project/xs-opam \
+      TEST=false \
+      POST_INSTALL_HOOK="env TRAVIS=$TRAVIS TRAVIS_JOB_ID=$TRAVIS_JOB_ID bash -ex .coverage.sh"
     - EXTRA_REMOTES=git://github.com/xapi-project/xs-opam
 matrix:
   fast_finish: true

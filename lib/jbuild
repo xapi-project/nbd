@@ -1,7 +1,9 @@
 (* -*- tuareg -*- *)
 #require "unix"
 
-let flags pkgs =
+let flags = function
+| [] -> ""
+| pkgs -> 
   let cmd = "ocamlfind ocamlc -verbose" ^ (
     List.fold_left (fun acc pkg -> acc ^ " -package " ^ pkg) "" pkgs
   ) in
@@ -12,6 +14,15 @@ let flags pkgs =
     try go ic (acc ^ " " ^ input_line ic) with End_of_file -> close_in ic; acc
   in
   go ic ""
+
+let coverage_rewriter ~full =
+  let is_coverage = try Unix.getenv "COVERAGE" = "1" with Not_found -> false in
+  match is_coverage, full with
+  | true, true -> "(preprocess (pps (bisect_ppx -simple-cases)))"
+  | true, _    -> "bisect_ppx -simple-cases"
+  | _          -> ""
+
+let rewriters = ["ppx_sexp_conv"; "cstruct.ppx"]
 
 let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (library
@@ -25,6 +36,6 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
     mirage-types.lwt
     ppx_sexp_conv
     sexplib))
-  )
- )
-|} (flags ["ppx_sexp_conv"; "cstruct.ppx"])
+  %s
+  ))
+|} (flags rewriters) (coverage_rewriter ~full:true)
