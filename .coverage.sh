@@ -23,7 +23,7 @@ if [ -n "$HTML" ]; then bisect-ppx-report -I $(dirname $outs[1]) -html ../html-r
 
 if [ -n "$TRAVIS" ]; then
   echo "\$TRAVIS set; running ocveralls and sending to coveralls.io..."
-  ocveralls --prefix $(dirname $outs[1]) $outs --send
+  ocveralls --prefix _build/default $outs --send
 else
   echo "\$TRAVIS not set; displaying results of bisect-report..."
   cat report
