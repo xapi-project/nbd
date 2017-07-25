@@ -10,7 +10,7 @@ if [ -z "$KEEP" ]; then trap "popd; rm -rf $COVERAGE_DIR" EXIT; fi
 
 $(which cp) -r ../* .
 
-opam install -y bisect_ppx ocveralls
+opam pin add bisect_ppx --dev-repo -y
 
 export COVERAGE=1
 jbuilder runtest
@@ -18,6 +18,7 @@ jbuilder runtest
 outs=$(find . | grep bisect.*.out)
 bisect-ppx-report -I $(dirname $outs[1]) -text report $outs
 bisect-ppx-report -I $(dirname $outs[1]) -summary-only -text summary $outs
+if [ -n "$HTML" ]; then bisect-ppx-report -I $(dirname $outs[1]) -html ../html-report $outs; fi
 
 if [ -n "$TRAVIS" ]; then
   echo "\$TRAVIS set; running ocveralls and sending to coveralls.io..."

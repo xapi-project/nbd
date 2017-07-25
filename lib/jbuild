@@ -15,11 +15,14 @@ let flags = function
   in
   go ic ""
 
-let is_coverage = try Unix.getenv "COVERAGE" = "1" with Not_found -> false
+let coverage_rewriter ~full =
+  let is_coverage = try Unix.getenv "COVERAGE" = "1" with Not_found -> false in
+  match is_coverage, full with
+  | true, true -> "(preprocess (pps (bisect_ppx -simple-cases)))"
+  | true, _    -> "bisect_ppx -simple-cases"
+  | _          -> ""
 
-let additional_libraries = if is_coverage then "bisect_ppx" else ""
-let rewriters =
-  ["ppx_sexp_conv"; "cstruct.ppx"] @ (if is_coverage then ["bisect_ppx"] else [])
+let rewriters = ["ppx_sexp_conv"; "cstruct.ppx"]
 
 let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (library
@@ -32,8 +35,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
     lwt
     mirage-types.lwt
     ppx_sexp_conv
-    sexplib
-    %s))
-  )
- )
-|} (flags rewriters) additional_libraries
+    sexplib))
+  %s
+  ))
+|} (flags rewriters) (coverage_rewriter ~full:true)
