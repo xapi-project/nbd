@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Make sure we're not echoing any sensitive data
+set +x
+
 opam install -y jbuilder odoc
 make doc
 
@@ -14,7 +17,8 @@ DOCDIR=.gh-pages
 if [ -n "$KEEP" ]; then trap "rm -rf $DOCDIR" EXIT; fi
 rm -rf $DOCDIR
 
-git clone --quiet --branch=gh-pages https://${GH_TOKEN}@github.com/xapi-project/nbd $DOCDIR > /dev/null
+# Don't expose GH_TOKEN
+git clone --quiet --branch=gh-pages https://${GH_TOKEN}@github.com/xapi-project/nbd $DOCDIR > /dev/null 2>&1
 git -C $DOCDIR rm -rf .
 cp -r _build/default/_doc/nbd* $DOCDIR
 cp .index.html $DOCDIR/index.html
@@ -22,4 +26,5 @@ git -C $DOCDIR config user.email "travis@travis-ci.org"
 git -C $DOCDIR config user.name "Travis"
 (cd $DOCDIR; git add *)
 git -C $DOCDIR commit --allow-empty -am "Travis build $TRAVIS_BUILD_NUMBER pushed docs to gh-pages"
-git -C $DOCDIR push origin gh-pages > /dev/null
+# Don't expose GH_TOKEN
+git -C $DOCDIR push origin gh-pages > /dev/null 2>&1

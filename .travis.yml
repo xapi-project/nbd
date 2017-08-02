@@ -3,7 +3,7 @@ sudo: false
 services:
   - docker
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
-script: bash -ex ./.travis-docker.sh && make gh-pages
+script: bash -ex ./.travis-docker.sh
 env:
   global:
   - secure: "BcNzNHmOVQQegY8uI2sOhV5RNpW144M7omUbTIATdxMou690ydk9LJDaWowqyv9JruS6n2ZMu3UO2bf/KySxHG56iZ8mtPtUtp98llWydM37dodGLAK09SX8vD9NqOZ5JK9382Ip83s98DjLrZKdftB4FSt82aOB4erF4hB0ChM="
@@ -14,7 +14,8 @@ env:
   - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.05.0
   - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.03.0
   - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.04.2
-  - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.05.0
+  # Upload docs for both nbd and nbd-lwt-unix
+  - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.05.0 POST_INSTALL_HOOK="env TRAVIS=$TRAVIS TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER GH_TOKEN=$GH_TOKEN make gh-pages"
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.03.0
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.04.2
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.05.0
