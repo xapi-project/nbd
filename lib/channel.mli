@@ -14,9 +14,32 @@
 
 (** Channels represent connections between clients and servers. *)
 
-type channel = {
-  read:  Cstruct.t -> unit Lwt.t; (** Read a block of data from the channel *)
-  write: Cstruct.t -> unit Lwt.t; (** Write a block of data to the channel *)
-  close: unit -> unit Lwt.t; (** Close the channel *)
-}
 (** An open channel to an NBD client or server. *)
+
+type tls_channel = {
+  read_tls: Cstruct.t -> unit Lwt.t;
+  write_tls: Cstruct.t -> unit Lwt.t;
+  close_tls: unit -> unit Lwt.t;
+}
+
+type cleartext_channel =  {
+  read_clear: Cstruct.t -> unit Lwt.t;
+  write_clear: Cstruct.t -> unit Lwt.t;
+  close_clear: unit -> unit Lwt.t;
+
+  make_tls_channel: unit -> tls_channel Lwt.t;
+}
+
+type generic_channel = {
+  is_tls: bool;
+  make_tls: (unit -> tls_channel Lwt.t) option;
+  read: Cstruct.t -> unit Lwt.t;
+  write: Cstruct.t -> unit Lwt.t;
+  close: unit -> unit Lwt.t;
+}
+
+type channel = generic_channel
+
+val generic_of_tls_channel: tls_channel -> generic_channel
+
+val generic_of_cleartext_channel: cleartext_channel -> generic_channel

@@ -92,7 +92,7 @@ let make_client_channel n =
       else write buf
     | [] -> fail (Failure "Client tried to write but the stream was empty") in
   let close () = return () in
-  { Channel.read; write; close }
+  { Channel.read; write; close; is_tls=false; make_tls=None }
 
 let client_negotiation =
   "Perform a negotiation using the second version of the protocol from the

@@ -36,70 +36,115 @@ let make channel =
   let m = Lwt_mutex.create () in
   { channel; request; reply; m }
 
-let connect channel ?offer () =
+let connect channel ?offer ?(no_tls=false) () =
   let buf = Cstruct.create Announcement.sizeof in
   Announcement.(marshal buf `V2);
-  channel.write buf
+  channel.write_clear buf
   >>= fun () ->
   let buf = Cstruct.create (Negotiate.sizeof `V2) in
   Negotiate.(marshal buf (V2 [ GlobalFlag.Fixed_newstyle ]));
-  channel.write buf
+  channel.write_clear buf
   >>= fun () ->
   let buf = Cstruct.create NegotiateResponse.sizeof in
-  channel.read buf
+  channel.read_clear buf
   >>= fun () ->
-  let client_flags = NegotiateResponse.unmarshal buf in
-  (* Assume that the client supports Fixed_newstyle? *)
-  if not (List.mem ClientFlag.Fixed_newstyle client_flags)
-  then Printf.fprintf stderr "WARNING: client doesn't report Fixed_newstyle\n%!";
   (* Option negotiation *)
   let req = Cstruct.create OptionRequestHeader.sizeof in
   let res = Cstruct.create OptionResponseHeader.sizeof in
-  let rec loop () =
-    channel.read req
+  let make_blank_payload hdr =
+    Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length)
+  in
+  let respond opt resp writefn =
+    OptionResponseHeader.(marshal res { request_type = opt; response_type = resp; length = 0l });
+    writefn res
+  in
+  let send_ack opt writefn = respond opt OptionResponse.Ack writefn
+  in
+  let generic_loop chan = let rec loop () =
+    chan.read req
     >>= fun () ->
     match OptionRequestHeader.unmarshal req with
     | Error e -> fail e
     | Ok hdr ->
-      let payload = Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length) in
-      channel.read payload
+      let payload = make_blank_payload hdr in
+      chan.read payload
       >>= fun () ->
       begin match hdr.OptionRequestHeader.ty with
-        | Option.ExportName -> return (Cstruct.to_string payload, make channel)
-        | Option.Abort -> fail (Failure "client requested abort")
-        | Option.Unknown x ->
-          OptionResponseHeader.(marshal res { request_type = Option.Unknown x; response_type = OptionResponse.Unsupported; length = 0l });
-          channel.write res
+        | Option.StartTLS as opt ->
+          let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
+          respond opt resp chan.write
           >>= fun () ->
           loop ()
-        | Option.List ->
+        | Option.ExportName -> return (Cstruct.to_string payload, make chan)
+        | Option.Abort -> fail (Failure "client requested abort")
+        | Option.Unknown _ as opt ->
+          respond opt OptionResponse.Unsupported chan.write
+          >>= fun () ->
+          loop ()
+        | Option.List as opt ->
           begin match offer with
             | None ->
-              OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Policy; length = 0l });
-              channel.write res
+              respond opt OptionResponse.Policy chan.write
               >>= fun () ->
               loop ()
             | Some offers ->
               let rec advertise = function
-                | [] ->
-                  OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Ack; length = 0l });
-                  channel.write res
+                | [] -> send_ack opt chan.write
                 | x :: xs ->
                   let l = String.length x in
-                  OptionResponseHeader.(marshal res { request_type = Option.List; response_type = OptionResponse.Server; length = Int32.of_int l});
-                  channel.write res
+                  OptionResponseHeader.(marshal res { request_type = opt; response_type = OptionResponse.Server; length = Int32.of_int l});
+                  chan.write res
                   >>= fun () ->
                   let name = Cstruct.create l in
                   Cstruct.blit_from_string x 0 name 0 l;
-                  channel.write name
+                  chan.write name
                   >>= fun () ->
                   advertise xs in
               advertise offers
               >>= fun () ->
               loop ()
           end
-      end in
-  loop ()
+      end
+    in loop ()
+  in
+  let rec negotiate_tls () =
+    channel.read_clear req
+    >>= fun () ->
+    match OptionRequestHeader.unmarshal req with
+    | Error e -> fail e
+    | Ok hdr ->
+      let payload = make_blank_payload hdr in
+      channel.read_clear payload
+      >>= fun () ->
+      begin match hdr.OptionRequestHeader.ty with
+        | Option.ExportName -> fail (Failure "Client requested export over cleartext channel but server is in FORCEDTLS mode.")
+        | Option.Abort -> fail (Failure "Client requested abort (before negotiating TLS).")
+        | Option.StartTLS as opt -> (
+            send_ack opt channel.write_clear
+            >>= channel.make_tls_channel
+            >>= fun tch ->
+            generic_loop (Channel.generic_of_tls_channel tch)
+          )
+        (* For any other option, we just respond saying TLS is required. *)
+        | opt -> respond opt OptionResponse.TlsReqd channel.write_clear
+          >>= fun () -> negotiate_tls ()
+      end
+  in
+  let client_flags = NegotiateResponse.unmarshal buf in
+  (* Does the client support Fixed_newstyle? *)
+  let old_client = not (List.mem ClientFlag.Fixed_newstyle client_flags) in
+  if no_tls then (
+    if old_client
+    then Printf.fprintf stderr "INFO: client doesn't report Fixed_newstyle\n%!";
+    generic_loop (Channel.generic_of_cleartext_channel channel)
+  ) else (
+    if old_client
+    then (
+      Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
+      fail (Failure "client does not report Fixed_newstyle and server is in FORCEDTLS mode.")
+    )
+    else negotiate_tls ()
+  )
 
 let negotiate_end t  size flags : t Lwt.t =
   let buf = Cstruct.create DiskInfo.sizeof in

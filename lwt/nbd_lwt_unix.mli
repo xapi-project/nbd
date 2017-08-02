@@ -15,14 +15,20 @@
 (** Network Block Device client and servers for Unix *)
 
 open Nbd
-open Channel
 
-val connect: string -> int -> channel Lwt.t
+type tls_role =
+  | TlsClient of Ssl.context option
+  | TlsServer of Ssl.context option
+
+val connect: string -> int -> Channel.channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
     a channel. *)
 
-val of_fd: Lwt_unix.file_descr -> channel
-(** [of_fd fd] returns a channel from an existing file descriptor *)
+val cleartext_channel_of_fd: Lwt_unix.file_descr -> tls_role -> Channel.cleartext_channel
+(** [cleartext_channel_of_fd fd] returns a channel from an existing file descriptor *)
+
+val init_tls_get_ctx: certfile:string -> ciphersuites:string -> Ssl.context
+(** Initialise the Ssl (TLS) library and then create and return a new context *)
 
 module Client: S.CLIENT
 (** A client allows you to access remote disks *)

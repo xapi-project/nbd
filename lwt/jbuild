@@ -10,5 +10,7 @@
     mirage-block
     mirage-block-lwt
     mirage-types-lwt
+    ssl
+    lwt_ssl
     nbd))
  ))
