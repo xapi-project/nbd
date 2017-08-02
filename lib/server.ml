@@ -74,20 +74,17 @@ let connect channel ?offer () =
       | Option.StartTLS ->
         let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
         respond opt resp chan.write
-        >>=  fun () ->
-        loop ()
+        >>= loop
       | Option.ExportName -> return (Cstruct.to_string payload, make chan)
       | Option.Abort -> fail (Failure "client requested abort")
       | Option.Unknown _ ->
         respond opt OptionResponse.Unsupported chan.write
-        >>= fun () ->
-        loop ()
+        >>= loop
       | Option.List ->
         begin match offer with
           | None ->
             respond opt OptionResponse.Policy chan.write
-            >>= fun () ->
-            loop ()
+            >>= loop
           | Some offers ->
             let rec advertise = function
               | [] -> send_ack opt chan.write
@@ -101,8 +98,7 @@ let connect channel ?offer () =
                 >>= fun () ->
                 advertise xs in
             advertise offers
-            >>= fun () ->
-            loop ()
+            >>= loop
         end
     in loop ()
   in
