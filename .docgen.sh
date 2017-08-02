@@ -17,7 +17,7 @@ rm -rf $DOCDIR
 git clone --quiet --branch=gh-pages https://${GH_TOKEN}@github.com/xapi-project/nbd $DOCDIR > /dev/null
 git -C $DOCDIR rm -rf .
 cp -r _build/default/_doc/nbd* $DOCDIR
-cp .index.html $DOCDIR
+cp .index.html $DOCDIR/index.html
 git -C $DOCDIR config user.email "travis@travis-ci.org"
 git -C $DOCDIR config user.name "Travis"
 (cd $DOCDIR; git add *)
