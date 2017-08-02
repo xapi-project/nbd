@@ -6,8 +6,8 @@ set +x
 opam install -y jbuilder odoc
 make doc
 
-if [ -z "$TRAVIS" -o "$TRAVIS_PULL_REQUEST" != "false" ]; then
-  echo "This is not a push Travis-ci build, doing nothing..."
+if [ -z "$TRAVIS" -o "$TRAVIS_PULL_REQUEST" != "false" -o "$TRAVIS_BRANCH" != "master" ]; then
+  echo "This is not a push Travis-ci build on the master branch, doing nothing..."
   exit 0
 else
   echo "Updating docs on Github pages..."
