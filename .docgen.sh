@@ -13,6 +13,12 @@ else
   echo "Updating docs on Github pages..."
 fi
 
+# Error out if $GH_TOKEN is empty or unset
+if [ -z "$GH_TOKEN" ]; then
+  echo "GH_TOKEN not found"
+  exit 1
+fi
+
 DOCDIR=.gh-pages
 if [ -n "$KEEP" ]; then trap "rm -rf $DOCDIR" EXIT; fi
 rm -rf $DOCDIR
