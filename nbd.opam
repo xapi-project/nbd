@@ -1,6 +1,6 @@
 opam-version: "1.2"
 maintainer: "xen-api@lists.xen.org"
-authors: [ "Jonathan Ludlam" "David Scott" ]
+authors: [ "Jonathan Ludlam" "David Scott" "Thomas Sanders" ]
 license: "LGPL-2 with OCaml linking exception"
 homepage: "https://github.com/xapi-project/nbd"
 dev-repo: "https://github.com/xapi-project/nbd.git"
