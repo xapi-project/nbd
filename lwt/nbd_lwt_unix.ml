@@ -110,5 +110,13 @@ let init_tls_get_ctx ~certfile ~ciphersuites =
   Ssl.set_cipher_list ctx ciphersuites;
   ctx
 
+let with_block filename f =
+  Block.connect filename
+  >>= fun b ->
+  Lwt.finalize
+    (fun () -> f b)
+    (fun () -> Block.disconnect b)
+
+
 module Client = Nbd.Client
 module Server = Nbd.Server
