@@ -9,6 +9,9 @@
 # Make sure we're not echoing any sensitive data
 set +x
 
+set -e
+set -o pipefail
+
 # Make sure .travis-docker.sh is not echoing any sensitive data
 if [ -z "$GH_TOKEN" ]; then
   bash +x -e ./.travis-docker.sh
