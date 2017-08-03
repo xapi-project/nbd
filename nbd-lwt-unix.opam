@@ -15,7 +15,6 @@ depends: [
   "mirage-types-lwt" {>= "3.0.0"}
   "mirage-block-lwt"
   "nbd"
-  "ounit" {test}
 ]
 tags: [ "org:mirage" "org:xapi-project" ]
 available: [ ocaml-version >= "4.03.0" ]
