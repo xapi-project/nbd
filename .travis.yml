@@ -6,7 +6,7 @@ install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/ma
 script: bash ./$SCRIPT
 env:
   global:
-  - secure: "BcNzNHmOVQQegY8uI2sOhV5RNpW144M7omUbTIATdxMou690ydk9LJDaWowqyv9JruS6n2ZMu3UO2bf/KySxHG56iZ8mtPtUtp98llWydM37dodGLAK09SX8vD9NqOZ5JK9382Ip83s98DjLrZKdftB4FSt82aOB4erF4hB0ChM="
+  - secure: iS8MtXltyXj/T1EgpZaMillH/SuMAinX7ma5ER1Zt54F9CS3/tH+pG9Yx8uM8sUOZU90xvmN0AZ4HI4sPzquj8UUS+a0Xoj4kj43eGG90bi3nqtdNtopQOZpLFhvm7+tMzRztHLocvlPWLu1l8xHeGycm+J7X1sx+CW+p4uotPE=
   - PINS="nbd:. nbd-lwt-unix:. nbd-tool:."
   - SCRIPT=.travis-docker.sh
   matrix:
