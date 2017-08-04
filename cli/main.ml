@@ -185,11 +185,7 @@ module Impl = struct
                 >>= fun (_name, t) ->
                 Lwt.finalize
                   (fun () ->
-                     Block.connect filename
-                     >>= fun b ->
-                     Lwt.finalize
-                       (fun () -> Server.serve t (module Block) b)
-                       (fun () -> Block.disconnect b))
+                     Nbd_lwt_unix.with_block filename (Server.serve t (module Block)))
                   (fun () -> Server.close t)
              )
              (ignore_exn channel.close_clear)
