@@ -68,4 +68,14 @@ module type SERVER = sig
 
   val close: t -> unit Lwt.t
   (** [close t] shuts down the connection [t] and frees any allocated resources *)
+
+  val with_connection :
+    Channel.cleartext_channel ->
+    ?offer:name list ->
+    (string -> t -> unit Lwt.t) ->
+    unit Lwt.t
+  (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
+      attempts to apply [f] to the resulting [t], with a guarantee to call
+      [close t] afterwards. *)
+
 end
