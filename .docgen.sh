@@ -3,6 +3,8 @@
 # Make sure we're not echoing any sensitive data
 set +x
 
+set -e
+
 opam install -y jbuilder odoc
 make doc
 
