@@ -3,6 +3,7 @@ maintainer: "jonathan.ludlam@citrix.com"
 authors: [ "Jonathan Ludlam" "David Scott" "Thomas Sanders" ]
 license: "LGPL-2 with OCaml linking exception"
 homepage: "https://github.com/xapi-project/nbd"
+doc: "https://xapi-project.github.io/nbd/nbd/index.html"
 dev-repo: "https://github.com/xapi-project/nbd.git"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 
