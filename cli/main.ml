@@ -173,22 +173,20 @@ module Impl = struct
     let handle_connection fd =
       Lwt.finalize
         (fun () ->
-           let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
-           Lwt.finalize
-             (fun () ->
+           Nbd_lwt_unix.with_channel fd tls_role
+             (fun clearchan ->
                 Server.with_connection
-                  channel
-                  (fun _exportname t ->
+                  clearchan
+                  (fun _exportname svr ->
                      Block.connect filename
                      >>= function
                      | `Error _ ->
                        Lwt.fail_with (Printf.sprintf "Failed to open %s" filename)
                      | `Ok b ->
                        Lwt.finalize
-                         (fun () -> Server.serve t (module Block) b)
+                         (fun () -> Server.serve svr (module Block) b)
                          (fun () -> Block.disconnect b))
              )
-             (ignore_exn channel.close_clear)
         )
         (ignore_exn (fun () -> Lwt_unix.close fd))
     in
