@@ -176,10 +176,9 @@ module Impl = struct
            let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
            Lwt.finalize
              (fun () ->
-                Server.connect channel ()
-                >>= fun (name, t) ->
-                Lwt.finalize
-                  (fun () ->
+                Server.with_connection
+                  channel
+                  (fun _exportname t ->
                      Block.connect filename
                      >>= function
                      | `Error _ ->
@@ -188,7 +187,6 @@ module Impl = struct
                        Lwt.finalize
                          (fun () -> Server.serve t (module Block) b)
                          (fun () -> Block.disconnect b))
-                  (fun () -> Server.close t)
              )
              (ignore_exn channel.close_clear)
         )
