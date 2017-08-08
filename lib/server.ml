@@ -140,6 +140,15 @@ let connect channel ?offer () =
         else negotiate_tls make_tls_channel
       )
 
+let with_connection clearchan ?offer f =
+  (match offer with
+    | None -> connect clearchan ()
+    | Some offer -> connect clearchan ~offer ())
+  >>= fun (_name, t) ->
+  Lwt.finalize
+    (fun () -> f t)
+    (fun () -> close t)
+
 let negotiate_end t  size flags : t Lwt.t =
   let buf = Cstruct.create DiskInfo.sizeof in
   DiskInfo.(marshal buf { size; flags });
