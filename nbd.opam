@@ -13,6 +13,7 @@ depends: [
   "ounit" {test}
   "ppx_tools" {build}
   "lwt" {>= "2.6.0" & < "3.0.0"}
+  "ssl"
   "cstruct" {>= "1.9.0" & < "3.0.0"}
   "cmdliner"
   "sexplib"

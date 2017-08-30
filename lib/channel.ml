@@ -12,8 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
-
 type tls_channel = {
   read_tls: Cstruct.t -> unit Lwt.t;
   write_tls: Cstruct.t -> unit Lwt.t;
