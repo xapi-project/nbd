@@ -65,80 +65,80 @@ let connect channel ?offer () =
     match OptionRequestHeader.unmarshal req with
     | Error e -> fail e
     | Ok hdr ->
-        let payload = make_blank_payload hdr in
-        readfn payload
-        >>= fun () -> return (hdr.OptionRequestHeader.ty, payload)
+      let payload = make_blank_payload hdr in
+      readfn payload
+      >>= fun () -> return (hdr.OptionRequestHeader.ty, payload)
   in
   let generic_loop chan =
     let rec loop () =
       read_hdr_and_payload chan.read
       >>= fun (opt, payload) -> match opt with
-        | Option.StartTLS ->
-          let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
-          respond opt resp chan.write
-          >>= loop
-        | Option.ExportName -> return (Cstruct.to_string payload, make chan)
-        | Option.Abort -> fail (Failure "client requested abort")
-        | Option.Unknown _ ->
-          respond opt OptionResponse.Unsupported chan.write
-          >>= loop
-        | Option.List ->
-          begin match offer with
-            | None ->
-              respond opt OptionResponse.Policy chan.write
-              >>= loop
-            | Some offers ->
-              let rec advertise = function
-                | [] -> send_ack opt chan.write
-                | x :: xs ->
-                  let len = String.length x in
-                  respond ~len opt OptionResponse.Server chan.write
-                  >>= fun () ->
-                  let name = Cstruct.create len in
-                  Cstruct.blit_from_string x 0 name 0 len;
-                  chan.write name
-                  >>= fun () ->
-                  advertise xs in
-              advertise offers
-              >>= loop
-          end
-      in loop ()
+      | Option.StartTLS ->
+        let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
+        respond opt resp chan.write
+        >>= loop
+      | Option.ExportName -> return (Cstruct.to_string payload, make chan)
+      | Option.Abort -> fail (Failure "client requested abort")
+      | Option.Unknown _ ->
+        respond opt OptionResponse.Unsupported chan.write
+        >>= loop
+      | Option.List ->
+        begin match offer with
+          | None ->
+            respond opt OptionResponse.Policy chan.write
+            >>= loop
+          | Some offers ->
+            let rec advertise = function
+              | [] -> send_ack opt chan.write
+              | x :: xs ->
+                let len = String.length x in
+                respond ~len opt OptionResponse.Server chan.write
+                >>= fun () ->
+                let name = Cstruct.create len in
+                Cstruct.blit_from_string x 0 name 0 len;
+                chan.write name
+                >>= fun () ->
+                advertise xs in
+            advertise offers
+            >>= loop
+        end
+    in loop ()
   in
   let negotiate_tls make_tls_channel =
     let rec negotiate_tls () =
       read_hdr_and_payload channel.read_clear
       >>= fun (opt, _) -> match opt with
-        | Option.ExportName -> fail (Failure "Client requested export over cleartext channel but server is in FORCEDTLS mode.")
-        | Option.Abort -> fail (Failure "Client requested abort (before negotiating TLS).")
-        | Option.StartTLS -> (
-            send_ack opt channel.write_clear
-            >>= make_tls_channel
-            >>= fun tch ->
-            generic_loop (Channel.generic_of_tls_channel tch)
-          )
-        (* For any other option, respond saying TLS is required, then await next OptionRequest. *)
-        | _ -> respond opt OptionResponse.TlsReqd channel.write_clear
-               >>= negotiate_tls
+      | Option.ExportName -> fail (Failure "Client requested export over cleartext channel but server is in FORCEDTLS mode.")
+      | Option.Abort -> fail (Failure "Client requested abort (before negotiating TLS).")
+      | Option.StartTLS -> (
+          send_ack opt channel.write_clear
+          >>= make_tls_channel
+          >>= fun tch ->
+          generic_loop (Channel.generic_of_tls_channel tch)
+        )
+      (* For any other option, respond saying TLS is required, then await next OptionRequest. *)
+      | _ -> respond opt OptionResponse.TlsReqd channel.write_clear
+        >>= negotiate_tls
     in negotiate_tls ()
   in
   let client_flags = NegotiateResponse.unmarshal buf in
   (* Does the client support Fixed_newstyle? *)
   let old_client = not (List.mem ClientFlag.Fixed_newstyle client_flags) in
   match channel.make_tls_channel with
-    | None -> (    (* We are in NOTLS mode *)
-        if old_client
-        then Printf.fprintf stderr "INFO: client doesn't report Fixed_newstyle\n%!";
-        (* Continue regardless *)
-        generic_loop (Channel.generic_of_cleartext_channel channel)
+  | None -> (    (* We are in NOTLS mode *)
+      if old_client
+      then Printf.fprintf stderr "INFO: client doesn't report Fixed_newstyle\n%!";
+      (* Continue regardless *)
+      generic_loop (Channel.generic_of_cleartext_channel channel)
+    )
+  | Some make_tls_channel -> (   (* We are in FORCEDTLS mode *)
+      if old_client
+      then (
+        Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
+        fail (Failure "client does not report Fixed_newstyle and server is in FORCEDTLS mode.")
       )
-    | Some make_tls_channel -> (   (* We are in FORCEDTLS mode *)
-        if old_client
-        then (
-          Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
-          fail (Failure "client does not report Fixed_newstyle and server is in FORCEDTLS mode.")
-        )
-        else negotiate_tls make_tls_channel
-      )
+      else negotiate_tls make_tls_channel
+    )
 
 let with_connection clearchan ?offer f =
   connect clearchan ?offer ()
