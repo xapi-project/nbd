@@ -58,7 +58,7 @@ module PerExportFlag = struct
     | Send_fua
     | Rotational
     | Send_trim
-  [@@deriving sexp]
+        [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -89,7 +89,7 @@ module GlobalFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-  [@@deriving sexp]
+        [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -112,7 +112,7 @@ module ClientFlag = struct
   type t =
     | Fixed_newstyle
     | No_zeroes
-  [@@deriving sexp]
+        [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -169,7 +169,7 @@ module Command = struct
     | Flush
     | Trim
     | Unknown of int32
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -198,7 +198,7 @@ module Option = struct
     | List
     | StartTLS
     | Unknown of int32
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -229,7 +229,7 @@ module OptionResponse = struct
     | Platform
     | TlsReqd
     | Unknown of int32
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
@@ -260,36 +260,36 @@ end
 module Announcement = struct
   type t = [ `V1 | `V2 ] [@@deriving sexp]
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      passwd: uint8_t [@len 8];
-      magic:  uint64_t;
-    } [@@big_endian]
-  ]
+    passwd: uint8_t [@len 8];
+    magic:  uint64_t;
+  } [@@big_endian]
+]
 
-  let sizeof = sizeof_t
+let sizeof = sizeof_t
 
-  let expected_passwd = "NBDMAGIC"
+let expected_passwd = "NBDMAGIC"
 
-  let v1_magic = 0x00420281861253L
-  let v2_magic = 0x49484156454F5054L (* Ascii encoding of "IHAVEOPT" *)
+let v1_magic = 0x00420281861253L
+let v2_magic = 0x49484156454F5054L (* Ascii encoding of "IHAVEOPT" *)
 
-  let marshal buf t =
-    set_t_passwd expected_passwd 0 buf;
-    set_t_magic buf (match t with `V1 -> v1_magic | `V2 -> v2_magic)
+let marshal buf t =
+  set_t_passwd expected_passwd 0 buf;
+  set_t_magic buf (match t with `V1 -> v1_magic | `V2 -> v2_magic)
 
-  let unmarshal buf =
-    let passwd = Cstruct.to_string (get_t_passwd buf) in
-    if passwd <> expected_passwd
-    then Error (Failure "Bad magic in negotiate")
+let unmarshal buf =
+  let passwd = Cstruct.to_string (get_t_passwd buf) in
+  if passwd <> expected_passwd
+  then Error (Failure "Bad magic in negotiate")
+  else
+    let magic = get_t_magic buf in
+    if magic = v1_magic
+    then Ok `V1
     else
-      let magic = get_t_magic buf in
-      if magic = v1_magic
-      then Ok `V1
-      else
-      if magic = v2_magic
-      then Ok `V2
-      else Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
+    if magic = v2_magic
+    then Ok `V2
+    else Error (Failure (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic v2_magic magic))
 end
 
 module Negotiate = struct
@@ -303,45 +303,45 @@ module Negotiate = struct
   type t =
     | V1 of v1
     | V2 of v2
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  [%%cstruct
+      [%%cstruct
   type v1 = {
-      size:    uint64_t;
-      flags:   uint32_t;
-      padding: uint8_t [@len 124];
-    } [@@big_endian]
-  ]
+    size:    uint64_t;
+    flags:   uint32_t;
+    padding: uint8_t [@len 124];
+  } [@@big_endian]
+]
 
-  [%%cstruct
-  type v2 = {
-      flags: uint16_t;
-    } [@@big_endian]
-  ]
-  let sizeof = function
-    | `V1 -> sizeof_v1
-    | `V2 -> sizeof_v2
+[%%cstruct
+type v2 = {
+  flags: uint16_t;
+} [@@big_endian]
+]
+let sizeof = function
+  | `V1 -> sizeof_v1
+  | `V2 -> sizeof_v2
 
-  let marshal buf t =
-    zero buf;
-    match t with
-    | V1 t ->
-      set_v1_size buf t.size;
-      set_v1_flags buf (PerExportFlag.to_int32 t.flags);
-    | V2 t ->
-      set_v2_flags buf (GlobalFlag.to_int t)
+let marshal buf t =
+  zero buf;
+  match t with
+  | V1 t ->
+    set_v1_size buf t.size;
+    set_v1_flags buf (PerExportFlag.to_int32 t.flags);
+  | V2 t ->
+    set_v2_flags buf (GlobalFlag.to_int t)
 
-  let unmarshal buf t =
-    match t with
-    | `V1 ->
-      let size = get_v1_size buf in
-      let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
-      Ok (V1 { size; flags })
-    | `V2 ->
-      let flags = GlobalFlag.of_int (get_v2_flags buf) in
-      Ok (V2 flags)
+let unmarshal buf t =
+  match t with
+  | `V1 ->
+    let size = get_v1_size buf in
+    let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
+    Ok (V1 { size; flags })
+  | `V2 ->
+    let flags = GlobalFlag.of_int (get_v2_flags buf) in
+    Ok (V2 flags)
 end
 
 module NegotiateResponse = struct
@@ -365,29 +365,29 @@ module OptionRequestHeader = struct
     length: int32;
   } [@@deriving sexp]
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      magic:  uint64_t;
-      ty:     uint32_t;
-      length: uint32_t;
-    } [@@big_endian]
-  ]
-  let sizeof = sizeof_t
+    magic:  uint64_t;
+    ty:     uint32_t;
+    length: uint32_t;
+  } [@@big_endian]
+]
+let sizeof = sizeof_t
 
-  let marshal buf t =
-    set_t_magic buf Announcement.v2_magic;
-    set_t_ty buf (Option.to_int32 t.ty);
-    set_t_length buf t.length
+let marshal buf t =
+  set_t_magic buf Announcement.v2_magic;
+  set_t_ty buf (Option.to_int32 t.ty);
+  set_t_length buf t.length
 
-  let unmarshal buf =
-    let open Rresult in
-    let magic = get_t_magic buf in
-    ( if Announcement.v2_magic <> magic
-      then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
-      else Ok () ) >>= fun () ->
-    let ty = Option.of_int32 (get_t_ty buf) in
-    let length = get_t_length buf in
-    Ok { ty; length }
+let unmarshal buf =
+  let open Rresult in
+  let magic = get_t_magic buf in
+  ( if Announcement.v2_magic <> magic
+    then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" Announcement.v2_magic magic))
+    else Ok () ) >>= fun () ->
+  let ty = Option.of_int32 (get_t_ty buf) in
+  let length = get_t_length buf in
+  Ok { ty; length }
 end
 
 (* This is the option sent by the client to select a particular disk
@@ -410,23 +410,23 @@ module DiskInfo = struct
     flags: PerExportFlag.t list
   } [@@deriving sexp]
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      size:    uint64_t;
-      flags:   uint16_t;
-      padding: uint8_t  [@len 124];
-    } [@@big_endian]
-  ]
-  let sizeof = sizeof_t
+    size:    uint64_t;
+    flags:   uint16_t;
+    padding: uint8_t  [@len 124];
+  } [@@big_endian]
+]
+let sizeof = sizeof_t
 
-  let unmarshal buf =
-    let size = get_t_size buf in
-    let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
-    Ok { size; flags }
+let unmarshal buf =
+  let size = get_t_size buf in
+  let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
+  Ok { size; flags }
 
-  let marshal buf t =
-    set_t_size buf t.size;
-    set_t_flags buf (PerExportFlag.to_int t.flags)
+let marshal buf t =
+  set_t_size buf t.size;
+  set_t_flags buf (PerExportFlag.to_int t.flags)
 end
 
 (* In the 'fixed new' style handshake, all options apart from ExportName
@@ -434,40 +434,40 @@ end
 module OptionResponseHeader = struct
   [%%cstruct
   type t = {
-      magic:         uint64_t;
-      request_type:  uint32_t;
-      response_type: uint32_t;
-      length:        uint32_t;
-    } [@@big_endian]
-  ]
-  type t = {
-    request_type: Option.t;
-    response_type: OptionResponse.t;
-    length: int32;
-  } [@@deriving sexp]
+    magic:         uint64_t;
+    request_type:  uint32_t;
+    response_type: uint32_t;
+    length:        uint32_t;
+  } [@@big_endian]
+]
+type t = {
+  request_type: Option.t;
+  response_type: OptionResponse.t;
+  length: int32;
+} [@@deriving sexp]
 
-  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let sizeof = sizeof_t
+let sizeof = sizeof_t
 
-  let expected_magic = 0x3e889045565a9L
+let expected_magic = 0x3e889045565a9L
 
-  let unmarshal buf =
-    let open Rresult in
-    let magic = get_t_magic buf in
-    ( if expected_magic <> magic
-      then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
-      else Ok () ) >>= fun () ->
-    let request_type = Option.of_int32 (get_t_request_type buf) in
-    let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
-    let length = get_t_length buf in
-    Ok { request_type; response_type; length }
+let unmarshal buf =
+  let open Rresult in
+  let magic = get_t_magic buf in
+  ( if expected_magic <> magic
+    then Error (Failure (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld" expected_magic magic))
+    else Ok () ) >>= fun () ->
+  let request_type = Option.of_int32 (get_t_request_type buf) in
+  let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
+  let length = get_t_length buf in
+  Ok { request_type; response_type; length }
 
-  let marshal buf t =
-    set_t_magic buf expected_magic;
-    set_t_request_type buf (Option.to_int32 t.request_type);
-    set_t_response_type buf (OptionResponse.to_int32 t.response_type);
-    set_t_length buf t.length
+let marshal buf t =
+  set_t_magic buf expected_magic;
+  set_t_request_type buf (Option.to_int32 t.request_type);
+  set_t_response_type buf (OptionResponse.to_int32 t.response_type);
+  set_t_length buf t.length
 end
 
 (* A description of an export, sent in response to a List option *)
@@ -476,18 +476,18 @@ module Server = struct
     name: string;
   } [@@deriving sexp]
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      length: uint32_t;
-    } [@@big_endian]
-  ]
-  let sizeof t = sizeof_t + (String.length t.name)
+    length: uint32_t;
+  } [@@big_endian]
+]
+let sizeof t = sizeof_t + (String.length t.name)
 
-  let unmarshal buf =
-    let length = Int32.to_int (get_t_length buf) in
-    let buf = Cstruct.shift buf sizeof_t in
-    let name = Cstruct.(to_string (sub buf 0 length)) in
-    Ok { name }
+let unmarshal buf =
+  let length = Int32.to_int (get_t_length buf) in
+  let buf = Cstruct.shift buf sizeof_t in
+  let name = Cstruct.(to_string (sub buf 0 length)) in
+  Ok { name }
 end
 
 module Request = struct
@@ -502,35 +502,35 @@ module Request = struct
     Printf.sprintf "{ Command = %s; handle = %Ld; from = %Ld; len = %ld }"
       (Command.to_string t.ty) t.handle t.from t.len
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      magic:  uint32_t;
-      ty:     uint32_t;
-      handle: uint64_t;
-      from:   uint64_t;
-      len:    uint32_t;
-    } [@@big_endian]
-  ]
-  let unmarshal (buf: Cstruct.t) =
-    let open Rresult in
-    let magic = get_t_magic buf in
-    ( if nbd_request_magic <> magic
-      then Error (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
-      else Ok () ) >>= fun () ->
-    let ty = Command.of_int32 (get_t_ty buf) in
-    let handle = get_t_handle buf in
-    let from = get_t_from buf in
-    let len = get_t_len buf in
-    Ok { ty; handle; from; len }
+    magic:  uint32_t;
+    ty:     uint32_t;
+    handle: uint64_t;
+    from:   uint64_t;
+    len:    uint32_t;
+  } [@@big_endian]
+]
+let unmarshal (buf: Cstruct.t) =
+  let open Rresult in
+  let magic = get_t_magic buf in
+  ( if nbd_request_magic <> magic
+    then Error (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
+    else Ok () ) >>= fun () ->
+  let ty = Command.of_int32 (get_t_ty buf) in
+  let handle = get_t_handle buf in
+  let from = get_t_from buf in
+  let len = get_t_len buf in
+  Ok { ty; handle; from; len }
 
-  let sizeof = sizeof_t
+let sizeof = sizeof_t
 
-  let marshal (buf: Cstruct.t) t =
-    set_t_magic buf nbd_request_magic;
-    set_t_ty buf (Command.to_int32 t.ty);
-    set_t_handle buf t.handle;
-    set_t_from buf t.from;
-    set_t_len buf t.len
+let marshal (buf: Cstruct.t) t =
+  set_t_magic buf nbd_request_magic;
+  set_t_ty buf (Command.to_int32 t.ty);
+  set_t_handle buf t.handle;
+  set_t_from buf t.from;
+  set_t_len buf t.len
 end
 
 module Reply = struct
@@ -541,31 +541,31 @@ module Reply = struct
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  [%%cstruct
+      [%%cstruct
   type t = {
-      magic:  uint32_t;
-      error:  uint32_t;
-      handle: uint64_t;
-    } [@@big_endian]
-  ]
-  let unmarshal (buf: Cstruct.t) =
-    let open Rresult in
-    let magic = get_t_magic buf in
-    ( if nbd_reply_magic <> magic
-      then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
-      else Ok () ) >>= fun () ->
-    let error = get_t_error buf in
-    let error = if error = 0l then Ok () else Error (Error.of_int32 error) in
-    let handle = get_t_handle buf in
-    Ok { error; handle }
+    magic:  uint32_t;
+    error:  uint32_t;
+    handle: uint64_t;
+  } [@@big_endian]
+]
+let unmarshal (buf: Cstruct.t) =
+  let open Rresult in
+  let magic = get_t_magic buf in
+  ( if nbd_reply_magic <> magic
+    then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
+    else Ok () ) >>= fun () ->
+  let error = get_t_error buf in
+  let error = if error = 0l then Ok () else Error (Error.of_int32 error) in
+  let handle = get_t_handle buf in
+  Ok { error; handle }
 
-  let sizeof = sizeof_t
+let sizeof = sizeof_t
 
-  let marshal (buf: Cstruct.t) t =
-    set_t_magic buf nbd_reply_magic;
-    let error = match t.error with
-      | Ok () -> 0l
-      | Error e -> Error.to_int32 e in
-    set_t_error buf error;
-    set_t_handle buf t.handle
+let marshal (buf: Cstruct.t) t =
+  set_t_magic buf nbd_reply_magic;
+  let error = match t.error with
+    | Ok () -> 0l
+    | Error e -> Error.to_int32 e in
+  set_t_error buf error;
+  set_t_handle buf t.handle
 end

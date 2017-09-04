@@ -47,7 +47,7 @@ module Command: sig
                 discarded. *)
     | Unknown of int32 (** A command which this protocol implementation doesn't
                            suport. *)
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -62,8 +62,8 @@ module PerExportFlag: sig
     | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
     | Rotational  (** let the client schedule I/O for a rotational medium *)
     | Send_trim   (** server supports Command.Trim *)
-  [@@deriving sexp]
-  (** Per-export flags *)
+        [@@deriving sexp]
+    (** Per-export flags *)
 
   val to_string: t -> string
 end
@@ -75,7 +75,7 @@ module GlobalFlag: sig
   type t =
     | Fixed_newstyle (** server supports the fixed newstyle protocol *)
     | No_zeroes      (** request to omit the 124 bytes of zeroes *)
-  [@@deriving sexp]
+        [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -87,7 +87,7 @@ module ClientFlag: sig
   type t =
     | Fixed_newstyle (** client acknowledges use of fixed newstyle protocol *)
     | No_zeroes      (** client acknowledges omission of 124 bytes of zeroes *)
-  [@@deriving sexp]
+        [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -104,7 +104,7 @@ module Option: sig
                      disk/exports. *)
     | StartTLS   (** The client would like to protect the session with TLS. *)
     | Unknown of int32 (** This option is unknown to this implementation *)
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -121,7 +121,7 @@ module OptionResponse: sig
     | Platform (** The option is not supported in this platform. *)
     | TlsReqd (** The option is not allowed when the connection is not using TLS. *)
     | Unknown of int32 (** The response is unknown to this implementation. *)
-  [@@deriving sexp]
+          [@@deriving sexp]
 
   val to_string: t -> string
 end

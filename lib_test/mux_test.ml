@@ -47,7 +47,7 @@ module TestPacket = struct
 
   let send_one t x _ =
     Lwt_mutex.with_lock t.mutex (fun () ->
-      if !record_sequence then t.seq <- (Request x) :: t.seq; Lwt.return ())
+        if !record_sequence then t.seq <- (Request x) :: t.seq; Lwt.return ())
 
   let id_of_request r =
     r.req_id
@@ -57,17 +57,17 @@ module TestPacket = struct
     then Lwt.fail (Failure "requested exception")
     else Lwt.return ()
 
-let create () =
-  { recv_cond = Lwt_condition.create ();
-    mutex = Lwt_mutex.create ();
-    recv_queue = Queue.create ();
-    seq = []; }
+  let create () =
+    { recv_cond = Lwt_condition.create ();
+      mutex = Lwt_mutex.create ();
+      recv_queue = Queue.create ();
+      seq = []; }
 
-let queue_response res t =
-  Lwt_mutex.with_lock t.mutex (fun () ->
-      Queue.push res t.recv_queue;
-      Lwt_condition.broadcast t.recv_cond ();
-      Lwt.return ())
+  let queue_response res t =
+    Lwt_mutex.with_lock t.mutex (fun () ->
+        Queue.push res t.recv_queue;
+        Lwt_condition.broadcast t.recv_cond ();
+        Lwt.return ())
 end
 
 module T = Nbd.Mux.Make(TestPacket)
