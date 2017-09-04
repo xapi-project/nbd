@@ -137,7 +137,7 @@ let list channel =
           | Ok { OptionResponseHeader.response_type = OptionResponse.Policy; _} ->
             return (Error `Policy)
           | Ok { OptionResponseHeader.response_type = OptionResponse.Server;
-          length; _} ->
+                 length; _} ->
             let buf' = Cstruct.create (Int32.to_int length) in
             channel.read buf'
             >>= fun () ->

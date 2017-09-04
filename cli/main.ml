@@ -28,11 +28,11 @@ module Device = struct
   type 'a io = 'a Lwt.t
   type page_aligned_buffer = Cstruct.t
   type error = [
-    Mirage_block.error
+      Mirage_block.error
     | `Protocol_error of Nbd.Protocol.Error.t
   ]
   type write_error = [
-    Mirage_block.write_error
+      Mirage_block.write_error
     | `Protocol_error of Nbd.Protocol.Error.t
   ]
   let pp_error ppf = function
@@ -166,8 +166,8 @@ module Impl = struct
       let certfile = require_str "certfile" certfile in
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some (Nbd_lwt_unix.TlsServer
-        (Nbd_lwt_unix.init_tls_get_ctx ~certfile ~ciphersuites)
-      )
+              (Nbd_lwt_unix.init_tls_get_ctx ~certfile ~ciphersuites)
+           )
     )
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
@@ -204,8 +204,8 @@ module Impl = struct
              (* Background thread per connection *)
              let _ =
                Lwt.catch
-                (fun () -> handle_connection fd)
-                (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
+                 (fun () -> handle_connection fd)
+                 (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
              in
              loop ()
            in
@@ -215,39 +215,39 @@ module Impl = struct
     in
     Lwt_main.run t
 
-let mirror _common filename port secondary certfile ciphersuites no_tls =
-  let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
-  let filename = require "filename" filename in
-  let secondary = require "secondary" secondary in
-  let t =
-    let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
-    let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-    Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
-    Lwt_unix.listen sock 5;
-    let module M = Mirror.Make(Device)(Device) in
-    ( Device.connect (Uri.of_string filename)
-      >>= fun primary ->
-      (* Connect to the secondary *)
-      Device.connect (Uri.of_string secondary)
-      >>= fun secondary ->
-      let progress_cb = function
-        | `Complete ->
-          Printf.fprintf stderr "Mirror synchronised\n%!"
-        | `Percent x ->
-          Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
-      M.connect ~progress_cb primary secondary
-    ) >>= fun m ->
-    let rec loop () =
-      Lwt_unix.accept sock
-      >>= fun (fd, _) ->
-      (* Background thread per connection *)
-      let _ =
-        let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
-        Server.connect channel ()
-        >>= fun (_name, t) ->
-        Server.serve t (module M) m in
+  let mirror _common filename port secondary certfile ciphersuites no_tls =
+    let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
+    let filename = require "filename" filename in
+    let secondary = require "secondary" secondary in
+    let t =
+      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+      let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
+      Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
+      Lwt_unix.listen sock 5;
+      let module M = Mirror.Make(Device)(Device) in
+      ( Device.connect (Uri.of_string filename)
+        >>= fun primary ->
+        (* Connect to the secondary *)
+        Device.connect (Uri.of_string secondary)
+        >>= fun secondary ->
+        let progress_cb = function
+          | `Complete ->
+            Printf.fprintf stderr "Mirror synchronised\n%!"
+          | `Percent x ->
+            Printf.fprintf stderr "Mirror %d %% complete\n%!" x in
+        M.connect ~progress_cb primary secondary
+      ) >>= fun m ->
+      let rec loop () =
+        Lwt_unix.accept sock
+        >>= fun (fd, _) ->
+        (* Background thread per connection *)
+        let _ =
+          let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
+          Server.connect channel ()
+          >>= fun (_name, t) ->
+          Server.serve t (module M) m in
+        loop () in
       loop () in
-    loop () in
     Lwt_main.run t
 end
 

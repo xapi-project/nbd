@@ -76,8 +76,8 @@ module type SERVER = sig
     ?offer:name list ->
     (string -> t -> unit Lwt.t) ->
     unit Lwt.t
-  (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
-      attempts to apply [f] to the resulting [t], with a guarantee to call
-      [close t] afterwards. *)
+    (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
+        attempts to apply [f] to the resulting [t], with a guarantee to call
+        [close t] afterwards. *)
 
 end
