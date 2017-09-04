@@ -8,5 +8,6 @@
     lwt.unix
     mirage-block-unix
     nbd.lwt
+    ssl
     uri))
  ))
