@@ -8,7 +8,7 @@ let flags = function
     List.fold_left (fun acc pkg -> acc ^ " -package " ^ pkg) "" pkgs
   ) in
   let ic = Unix.open_process_in
-    (cmd ^ " | grep -oEe '-ppx (\"([^\"\\]|\\.)+\"|\w+)'")
+    (cmd ^ " | grep -oEe '-ppx (\"([^\"\\]|\\.)+\"|\\w+)'")
   in
   let rec go ic acc =
     try go ic (acc ^ " " ^ input_line ic) with End_of_file -> close_in ic; acc
@@ -16,10 +16,10 @@ let flags = function
   go ic ""
 
 let coverage_rewriter ~full =
-  let is_coverage = try Unix.getenv "COVERAGE" = "1" with Not_found -> false in
+  let is_coverage = try Unix.getenv "BISECT_ENABLE" = "YES" with Not_found -> false in
   match is_coverage, full with
-  | true, true -> "(preprocess (pps (bisect_ppx -simple-cases)))"
-  | true, _    -> "bisect_ppx -simple-cases"
+  | true, true -> "(preprocess (pps (bisect_ppx -conditional)))"
+  | true, _    -> "bisect_ppx -conditional"
   | _          -> ""
 
 let () = Printf.ksprintf Jbuild_plugin.V1.send {|
