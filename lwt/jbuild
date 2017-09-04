@@ -9,6 +9,7 @@
     lwt.unix
     mirage-block
     mirage-block-lwt
+    mirage-block-unix
     mirage-types-lwt
     ssl
     lwt_ssl
