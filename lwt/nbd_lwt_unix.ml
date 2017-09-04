@@ -57,8 +57,8 @@ let io_complete op fd buffer =
 let tls_channel_of_fd fd role () =
   let ctx, ssl_start =
     match role with
-      | TlsClient ctx -> ctx, Lwt_ssl.ssl_connect
-      | TlsServer ctx -> ctx, Lwt_ssl.ssl_accept
+    | TlsClient ctx -> ctx, Lwt_ssl.ssl_connect
+    | TlsServer ctx -> ctx, Lwt_ssl.ssl_accept
   in
   ssl_start fd ctx >>= fun sock ->
 
