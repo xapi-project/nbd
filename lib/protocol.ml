@@ -261,7 +261,7 @@ module Announcement = struct
   type t = [ `V1 | `V2 ] [@@deriving sexp]
 
   [%%cstruct
-  type t = {
+    type t = {
       passwd: uint8_t [@len 8];
       magic:  uint64_t;
     } [@@big_endian]
@@ -308,7 +308,7 @@ module Negotiate = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   [%%cstruct
-  type v1 = {
+    type v1 = {
       size:    uint64_t;
       flags:   uint32_t;
       padding: uint8_t [@len 124];
@@ -316,7 +316,7 @@ module Negotiate = struct
   ]
 
   [%%cstruct
-  type v2 = {
+    type v2 = {
       flags: uint16_t;
     } [@@big_endian]
   ]
@@ -366,7 +366,7 @@ module OptionRequestHeader = struct
   } [@@deriving sexp]
 
   [%%cstruct
-  type t = {
+    type t = {
       magic:  uint64_t;
       ty:     uint32_t;
       length: uint32_t;
@@ -411,7 +411,7 @@ module DiskInfo = struct
   } [@@deriving sexp]
 
   [%%cstruct
-  type t = {
+    type t = {
       size:    uint64_t;
       flags:   uint16_t;
       padding: uint8_t  [@len 124];
@@ -433,7 +433,7 @@ end
    should result in reply packets as follows: *)
 module OptionResponseHeader = struct
   [%%cstruct
-  type t = {
+    type t = {
       magic:         uint64_t;
       request_type:  uint32_t;
       response_type: uint32_t;
@@ -477,7 +477,7 @@ module Server = struct
   } [@@deriving sexp]
 
   [%%cstruct
-  type t = {
+    type t = {
       length: uint32_t;
     } [@@big_endian]
   ]
@@ -503,7 +503,7 @@ module Request = struct
       (Command.to_string t.ty) t.handle t.from t.len
 
   [%%cstruct
-  type t = {
+    type t = {
       magic:  uint32_t;
       ty:     uint32_t;
       handle: uint64_t;
@@ -542,7 +542,7 @@ module Reply = struct
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
   [%%cstruct
-  type t = {
+    type t = {
       magic:  uint32_t;
       error:  uint32_t;
       handle: uint64_t;

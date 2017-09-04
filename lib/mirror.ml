@@ -20,12 +20,12 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
   type page_aligned_buffer = Cstruct.t
 
   type error = [
-    Mirage_block.error
+      Mirage_block.error
     | `Primary of Primary.error
     | `Secondary of Secondary.error
   ]
   type write_error = [
-    Mirage_block.write_error
+      Mirage_block.write_error
     | `Primary of Primary.write_error
     | `Secondary of Secondary.write_error
   ]
