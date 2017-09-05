@@ -1,3 +1,7 @@
+2.3.0 (2017-09-05):
+* TLS support (libs and server only)
+* New functions for ease of safe use
+
 2.2.0 (2017-08-02):
 * Port to jbuilder
 
