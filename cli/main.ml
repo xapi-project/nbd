@@ -178,14 +178,9 @@ module Impl = struct
                 Server.with_connection
                   clearchan
                   (fun _exportname svr ->
-                     Block.connect filename
-                     >>= function
-                     | `Error _ ->
-                       Lwt.fail_with (Printf.sprintf "Failed to open %s" filename)
-                     | `Ok b ->
-                       Lwt.finalize
-                         (fun () -> Server.serve svr (module Block) b)
-                         (fun () -> Block.disconnect b))
+                     Nbd_lwt_unix.with_block filename
+                       (fun b -> Server.serve svr (module Block) b)
+                  )
              )
         )
         (ignore_exn (fun () -> Lwt_unix.close fd))
