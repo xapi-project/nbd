@@ -31,6 +31,19 @@ val cleartext_channel_of_fd: Lwt_unix.file_descr -> tls_role option -> Channel.c
 val init_tls_get_ctx: certfile:string -> ciphersuites:string -> Ssl.context
 (** Initialise the Ssl (TLS) library and then create and return a new context. *)
 
+val with_block: string -> (Block.t -> 'a Block.io) -> 'a Block.io
+(** [with_block filename f] calls [Block.connect filename] and applies [f] to the result,
+    with a guarantee to call [Block.disconnect] afterwards. *)
+
+val with_channel:
+  Lwt_unix.file_descr ->
+  tls_role option ->
+  (Nbd.Channel.cleartext_channel -> 'a Block.io) ->
+  'a Block.io
+(** [with_channel fd role f] calls [cleartext_channel_of_fd fd role] then
+    applies [f] to the resulting channel, with a guarantee to call
+    the channel's [close_clear] function afterwards. *)
+
 module Client: S.CLIENT
 (** A client allows you to access remote disks *)
 

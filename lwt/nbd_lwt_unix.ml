@@ -110,5 +110,24 @@ let init_tls_get_ctx ~certfile ~ciphersuites =
   Ssl.set_cipher_list ctx ciphersuites;
   ctx
 
+let with_block filename f =
+  Block.connect filename
+  >>= function
+  | `Error _ ->
+    Lwt.fail_with (Printf.sprintf "with_block failed to open %s" filename)
+  | `Ok b ->
+    Lwt.finalize
+      (fun () -> f b)
+      (fun () -> Block.disconnect b)
+
+let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
+
+let with_channel fd tls_role f =
+  let clearchan = cleartext_channel_of_fd fd tls_role in
+  Lwt.finalize
+    (fun () -> f clearchan)
+    (* We use ignore_exn lest clearchan was closed already by f. *)
+    (ignore_exn (fun () -> clearchan.close_clear ()))
+
 module Client = Nbd.Client
 module Server = Nbd.Server
