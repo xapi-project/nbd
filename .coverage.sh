@@ -10,10 +10,10 @@ if [ -z "$KEEP" ]; then trap "popd; rm -rf $COVERAGE_DIR" EXIT; fi
 
 $(which cp) -r ../* .
 
-opam pin add bisect_ppx --dev-repo -y
+opam pin add bisect_ppx 1.3.0 -y
 opam install ocveralls -y
 
-export COVERAGE=1
+export BISECT_ENABLE=YES
 jbuilder runtest
 
 outs=$(find . | grep bisect.*.out)

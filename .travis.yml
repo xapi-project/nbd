@@ -8,7 +8,7 @@ script:
   - bash -ex .travis-docker.sh
 env:
   global:
-    - OCAML_VERSION=4.02.3
+    - OCAML_VERSION=4.04.2
     - DISTRO=debian-stable
     - PACKAGE=nbd
   matrix:
