@@ -21,7 +21,7 @@ depends: [
   "mirage-types-lwt" {= "2.8.0"}
   "mirage-types" {= "2.8.0"}
   "uri"
-  "ppx_sexp_conv" {= "113.33.01+4.03"}
+  "ppx_sexp_conv" {>= "113.33.01+4.03" & < "v0.9.0"}
 ]
 tags: [ "org:xapi-project" ]
 available: [ocaml-version >= "4.02.3"]
