@@ -1,3 +1,6 @@
+2.3.1 (2017-09-06):
+* nbd.opam: require cstruct 2.3.0 instead of 2.4.0
+
 2.3.0 (2017-09-05):
 * TLS support (libs and server only)
 * New functions for ease of safe use
