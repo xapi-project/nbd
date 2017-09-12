@@ -130,18 +130,9 @@ let list_success =
       | _ -> failwith "Expected to receive a list of exports" in
     Lwt_main.run t
 
-let negotiate_suite =
-  let open Mux_test in
-  "Nbd suite" >::: [
+let tests =
+  "Nbd client tests" >::: [
     client_negotiation;
     list_disabled;
     list_success;
-    test_rpc;
-    test_multi_rpc;
-    test_out_of_order_responses;
-    test_memory_leak;
-    test_exception_handling;
   ]
-
-let _ =
-  OUnit2.run_test_tt_main (ounit2_of_ounit1 negotiate_suite)

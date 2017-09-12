@@ -171,3 +171,12 @@ let test_exception_handling =
       Lwt.catch  (fun () -> t1 >>= function `Ok _ -> Lwt.return false | `Error _ -> Lwt.return true)
         (fun e -> Printf.printf "Exception: %s\n%!" (Printexc.to_string e); Lwt.return true)
     in assert_bool "Exception handled" (Lwt_main.run t)
+
+let tests =
+  "Mux tests" >:::
+    [ test_rpc
+    ; test_multi_rpc
+    ; test_out_of_order_responses
+    ; test_memory_leak
+    ; test_exception_handling
+    ]
