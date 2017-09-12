@@ -12,20 +12,33 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(* Lwt connection multiplexer *)
+(** Lwt connection multiplexer. Multiplexes between parallel requests from
+    multiple clients over a single output channel to a server that may send
+    responses out of order. Each request and response carries an [id] that is
+    used to match responses to requests. *)
+
 open Lwt
 open Result
 
 module type RPC = sig
   type transport
+
   type id
+  (** Each [request_hdr] and [response_hdr] carries an [id] that is used to
+      match responses to requests. *)
+
   type request_hdr
   type request_body
   type response_hdr
   type response_body
 
   val recv_hdr : transport -> (id option * response_hdr) Lwt.t
+
   val recv_body : transport -> request_hdr -> response_hdr -> response_body -> (unit, Protocol.Error.t) result Lwt.t
+  (** [recv_body transport request_hdr response_hdr response_body] receives and writes
+      the body of the response into [response_body]. The [request_hdr] parameter
+      is the output of a preceding [recv_hdr] call. *)
+
   val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
   val id_of_request : request_hdr -> id
   val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
@@ -68,6 +81,9 @@ module Make = functor (R : RPC) -> struct
             fail e)
     in th >>= fun () -> dispatcher t
 
+  (** [rpc req_hdr req_body response_body t] sends a request to the server, and
+      saves the response into [response_body]. Will block until a response to
+      this request is received from the server. *)
   let rpc req_hdr req_body response_body t =
     let sleeper, waker = Lwt.wait () in
     if t.dispatcher_shutting_down
