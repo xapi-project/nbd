@@ -1,9 +1,9 @@
 (executable
- ((name test)
+ ((name suite)
   (libraries (lwt.unix nbd oUnit))
   ))
 
 (alias
  ((name   runtest)
-  (deps   (test.exe))
+  (deps   (suite.exe))
   (action (run ${<} -runner sequential))))
