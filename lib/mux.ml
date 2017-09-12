@@ -45,7 +45,16 @@ module type RPC = sig
 end
 
 
-module Make = functor (R : RPC) -> struct
+module Make (R : RPC) : sig
+  type client
+
+  val rpc : R.request_hdr -> R.request_body -> R.response_body -> client -> (unit, Protocol.Error.t) Result.result Lwt.t
+  (** [rpc req_hdr req_body response_body client] sends a request to the server, and
+      saves the response into [response_body]. Will block until a response to
+      this request is received from the server. *)
+
+  val create : R.transport -> client Lwt.t
+end = struct
   exception Unexpected_id of R.id
   exception Shutdown
 
@@ -81,9 +90,6 @@ module Make = functor (R : RPC) -> struct
             fail e)
     in th >>= fun () -> dispatcher t
 
-  (** [rpc req_hdr req_body response_body t] sends a request to the server, and
-      saves the response into [response_body]. Will block until a response to
-      this request is received from the server. *)
   let rpc req_hdr req_body response_body t =
     let sleeper, waker = Lwt.wait () in
     if t.dispatcher_shutting_down
