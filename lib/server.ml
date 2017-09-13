@@ -78,7 +78,7 @@ let connect channel ?offer () =
         respond opt resp chan.write
         >>= loop
       | Option.ExportName -> return (Cstruct.to_string payload, make chan)
-      | Option.Abort -> fail (Failure "client requested abort")
+      | Option.Abort -> Lwt.fail_with "client requested abort"
       | Option.Unknown _ ->
         respond opt OptionResponse.Unsupported chan.write
         >>= loop
@@ -108,8 +108,8 @@ let connect channel ?offer () =
     let rec negotiate_tls () =
       read_hdr_and_payload channel.read_clear
       >>= fun (opt, _) -> match opt with
-      | Option.ExportName -> fail (Failure "Client requested export over cleartext channel but server is in FORCEDTLS mode.")
-      | Option.Abort -> fail (Failure "Client requested abort (before negotiating TLS).")
+      | Option.ExportName -> fail_with "Client requested export over cleartext channel but server is in FORCEDTLS mode."
+      | Option.Abort -> fail_with "Client requested abort (before negotiating TLS)."
       | Option.StartTLS -> (
           send_ack opt channel.write_clear
           >>= make_tls_channel
@@ -135,7 +135,7 @@ let connect channel ?offer () =
       if old_client
       then (
         Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
-        fail (Failure "client does not report Fixed_newstyle and server is in FORCEDTLS mode.")
+        Lwt.fail_with "client does not report Fixed_newstyle and server is in FORCEDTLS mode."
       )
       else negotiate_tls make_tls_channel
     )
@@ -228,7 +228,7 @@ let serve t (type t) block (b:t) =
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
           | Error _ ->
-            fail (Failure "Partial failure during a Block.read")
+            Lwt.fail_with "Partial failure during a Block.read"
           | Ok () ->
             t.channel.write subblock
             >>= fun () ->

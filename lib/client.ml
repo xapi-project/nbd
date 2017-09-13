@@ -68,7 +68,7 @@ module NbdRpc = struct
   let id_of_request req = req.Request.handle
 
   let handle_unrequested_packet _t reply =
-    fail (Failure (Printf.sprintf "Unexpected response from server: %s" (Reply.to_string reply)))
+    Lwt.fail_with (Printf.sprintf "Unexpected response from server: %s" (Reply.to_string reply))
 end
 
 module Rpc = Mux.Make(NbdRpc)
@@ -147,7 +147,7 @@ let list channel =
               | Error e -> fail e
             end
           | Ok _ ->
-            fail (Failure "Server's OptionResponse had an invalid type") in
+            Lwt.fail_with "Server's OptionResponse had an invalid type" in
         loop []
     end
 
