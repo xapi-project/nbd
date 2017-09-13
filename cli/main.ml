@@ -200,7 +200,7 @@ module Impl = struct
              let _ =
                Lwt.catch
                 (fun () -> handle_connection fd)
-                (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
+                (fun e -> Lwt_log.error_f "Caught exception %s while handling connection" (Printexc.to_string e))
              in
              loop ()
            in

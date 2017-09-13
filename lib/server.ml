@@ -38,6 +38,9 @@ let make channel =
   { channel; request; reply; m }
 
 let connect channel ?offer () =
+  let section = Lwt_log_core.Section.make("Server.connect") in
+  Lwt_log_core.notice ~section "Starting fixed-newstyle negotiation" >>= fun () ->
+
   let buf = Cstruct.create Announcement.sizeof in
   Announcement.(marshal buf `V2);
   channel.write_clear buf
@@ -127,15 +130,16 @@ let connect channel ?offer () =
   let old_client = not (List.mem ClientFlag.Fixed_newstyle client_flags) in
   match channel.make_tls_channel with
     | None -> (    (* We are in NOTLS mode *)
-        if old_client
-        then Printf.fprintf stderr "INFO: client doesn't report Fixed_newstyle\n%!";
+        (if old_client
+         then Lwt_log_core.warning ~section "Client doesn't report Fixed_newstyle"
+         else Lwt.return_unit) >>= fun () ->
         (* Continue regardless *)
         generic_loop (Channel.generic_of_cleartext_channel channel)
       )
     | Some make_tls_channel -> (   (* We are in FORCEDTLS mode *)
         if old_client
         then (
-          Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
+          Lwt_log_core.error ~section "Server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle" >>= fun () ->
           Lwt.fail_with "client does not report Fixed_newstyle and server is in FORCEDTLS mode."
         )
         else negotiate_tls make_tls_channel
@@ -181,12 +185,18 @@ let error t handle code =
     )
 
 let serve t (type t) block (b:t) =
+  let section = Lwt_log_core.Section.make("Server.serve") in
   let module Block = (val block: V1_LWT.BLOCK with type t = t) in
+
+  Lwt_log_core.notice ~section "Serving new client" >>= fun () ->
 
   Block.get_info b
   >>= fun info ->
   let size = Int64.(mul info.Block.size_sectors (of_int info.Block.sector_size)) in
-  let flags = if info.Block.read_write then [] else [ PerExportFlag.Read_only ] in
+  (if info.Block.read_write then Lwt.return [] else
+     Lwt_log_core.warning ~section "Block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
+     Lwt.return [ PerExportFlag.Read_only ])
+  >>= fun flags ->
   negotiate_end t size flags
   >>= fun t ->
 
@@ -208,7 +218,8 @@ let serve t (type t) block (b:t) =
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
           >>= function
-          | `Error e ->
+          | `Error _ ->
+            Lwt_log_core.debug ~section "Error while writing; returning EIO error" >>= fun () ->
             error t handle `EIO
           | `Ok () ->
             let remaining = remaining - n in
@@ -229,6 +240,12 @@ let serve t (type t) block (b:t) =
           Block.read b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
           >>= function
           | `Error e ->
+            (* The NBD protocol documentation says about NBD_CMD_READ:
+               "If an error occurs while reading after the server has already
+               sent out the reply header with an error field set to zero (i.e.,
+               signalling no error), the server MUST immediately initiate a
+               hard disconnect; it MUST NOT send any further data to the
+               client." *)
             Lwt.fail_with "Partial failure during a Block.read"
           | `Ok () ->
             t.channel.write subblock
@@ -242,5 +259,6 @@ let serve t (type t) block (b:t) =
     | { ty = Command.Disc; _ } ->
       Lwt.return_unit
     | _ ->
+      Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
       error t request.Request.handle `EINVAL in
   loop ()
