@@ -79,10 +79,10 @@ let make_client_channel test_sequence =
       if Cstruct.len buf = 0
       then return ()
       else read buf
-    | `Client _ :: _ -> fail (Failure "Client tried to read but it should have written")
-    | [] -> fail (Failure "Client tried to read but the stream was empty") in
+    | `Client _ :: _ -> Lwt.fail_with "Client tried to read but it should have written"
+    | [] -> Lwt.fail_with "Client tried to read but the stream was empty" in
   let rec write buf = match !next with
-    | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
+    | `Server _ :: _ -> Lwt.fail_with "Client tried to write but it should have read"
     | `Client x :: rest ->
       let available = min (Cstruct.len buf) (String.length x) in
       let written = String.sub (Cstruct.to_string buf) 0 available in
@@ -93,7 +93,7 @@ let make_client_channel test_sequence =
       if Cstruct.len buf = 0
       then return ()
       else write buf
-    | [] -> fail (Failure "Client tried to write but the stream was empty") in
+    | [] -> Lwt.fail_with "Client tried to write but the stream was empty" in
   let close () = return () in
   Channel.{ read; write; close; is_tls=false }
 
