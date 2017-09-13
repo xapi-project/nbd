@@ -218,8 +218,8 @@ let serve t (type t) block (b:t) =
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
           >>= function
-          | `Error _ ->
-            Lwt_log_core.debug ~section "Error while writing; returning EIO error" >>= fun () ->
+          | `Error e ->
+            Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Block_error_printer.to_string e) >>= fun () ->
             error t handle `EIO
           | `Ok () ->
             let remaining = remaining - n in
