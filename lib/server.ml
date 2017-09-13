@@ -16,6 +16,8 @@ open Lwt
 open Protocol
 open Channel
 
+exception Client_requested_abort
+
 type name = string
 
 type t = {
@@ -77,7 +79,7 @@ let connect channel ?offer () =
           respond opt resp chan.write
           >>= loop
         | Option.ExportName -> return (Cstruct.to_string payload, make chan)
-        | Option.Abort -> Lwt.fail_with "client requested abort"
+        | Option.Abort -> Lwt.fail Client_requested_abort
         | Option.Unknown _ ->
           respond opt OptionResponse.Unsupported chan.write
           >>= loop
