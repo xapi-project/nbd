@@ -352,7 +352,7 @@ let default_cmd =
 
 let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
 
-let _ =
+let () =
   match Term.eval_choice default_cmd cmds with
   | `Error _ -> exit 1
   | _ -> exit 0
