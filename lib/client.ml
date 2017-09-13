@@ -26,7 +26,7 @@ let get_handle =
     this
 
 module NbdRpc = struct
-  type transport = channel
+  type transport = cleartext_channel
   type id = int64
   type request_hdr = Request.t
   type request_body = Cstruct.t option
@@ -35,7 +35,7 @@ module NbdRpc = struct
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
-    sock.read buf
+    sock.read_clear buf
     >>= fun () ->
     match Reply.unmarshal buf with
     | `Ok x -> Lwt.return (Some x.Reply.handle, x)
@@ -48,7 +48,7 @@ module NbdRpc = struct
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)
-          Lwt_list.iter_s sock.read response_body
+          Lwt_list.iter_s sock.read_clear response_body
           >>= fun () ->
           Lwt.return (`Ok ())
         | _ -> Lwt.return (`Ok ())
@@ -57,12 +57,12 @@ module NbdRpc = struct
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
     Request.marshal buf req_hdr;
-    sock.write buf
+    sock.write_clear buf
     >>= fun () ->
     match req_body with
     | None -> Lwt.return ()
     | Some data ->
-      sock.write data
+      sock.write_clear data
 
   let id_of_request req = req.Request.handle
 
@@ -98,13 +98,13 @@ let make channel size_bytes flags =
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
-  channel.read buf
+  channel.read_clear buf
   >>= fun () ->
   match Announcement.unmarshal buf with
   | `Error e -> Lwt.fail e
   | `Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
-    channel.read buf
+    channel.read_clear buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
       | `Error e -> Lwt.fail e
@@ -114,15 +114,15 @@ let list channel =
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
         NegotiateResponse.marshal buf flags;
-        channel.write buf
+        channel.write_clear buf
         >>= fun () ->
         let buf = Cstruct.create OptionRequestHeader.sizeof in
         OptionRequestHeader.(marshal buf { ty = Option.List; length = 0l });
-        channel.write buf
+        channel.write_clear buf
         >>= fun () ->
         let buf = Cstruct.create OptionResponseHeader.sizeof in
         let rec loop acc =
-          channel.read buf
+          channel.read_clear buf
           >>= fun () ->
           match OptionResponseHeader.unmarshal buf with
           | `Error e -> Lwt.fail e
@@ -131,7 +131,7 @@ let list channel =
             Lwt.return (`Error `Policy)
           | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
             let buf' = Cstruct.create (Int32.to_int length) in
-            channel.read buf'
+            channel.read_clear buf'
             >>= fun () ->
             begin match Server.unmarshal buf' with
               | `Ok server ->
@@ -145,13 +145,13 @@ let list channel =
 
 let negotiate channel export =
   let buf = Cstruct.create Announcement.sizeof in
-  channel.read buf
+  channel.read_clear buf
   >>= fun () ->
   match Announcement.unmarshal buf with
   | `Error e -> Lwt.fail e
   | `Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
-    channel.read buf
+    channel.read_clear buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
       | `Error e -> Lwt.fail e
@@ -163,18 +163,18 @@ let negotiate channel export =
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
         NegotiateResponse.marshal buf flags;
-        channel.write buf
+        channel.write_clear buf
         >>= fun () ->
         let buf = Cstruct.create OptionRequestHeader.sizeof in
         OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
-        channel.write buf
+        channel.write_clear buf
         >>= fun () ->
         let buf = Cstruct.create (ExportName.sizeof export) in
         ExportName.marshal buf export;
-        channel.write buf
+        channel.write_clear buf
         >>= fun () ->
         let buf = Cstruct.create DiskInfo.sizeof in
-        channel.read buf
+        channel.read_clear buf
         >>= fun () ->
         begin match DiskInfo.unmarshal buf with
           | `Error e -> Lwt.fail e

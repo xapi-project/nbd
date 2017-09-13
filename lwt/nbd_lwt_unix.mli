@@ -20,7 +20,7 @@ type tls_role =
   | TlsClient of Ssl.context
   | TlsServer of Ssl.context
 
-val connect: string -> int -> Channel.channel Lwt.t
+val connect: string -> int -> Channel.cleartext_channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
     a [generic_channel] with no TLS ability or potential. *)
 
