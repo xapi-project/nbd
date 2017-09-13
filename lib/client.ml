@@ -26,7 +26,7 @@ let get_handle =
     this
 
 module NbdRpc = struct
-  type transport = cleartext_channel
+  type transport = generic_channel
   type id = int64
   type request_hdr = Request.t
   type request_body = Cstruct.t option
@@ -35,7 +35,7 @@ module NbdRpc = struct
 
   let recv_hdr sock =
     let buf = Cstruct.create 16 in
-    sock.read_clear buf
+    sock.read buf
     >>= fun () ->
     match Reply.unmarshal buf with
     | `Ok x -> Lwt.return (Some x.Reply.handle, x)
@@ -48,7 +48,7 @@ module NbdRpc = struct
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)
-          Lwt_list.iter_s sock.read_clear response_body
+          Lwt_list.iter_s sock.read response_body
           >>= fun () ->
           Lwt.return (`Ok ())
         | _ -> Lwt.return (`Ok ())
@@ -57,12 +57,12 @@ module NbdRpc = struct
   let send_one sock req_hdr req_body =
     let buf = Cstruct.create Request.sizeof in
     Request.marshal buf req_hdr;
-    sock.write_clear buf
+    sock.write buf
     >>= fun () ->
     match req_body with
     | None -> Lwt.return ()
     | Some data ->
-      sock.write_clear data
+      sock.write data
 
   let id_of_request req = req.Request.handle
 
@@ -87,6 +87,7 @@ type t = {
 type id = unit
 
 let make channel size_bytes flags =
+  let channel = generic_of_cleartext_channel channel in
   Rpc.create channel
   >>= fun client ->
   let read_write = not (List.mem PerExportFlag.Read_only flags) in
