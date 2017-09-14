@@ -14,7 +14,7 @@
 
 let project_url = "http://github.com/xapi-project/nbd"
 
-open Lwt
+open Lwt.Infix
 
 module Device = struct
   type id = [
@@ -56,10 +56,10 @@ module Device = struct
           >>= fun channel ->
           Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) ->
-          return (`Nbd t)
-        | None -> fail_with "Cannot connect to nbd without a host"
+          Lwt.return (`Nbd t)
+        | None -> Lwt.fail_with "Cannot connect to nbd without a host"
       end
-    | _ -> fail_with "unknown scheme"
+    | _ -> Lwt.fail_with "unknown scheme"
 
   type info = {
     read_write: bool;
@@ -123,7 +123,6 @@ let common_options_t =
   Term.(pure Common.make $ debug $ verb)
 
 module Impl = struct
-  open Lwt
   open Nbd
 
   let require name arg = match arg with
@@ -150,7 +149,7 @@ module Impl = struct
       >>= function
       | Result.Ok disks ->
         List.iter print_endline disks;
-        return ()
+        Lwt.return ()
       | Result.Error `Unsupported ->
         Printf.fprintf stderr "The server does not support the query function.\n%!";
         exit 1
