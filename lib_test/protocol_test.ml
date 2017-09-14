@@ -14,7 +14,7 @@
 
 open OUnit
 open Nbd
-open Lwt
+open Lwt.Infix
 open Result
 
 (* All the flags in the NBD protocol are in network byte order (big-endian) *)
@@ -78,12 +78,12 @@ let make_client_channel test_sequence =
       next := if available = String.length x then rest else `Server (String.sub x available (String.length x - available)) :: rest;
       let buf = Cstruct.shift buf available in
       if Cstruct.len buf = 0
-      then return ()
+      then Lwt.return ()
       else read buf
-    | `Client _ :: _ -> fail (Failure "Client tried to read but it should have written")
-    | [] -> fail (Failure "Client tried to read but the stream was empty") in
+    | `Client _ :: _ -> Lwt.fail_with "Client tried to read but it should have written"
+    | [] -> Lwt.fail_with "Client tried to read but the stream was empty" in
   let rec write buf = match !next with
-    | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
+    | `Server _ :: _ -> Lwt.fail_with "Client tried to write but it should have read"
     | `Client x :: rest ->
       let available = min (Cstruct.len buf) (String.length x) in
       let written = String.sub (Cstruct.to_string buf) 0 available in
@@ -92,10 +92,10 @@ let make_client_channel test_sequence =
       next := if available = String.length x then rest else `Client (String.sub x available (String.length x - available)) :: rest;
       let buf = Cstruct.shift buf available in
       if Cstruct.len buf = 0
-      then return ()
+      then Lwt.return ()
       else write buf
-    | [] -> fail (Failure "Client tried to write but the stream was empty") in
-  let close () = return () in
+    | [] -> Lwt.fail_with "Client tried to write but the stream was empty" in
+  let close () = Lwt.return () in
   Channel.{ read; write; close; is_tls=false }
 
 let client_negotiation =
@@ -106,7 +106,7 @@ let client_negotiation =
       let channel = make_client_channel v2_negotiation in
       Client.negotiate channel "export1"
       >>= fun (t, size, flags) ->
-      return () in
+      Lwt.return () in
     Lwt_main.run t
 
 let list_disabled =
@@ -118,7 +118,7 @@ let list_disabled =
       Client.list channel
       >>= function
       | Error `Policy ->
-        return ()
+        Lwt.return ()
       | _ -> failwith "Expected to receive a Policy error" in
     Lwt_main.run t
 
@@ -131,7 +131,7 @@ let list_success =
       Client.list channel
       >>= function
       | Ok [ "export1" ] ->
-        return ()
+        Lwt.return ()
       | _ -> failwith "Expected to receive a list of exports" in
     Lwt_main.run t
 

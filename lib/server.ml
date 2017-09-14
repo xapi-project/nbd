@@ -12,10 +12,12 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
+open Lwt.Infix
 open Protocol
 open Channel
 open Result
+
+exception Client_requested_abort
 
 type name = string
 
@@ -37,6 +39,9 @@ let make channel =
   { channel; request; reply; m }
 
 let connect channel ?offer () =
+  let section = Lwt_log_core.Section.make("Server.connect") in
+  Lwt_log_core.notice ~section "Starting fixed-newstyle negotiation" >>= fun () ->
+
   let buf = Cstruct.create Announcement.sizeof in
   Announcement.(marshal buf `V2);
   channel.write_clear buf
@@ -63,11 +68,11 @@ let connect channel ?offer () =
   let read_hdr_and_payload readfn =
     readfn req >>= fun () ->
     match OptionRequestHeader.unmarshal req with
-    | Error e -> fail e
+    | Error e -> Lwt.fail e
     | Ok hdr ->
       let payload = make_blank_payload hdr in
       readfn payload
-      >>= fun () -> return (hdr.OptionRequestHeader.ty, payload)
+      >>= fun () -> Lwt.return (hdr.OptionRequestHeader.ty, payload)
   in
   let generic_loop chan =
     let rec loop () =
@@ -77,8 +82,8 @@ let connect channel ?offer () =
         let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
         respond opt resp chan.write
         >>= loop
-      | Option.ExportName -> return (Cstruct.to_string payload, make chan)
-      | Option.Abort -> fail (Failure "client requested abort")
+      | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan)
+      | Option.Abort -> Lwt.fail Client_requested_abort
       | Option.Unknown _ ->
         respond opt OptionResponse.Unsupported chan.write
         >>= loop
@@ -108,8 +113,8 @@ let connect channel ?offer () =
     let rec negotiate_tls () =
       read_hdr_and_payload channel.read_clear
       >>= fun (opt, _) -> match opt with
-      | Option.ExportName -> fail (Failure "Client requested export over cleartext channel but server is in FORCEDTLS mode.")
-      | Option.Abort -> fail (Failure "Client requested abort (before negotiating TLS).")
+      | Option.ExportName -> Lwt.fail_with "Client requested export over cleartext channel but server is in FORCEDTLS mode."
+      | Option.Abort -> Lwt.fail_with "Client requested abort (before negotiating TLS)."
       | Option.StartTLS -> (
           send_ack opt channel.write_clear
           >>= make_tls_channel
@@ -126,16 +131,17 @@ let connect channel ?offer () =
   let old_client = not (List.mem ClientFlag.Fixed_newstyle client_flags) in
   match channel.make_tls_channel with
   | None -> (    (* We are in NOTLS mode *)
-      if old_client
-      then Printf.fprintf stderr "INFO: client doesn't report Fixed_newstyle\n%!";
+      (if old_client
+       then Lwt_log_core.warning ~section "Client doesn't report Fixed_newstyle"
+       else Lwt.return_unit) >>= fun () ->
       (* Continue regardless *)
       generic_loop (Channel.generic_of_cleartext_channel channel)
     )
   | Some make_tls_channel -> (   (* We are in FORCEDTLS mode *)
       if old_client
       then (
-        Printf.fprintf stderr "INFO: server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle.\n%!";
-        fail (Failure "client does not report Fixed_newstyle and server is in FORCEDTLS mode.")
+        Lwt_log_core.error ~section "Server rejecting connection: it wants to use TLS but client flags don't include Fixed_newstyle" >>= fun () ->
+        Lwt.fail_with "client does not report Fixed_newstyle and server is in FORCEDTLS mode."
       )
       else negotiate_tls make_tls_channel
     )
@@ -152,14 +158,14 @@ let negotiate_end t  size flags : t Lwt.t =
   DiskInfo.(marshal buf { size; flags });
   t.channel.write buf
   >>= fun () ->
-  return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
+  Lwt.return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
 
 let next t =
   t.channel.read t.request
   >>= fun () ->
   match Request.unmarshal t.request with
-  | Ok r -> return r
-  | Error e -> fail e
+  | Ok r -> Lwt.return r
+  | Error e -> Lwt.fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
@@ -168,7 +174,7 @@ let ok t handle payload =
        t.channel.write t.reply
        >>= fun () ->
        match payload with
-       | None -> return ()
+       | None -> Lwt.return ()
        | Some data -> t.channel.write data
     )
 
@@ -180,12 +186,18 @@ let error t handle code =
     )
 
 let serve t (type t) block (b:t) =
+  let section = Lwt_log_core.Section.make("Server.serve") in
   let module Block = (val block: Mirage_block_lwt.S with type t = t) in
+
+  Lwt_log_core.notice ~section "Serving new client" >>= fun () ->
 
   Block.get_info b
   >>= fun info ->
   let size = Int64.(mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)) in
-  let flags = if info.Mirage_block.read_write then [] else [ PerExportFlag.Read_only ] in
+  (if info.Mirage_block.read_write then Lwt.return [] else
+     Lwt_log_core.warning ~section "Block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
+     Lwt.return [ PerExportFlag.Read_only ])
+  >>= fun flags ->
   negotiate_end t size flags
   >>= fun t ->
 
@@ -207,7 +219,8 @@ let serve t (type t) block (b:t) =
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Error _ ->
+          | Error e ->
+            Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Fmt.to_to_string Block.pp_write_error e) >>= fun () ->
             error t handle `EIO
           | Ok () ->
             let remaining = remaining - n in
@@ -228,7 +241,13 @@ let serve t (type t) block (b:t) =
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
           | Error _ ->
-            fail (Failure "Partial failure during a Block.read")
+            (* The NBD protocol documentation says about NBD_CMD_READ:
+               "If an error occurs while reading after the server has already
+               sent out the reply header with an error field set to zero (i.e.,
+               signalling no error), the server MUST immediately initiate a
+               hard disconnect; it MUST NOT send any further data to the
+               client." *)
+            Lwt.fail_with "Partial failure during a Block.read"
           | Ok () ->
             t.channel.write subblock
             >>= fun () ->
@@ -241,5 +260,6 @@ let serve t (type t) block (b:t) =
     | { ty = Command.Disc; _ } ->
       Lwt.return_unit
     | _ ->
+      Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
       error t request.Request.handle `EINVAL in
   loop ()

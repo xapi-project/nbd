@@ -14,7 +14,7 @@
 
 let project_url = "http://github.com/xapi-project/nbd"
 
-open Lwt
+open Lwt.Infix
 
 module Device = struct
   type id = [
@@ -56,10 +56,10 @@ module Device = struct
           >>= fun channel ->
           Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) ->
-          return (`Nbd t)
-        | None -> fail_with "Cannot connect to nbd without a host"
+          Lwt.return (`Nbd t)
+        | None -> Lwt.fail_with "Cannot connect to nbd without a host"
       end
-    | _ -> fail_with "unknown scheme"
+    | _ -> Lwt.fail_with "unknown scheme"
 
   type info = {
     read_write: bool;
@@ -78,19 +78,19 @@ module Device = struct
     | `Local t ->
       Block.read t off bufs
       >>= function
-      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
-      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
-      | Result.Ok x -> Lwt.return (Result.Ok x)
+      | Result.Error `Disconnected -> Lwt.return_error `Disconnected
+      | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
+      | Result.Ok x -> Lwt.return_ok x
 
   let write t off bufs = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.write t off bufs
     | `Local t ->
       Block.write t off bufs
       >>= function
-      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
-      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
-      | Result.Error `Is_read_only -> Lwt.return (Result.Error `Is_read_only)
-      | Result.Ok x -> Lwt.return (Result.Ok x)
+      | Result.Error `Disconnected -> Lwt.return_error `Disconnected
+      | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
+      | Result.Error `Is_read_only -> Lwt.return_error `Is_read_only
+      | Result.Ok x -> Lwt.return_ok x
 
   let disconnect t = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.disconnect t
@@ -123,7 +123,6 @@ let common_options_t =
   Term.(pure Common.make $ debug $ verb)
 
 module Impl = struct
-  open Lwt
   open Nbd
 
   let require name arg = match arg with
@@ -150,7 +149,7 @@ module Impl = struct
       >>= function
       | Result.Ok disks ->
         List.iter print_endline disks;
-        return ()
+        Lwt.return ()
       | Result.Error `Unsupported ->
         Printf.fprintf stderr "The server does not support the query function.\n%!";
         exit 1
@@ -205,7 +204,7 @@ module Impl = struct
              let _ =
                Lwt.catch
                  (fun () -> handle_connection fd)
-                 (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
+                 (fun e -> Lwt_log.error_f "Caught exception %s while handling connection" (Printexc.to_string e))
              in
              loop ()
            in
@@ -337,7 +336,7 @@ let default_cmd =
 
 let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
 
-let _ =
+let () =
   match Term.eval_choice default_cmd cmds with
   | `Error _ -> exit 1
   | _ -> exit 0

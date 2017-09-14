@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Lwt
+open Lwt.Infix
 open Result
 
 module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
@@ -75,12 +75,12 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
                Lwt_condition.wait ~mutex:t.m t.c
                >>= fun () ->
                wait ()
-             end else return length in
+             end else Lwt.return length in
            wait ()
            >>= fun length ->
            t.exclusive_lock <- (fst t.exclusive_lock, length);
            Lwt_condition.broadcast t.c ();
-           return ()
+           Lwt.return ()
         )
 
     (* Release lock up to [offset'] *)
@@ -90,7 +90,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
            let length = Int64.(to_int (sub (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock))) offset')) in
            t.exclusive_lock <- (offset', length);
            Lwt_condition.broadcast t.c ();
-           return ()
+           Lwt.return ()
         )
 
     (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
@@ -118,10 +118,10 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
                  (fun () ->
                     f () >>= fun r ->
                     unlock ();
-                    return r
+                    Lwt.return r
                  ) (fun e ->
                      unlock ();
-                     fail e)
+                     Lwt.fail e)
              end in
            loop ()
         )
@@ -167,7 +167,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
 
     let rec reader sector =
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        return (Ok ())
+        Lwt.return_ok ()
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -181,7 +181,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
           | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (Error e)
+            Lwt.return_error e
           | Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
@@ -194,7 +194,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        return (Ok ())
+        Lwt.return_ok ()
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -206,7 +206,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
           | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (Error e)
+            Lwt.return_error e
           | Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
@@ -228,11 +228,11 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
         Lwt.wakeup u (Error `Disconnected)
       | Ok (), Error e ->
         Lwt.wakeup u (Error e) );
-    return ()
+    Lwt.return ()
 
   type _id = unit
 
-  let get_info t = return t.info
+  let get_info t = Lwt.return t.info
 
   let connect ?(progress_cb = fun _ -> ()) primary secondary =
     Primary.get_info primary
@@ -277,13 +277,13 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       let t = { progress_cb; primary; secondary; primary_block_size; secondary_block_size;
                 info; lock; result; percent_complete; disconnected } in
       let (_: unit Lwt.t) = start_copy t u in
-      return t
+      Lwt.return t
 
   let read t ofs bufs =
     Primary.read t.primary ofs bufs
     >>= function
-    | Error e -> return (Error (`Primary e))
-    | Ok x -> return (Ok x)
+    | Error e -> Lwt.return_error (`Primary e)
+    | Ok x -> Lwt.return_ok x
 
   let write t ofs bufs =
     let total_length_bytes = List.(fold_left (+) 0 (map Cstruct.len bufs)) in
@@ -294,17 +294,17 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       (fun () ->
          Primary.write t.primary primary_ofs bufs
          >>= function
-         | Error e -> return (Error (`Primary e))
+         | Error e -> Lwt.return_error (`Primary e)
          | Ok () ->
            Secondary.write t.secondary secondary_ofs bufs
            >>= function
-           | Error e -> return (Error (`Secondary e))
-           | Ok () -> return (Ok ())
+           | Error e -> Lwt.return_error (`Secondary e)
+           | Ok () -> Lwt.return_ok ()
       )
 
   let disconnect t =
     t.disconnected <- true;
     t.result
     >>= fun _ ->
-    return ()
+    Lwt.return ()
 end

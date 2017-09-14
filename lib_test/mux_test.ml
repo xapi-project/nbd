@@ -1,6 +1,6 @@
 open OUnit
 open Sexplib.Std
-open Lwt
+open Lwt.Infix
 
 module TestPacket = struct
   type id = int
@@ -43,7 +43,7 @@ module TestPacket = struct
 
   let recv_body t req_hdr rsp_hdr rsp_body =
     Bytes.blit rsp_hdr.res_payload 0 rsp_body 0 (Bytes.length rsp_hdr.res_payload);
-    Lwt.return (Ok ())
+    Lwt.return_ok ()
 
   let send_one t x _ =
     Lwt_mutex.with_lock t.mutex (fun () ->
@@ -54,7 +54,7 @@ module TestPacket = struct
 
   let handle_unrequested_packet t p =
     if p.res_payload = "exception"
-    then Lwt.fail (Failure "requested exception")
+    then Lwt.fail_with "requested exception"
     else Lwt.return ()
 
   let create () =
@@ -83,7 +83,7 @@ let (>>|=) m f =
      thread if it's an Error *)
   m >>= function
   | Ok x -> f x
-  | Error x -> Lwt.fail (Failure (Nbd.Protocol.Error.to_string x))
+  | Error x -> Lwt.fail_with (Nbd.Protocol.Error.to_string x)
 
 
 let test_rpc =
