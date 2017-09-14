@@ -44,15 +44,15 @@ module NbdRpc = struct
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
-    | Error e -> Lwt.return (Error e)
+    | Error e -> Lwt.return_error e
     | Ok () ->
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)
           Lwt_list.iter_s sock.read response_body
           >>= fun () ->
-          Lwt.return (Ok ())
-        | _ -> Lwt.return (Ok ())
+          Lwt.return_ok ()
+        | _ -> Lwt.return_ok ()
       end
 
   let send_one sock req_hdr req_body =
@@ -116,7 +116,7 @@ let list channel =
     begin match Negotiate.unmarshal buf kind with
       | Error e -> Lwt.fail e
       | Ok (Negotiate.V1 _) ->
-        Lwt.return (Error `Unsupported)
+        Lwt.return_error `Unsupported
       | Ok (Negotiate.V2 x) ->
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
@@ -133,9 +133,9 @@ let list channel =
           >>= fun () ->
           match OptionResponseHeader.unmarshal buf with
           | Error e -> Lwt.fail e
-          | Ok { OptionResponseHeader.response_type = OptionResponse.Ack; _} -> Lwt.return (Ok acc)
+          | Ok { OptionResponseHeader.response_type = OptionResponse.Ack; _} -> Lwt.return_ok acc
           | Ok { OptionResponseHeader.response_type = OptionResponse.Policy; _} ->
-            Lwt.return (Error `Policy)
+            Lwt.return_error `Policy
           | Ok { OptionResponseHeader.response_type = OptionResponse.Server;
                  length; _} ->
             let buf' = Cstruct.create (Int32.to_int length) in
@@ -210,25 +210,25 @@ let write_one t from buffer =
 
 let write t from buffers =
   if t.disconnected
-  then Lwt.return (Error `Disconnected)
+  then Lwt.return_error `Disconnected
   else begin
     let rec loop from = function
-      | [] -> Lwt.return (Ok ())
+      | [] -> Lwt.return_ok ()
       | b :: bs ->
         begin write_one t from b
           >>= function
           | Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
-          | Error e -> Lwt.return (Error e)
+          | Error e -> Lwt.return_error e
         end in
     loop from buffers
     >>= function
-    | Error e -> Lwt.return (Error (`Protocol_error e))
-    | Ok () -> Lwt.return (Ok ())
+    | Error e -> Lwt.return_error (`Protocol_error e)
+    | Ok () -> Lwt.return_ok ()
   end
 
 let read t from buffers =
   if t.disconnected
-  then Lwt.return (Error `Disconnected)
+  then Lwt.return_error `Disconnected
   else begin
     let handle = get_handle () in
     let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
@@ -239,8 +239,8 @@ let read t from buffers =
     let req_body = None in
     Rpc.rpc req_hdr req_body buffers t.client
     >>= function
-    | Error e -> Lwt.return (Error (`Protocol_error e))
-    | Ok () -> Lwt.return (Ok ())
+    | Error e -> Lwt.return_error (`Protocol_error e)
+    | Ok () -> Lwt.return_ok ()
   end
 
 let disconnect t =

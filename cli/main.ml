@@ -78,19 +78,19 @@ module Device = struct
     | `Local t ->
       Block.read t off bufs
       >>= function
-      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
-      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
-      | Result.Ok x -> Lwt.return (Result.Ok x)
+      | Result.Error `Disconnected -> Lwt.return_error `Disconnected
+      | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
+      | Result.Ok x -> Lwt.return_ok x
 
   let write t off bufs = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.write t off bufs
     | `Local t ->
       Block.write t off bufs
       >>= function
-      | Result.Error `Disconnected -> Lwt.return (Result.Error `Disconnected)
-      | Result.Error `Unimplemented -> Lwt.return (Result.Error `Unimplemented)
-      | Result.Error `Is_read_only -> Lwt.return (Result.Error `Is_read_only)
-      | Result.Ok x -> Lwt.return (Result.Ok x)
+      | Result.Error `Disconnected -> Lwt.return_error `Disconnected
+      | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
+      | Result.Error `Is_read_only -> Lwt.return_error `Is_read_only
+      | Result.Ok x -> Lwt.return_ok x
 
   let disconnect t = match t with
     | `Nbd t -> Nbd_lwt_unix.Client.disconnect t

@@ -167,7 +167,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
 
     let rec reader sector =
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        Lwt.return (Ok ())
+        Lwt.return_ok ()
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -181,7 +181,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
           | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            Lwt.return (Error e)
+            Lwt.return_error e
           | Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
@@ -194,7 +194,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.Mirage_block.size_sectors then begin
-        Lwt.return (Ok ())
+        Lwt.return_ok ()
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -206,7 +206,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
           | Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            Lwt.return (Error e)
+            Lwt.return_error e
           | Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
@@ -282,8 +282,8 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
   let read t ofs bufs =
     Primary.read t.primary ofs bufs
     >>= function
-    | Error e -> Lwt.return (Error (`Primary e))
-    | Ok x -> Lwt.return (Ok x)
+    | Error e -> Lwt.return_error (`Primary e)
+    | Ok x -> Lwt.return_ok x
 
   let write t ofs bufs =
     let total_length_bytes = List.(fold_left (+) 0 (map Cstruct.len bufs)) in
@@ -294,12 +294,12 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
       (fun () ->
          Primary.write t.primary primary_ofs bufs
          >>= function
-         | Error e -> Lwt.return (Error (`Primary e))
+         | Error e -> Lwt.return_error (`Primary e)
          | Ok () ->
            Secondary.write t.secondary secondary_ofs bufs
            >>= function
-           | Error e -> Lwt.return (Error (`Secondary e))
-           | Ok () -> Lwt.return (Ok ())
+           | Error e -> Lwt.return_error (`Secondary e)
+           | Ok () -> Lwt.return_ok ()
       )
 
   let disconnect t =

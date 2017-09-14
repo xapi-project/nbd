@@ -43,7 +43,7 @@ module TestPacket = struct
 
   let recv_body t req_hdr rsp_hdr rsp_body =
     Bytes.blit rsp_hdr.res_payload 0 rsp_body 0 (Bytes.length rsp_hdr.res_payload);
-    Lwt.return (Ok ())
+    Lwt.return_ok ()
 
   let send_one t x _ =
     Lwt_mutex.with_lock t.mutex (fun () ->
