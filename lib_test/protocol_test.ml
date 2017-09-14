@@ -16,25 +16,27 @@ open OUnit
 open Nbd
 open Lwt
 
+(* All the flags in the NBD protocol are in network byte order (big-endian) *)
+
 let v2_negotiation = [
   `Server "NBDMAGIC";
   `Server "IHAVEOPT";
-  `Server "\000\003";
-  `Client "\000\000\000\000";
+  `Server "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
   `Client "IHAVEOPT";
   `Client "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
   `Client "\000\000\000\007";
   `Client "export1";
   `Server "\000\000\000\000\001\000\000\000"; (* size *)
-  `Server "\000\000"; (* flags *)
+  `Server "\000\000"; (* transmission flags *)
   `Server (String.make 124 '\000');
 ]
 
 let v2_list_export_disabled = [
   `Server "NBDMAGIC"; (* read *)
   `Server "IHAVEOPT";
-  `Server "\000\003";
-  `Client "\000\000\000\000";
+  `Server "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
   `Client "IHAVEOPT";
   `Client "\000\000\000\003"; (* NBD_OPT_LIST *)
   `Client "\000\000\000\000";
@@ -47,8 +49,8 @@ let v2_list_export_disabled = [
 let v2_list_export_success = [
   `Server "NBDMAGIC"; (* read *)
   `Server "IHAVEOPT";
-  `Server "\000\003";
-  `Client "\000\000\000\000";
+  `Server "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
   `Client "IHAVEOPT";
   `Client "\000\000\000\003"; (* NBD_OPT_LIST *)
   `Client "\000\000\000\000";
@@ -66,8 +68,8 @@ let v2_list_export_success = [
   `Server "\000\000\000\000";
 ]
 
-let make_client_channel n =
-  let next = ref n in
+let make_client_channel test_sequence =
+  let next = ref test_sequence in
   let rec read buf = match !next with
     | `Server x :: rest ->
       let available = min (Cstruct.len buf) (String.length x) in
@@ -83,7 +85,9 @@ let make_client_channel n =
     | `Server _ :: _ -> fail (Failure "Client tried to write but it should have read")
     | `Client x :: rest ->
       let available = min (Cstruct.len buf) (String.length x) in
-      Cstruct.blit_from_string x 0 buf 0 available;
+      let written = String.sub (Cstruct.to_string buf) 0 available in
+      let expected = String.sub x 0 available in
+      OUnit.assert_equal ~msg:(Printf.sprintf "client wrote bytes: '%s' (length: %d), expected: '%s' (length: %d)" (String.escaped written) (String.length written) (String.escaped expected) (String.length expected)) expected written;
       next := if available = String.length x then rest else `Client (String.sub x available (String.length x - available)) :: rest;
       let buf = Cstruct.shift buf available in
       if Cstruct.len buf = 0
@@ -130,18 +134,9 @@ let list_success =
       | _ -> failwith "Expected to receive a list of exports" in
     Lwt_main.run t
 
-let negotiate_suite =
-  let open Mux_test in
-  "Nbd suite" >::: [
+let tests =
+  "Nbd client tests" >::: [
     client_negotiation;
     list_disabled;
     list_success;
-    test_rpc;
-    test_multi_rpc;
-    test_out_of_order_responses;
-    test_memory_leak;
-    test_exception_handling;
   ]
-
-let _ =
-  OUnit2.run_test_tt_main (ounit2_of_ounit1 negotiate_suite)
