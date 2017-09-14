@@ -14,7 +14,7 @@
 
 let project_url = "http://github.com/xapi-project/nbd"
 
-open Lwt
+open Lwt.Infix
 
 module Device = struct
   type id = [
@@ -39,8 +39,8 @@ module Device = struct
       let path = Uri.path uri in
       ( Block.connect path
         >>= function
-        | `Error e -> return (`Error (`Unknown (Printf.sprintf "Failed to open %s" path)))
-        | `Ok x -> return (`Ok (`Local x) ))
+        | `Error e -> Lwt.return (`Error (`Unknown (Printf.sprintf "Failed to open %s" path)))
+        | `Ok x -> Lwt.return (`Ok (`Local x) ))
     | Some "nbd" ->
       begin match Uri.host uri with
         | Some host ->
@@ -49,10 +49,10 @@ module Device = struct
           >>= fun channel ->
           Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) ->
-          return (`Ok (`Nbd t))
-        | None -> return (`Error (`Unknown "Cannot connect to nbd without a host"))
+          Lwt.return (`Ok (`Nbd t))
+        | None -> Lwt.return (`Error (`Unknown "Cannot connect to nbd without a host"))
       end
-    | _ -> return (`Error (`Unknown "unknown scheme"))
+    | _ -> Lwt.return (`Error (`Unknown "unknown scheme"))
 
   type info = {
     read_write: bool;
@@ -64,7 +64,7 @@ module Device = struct
     | `Nbd t ->
       Nbd_lwt_unix.Client.get_info t
       >>= fun info ->
-      return {
+      Lwt.return {
         read_write = info.Nbd_lwt_unix.Client.read_write;
         sector_size = info.Nbd_lwt_unix.Client.sector_size;
         size_sectors = info.Nbd_lwt_unix.Client.size_sectors
@@ -72,7 +72,7 @@ module Device = struct
     | `Local t ->
       Block.get_info t
       >>= fun info ->
-      return {
+      Lwt.return {
         read_write = info.Block.read_write;
         sector_size = info.Block.sector_size;
         size_sectors = info.Block.size_sectors
@@ -118,7 +118,6 @@ let common_options_t =
   Term.(pure Common.make $ debug $ verb)
 
 module Impl = struct
-  open Lwt
   open Nbd
 
   let require name arg = match arg with
@@ -145,7 +144,7 @@ module Impl = struct
       >>= function
       | `Ok disks ->
         List.iter print_endline disks;
-        return ()
+        Lwt.return ()
       | `Error `Unsupported ->
         Printf.fprintf stderr "The server does not support the query function.\n%!";
         exit 1
@@ -200,7 +199,7 @@ module Impl = struct
              let _ =
                Lwt.catch
                 (fun () -> handle_connection fd)
-                (fun e -> Lwt_io.eprintf "Caught exception %s while handling connection\n%!" (Printexc.to_string e))
+                (fun e -> Lwt_log.error_f "Caught exception %s while handling connection" (Printexc.to_string e))
              in
              loop ()
            in
@@ -247,7 +246,7 @@ let mirror common filename port secondary certfile ciphersuites no_tls =
                 Printf.fprintf stderr "Failed to create mirror: %s\n%!" (M.string_of_error e);
                 exit 1
               | `Ok m ->
-                return m
+                Lwt.return m
             end
         end
     ) >>= fun m ->
@@ -352,7 +351,7 @@ let default_cmd =
 
 let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
 
-let _ =
+let () =
   match Term.eval_choice default_cmd cmds with
   | `Error _ -> exit 1
   | _ -> exit 0

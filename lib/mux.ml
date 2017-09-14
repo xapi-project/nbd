@@ -13,7 +13,7 @@
  *)
 
 (* Lwt connection multiplexer *)
-open Lwt
+open Lwt.Infix
 
 module type RPC = sig
   type transport
@@ -52,7 +52,7 @@ module Make = functor (R : RPC) -> struct
         | None -> R.handle_unrequested_packet t.transport pkt
         | Some id ->
           if not(Hashtbl.mem t.id_to_wakeup id)
-          then fail (Unexpected_id id)
+          then Lwt.fail (Unexpected_id id)
           else begin
             let request_hdr, waker, response_body = Hashtbl.find t.id_to_wakeup id in
             R.recv_body t.transport request_hdr pkt response_body
@@ -64,13 +64,13 @@ module Make = functor (R : RPC) -> struct
       ) (fun e ->
         t.dispatcher_shutting_down <- true;
         Hashtbl.iter (fun _ (_,u, _) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
-        fail e)
+        Lwt.fail e)
     in th >>= fun () -> dispatcher t
 
 let rpc req_hdr req_body response_body t =
   let sleeper, waker = Lwt.wait () in
   if t.dispatcher_shutting_down
-  then fail Shutdown
+  then Lwt.fail Shutdown
   else begin
     let id = R.id_of_request req_hdr in
     Hashtbl.add t.id_to_wakeup id (req_hdr, waker, response_body);

@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Lwt
+open Lwt.Infix
 
 module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
   type 'a io = 'a Lwt.t
@@ -66,12 +66,12 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
                Lwt_condition.wait ~mutex:t.m t.c
                >>= fun () ->
                wait ()
-             end else return length in
+             end else Lwt.return length in
            wait ()
            >>= fun length ->
            t.exclusive_lock <- (fst t.exclusive_lock, length);
            Lwt_condition.broadcast t.c ();
-           return ()
+           Lwt.return ()
         )
 
     (* Release lock up to [offset'] *)
@@ -81,7 +81,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
            let length = Int64.(to_int (sub (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock))) offset')) in
            t.exclusive_lock <- (offset', length);
            Lwt_condition.broadcast t.c ();
-           return ()
+           Lwt.return ()
         )
 
     (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
@@ -109,10 +109,10 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
                  (fun () ->
                     f () >>= fun r ->
                     unlock ();
-                    return r
+                    Lwt.return r
                  ) (fun e ->
                      unlock ();
-                     fail e)
+                     Lwt.fail e)
              end in
            loop ()
         )
@@ -158,7 +158,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
 
     let rec reader sector =
       if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+        Lwt.return (`Ok ())
       end else begin
         if !producer_idx - !consumer_idx >= nr_slots then begin
           Lwt_condition.wait c
@@ -172,7 +172,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
           | `Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
+            Lwt.return (`Error e)
           | `Ok () ->
             incr producer_idx;
             Lwt_condition.signal c ();
@@ -185,7 +185,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       then t.progress_cb (if percent_complete = 100 then `Complete else `Percent percent_complete);
       t.percent_complete <- percent_complete;
       if t.disconnected || sector = t.info.size_sectors then begin
-        return (`Ok ())
+        Lwt.return (`Ok ())
       end else begin
         if !consumer_idx = !producer_idx then begin
           Lwt_condition.wait c
@@ -197,7 +197,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
           | `Error e ->
             t.disconnected <- true;
             Lwt_condition.signal c ();
-            return (`Error e)
+            Lwt.return (`Error e)
           | `Ok () ->
             incr consumer_idx;
             Region_lock.release_left t.lock Int64.(add sector (of_int block))
@@ -219,11 +219,11 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
         Lwt.wakeup u (`Error e)
       | `Error e, `Error ei ->
         Lwt.wakeup u (`Error e) );
-    return ()
+    Lwt.return ()
 
   type id = unit
 
-  let get_info t = return t.info
+  let get_info t = Lwt.return t.info
 
   let connect ?(progress_cb = fun _ -> ()) primary secondary =
     Primary.get_info primary
@@ -256,7 +256,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       )
     ) |> Lwt.return
     >>= function
-    | `Error e -> return (`Error e)
+    | `Error e -> Lwt.return (`Error e)
     | `Ok () ->
       let disconnected = false in
       let read_write = primary_info.Primary.read_write in
@@ -268,7 +268,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       let t = { progress_cb; primary; secondary; primary_block_size; secondary_block_size;
                 info; lock; result; percent_complete; disconnected } in
       let (_: unit Lwt.t) = start_copy t u in
-      return (`Ok t)
+      Lwt.return (`Ok t)
 
   let read t ofs bufs =
     Primary.read t.primary ofs bufs
@@ -282,7 +282,7 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
       (fun () ->
          Primary.write t.primary primary_ofs bufs
          >>= function
-         | `Error e -> return (`Error e)
+         | `Error e -> Lwt.return (`Error e)
          | `Ok () ->
            Secondary.write t.secondary secondary_ofs bufs
       )
@@ -291,5 +291,5 @@ module Make(Primary: V1_LWT.BLOCK)(Secondary: V1_LWT.BLOCK) = struct
     t.disconnected <- true;
     t.result
     >>= fun _ ->
-    return ()
+    Lwt.return ()
 end
