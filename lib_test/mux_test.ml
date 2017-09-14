@@ -1,6 +1,6 @@
 open OUnit
 open Sexplib.Std
-open Lwt
+open Lwt.Infix
 
 module TestPacket = struct
   type id = int

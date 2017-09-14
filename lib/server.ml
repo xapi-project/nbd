@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
+open Lwt.Infix
 open Protocol
 open Channel
 
@@ -67,11 +67,11 @@ let connect channel ?offer () =
   let read_hdr_and_payload readfn =
     readfn req >>= fun () ->
     match OptionRequestHeader.unmarshal req with
-    | `Error e -> fail e
+    | `Error e -> Lwt.fail e
     | `Ok hdr ->
         let payload = make_blank_payload hdr in
         readfn payload
-        >>= fun () -> return (hdr.OptionRequestHeader.ty, payload)
+        >>= fun () -> Lwt.return (hdr.OptionRequestHeader.ty, payload)
   in
   let generic_loop chan =
     let rec loop () =
@@ -81,7 +81,7 @@ let connect channel ?offer () =
           let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
           respond opt resp chan.write
           >>= loop
-        | Option.ExportName -> return (Cstruct.to_string payload, make chan)
+        | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan)
         | Option.Abort -> Lwt.fail Client_requested_abort
         | Option.Unknown _ ->
           respond opt OptionResponse.Unsupported chan.write
@@ -112,8 +112,8 @@ let connect channel ?offer () =
     let rec negotiate_tls () =
       read_hdr_and_payload channel.read_clear
       >>= fun (opt, _) -> match opt with
-        | Option.ExportName -> fail_with "Client requested export over cleartext channel but server is in FORCEDTLS mode."
-        | Option.Abort -> fail_with "Client requested abort (before negotiating TLS)."
+        | Option.ExportName -> Lwt.fail_with "Client requested export over cleartext channel but server is in FORCEDTLS mode."
+        | Option.Abort -> Lwt.fail_with "Client requested abort (before negotiating TLS)."
         | Option.StartTLS -> (
             send_ack opt channel.write_clear
             >>= make_tls_channel
@@ -157,14 +157,14 @@ let negotiate_end t  size flags : t Lwt.t =
   DiskInfo.(marshal buf { size; flags });
   t.channel.write buf
   >>= fun () ->
-  return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
+  Lwt.return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
 
 let next t =
   t.channel.read t.request
   >>= fun () ->
   match Request.unmarshal t.request with
-  | `Ok r -> return r
-  | `Error e -> fail e
+  | `Ok r -> Lwt.return r
+  | `Error e -> Lwt.fail e
 
 let ok t handle payload =
   Lwt_mutex.with_lock t.m
@@ -173,7 +173,7 @@ let ok t handle payload =
        t.channel.write t.reply
        >>= fun () ->
        match payload with
-       | None -> return ()
+       | None -> Lwt.return ()
        | Some data -> t.channel.write data
     )
 

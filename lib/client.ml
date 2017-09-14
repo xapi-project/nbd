@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
+open Lwt.Infix
 open Protocol
 open Channel
 
@@ -38,20 +38,20 @@ module NbdRpc = struct
     sock.read buf
     >>= fun () ->
     match Reply.unmarshal buf with
-    | `Ok x -> return (Some x.Reply.handle, x)
-    | `Error e -> fail e
+    | `Ok x -> Lwt.return (Some x.Reply.handle, x)
+    | `Error e -> Lwt.fail e
 
   let recv_body sock req_hdr res_hdr response_body =
     match res_hdr.Reply.error with
-    | `Error e -> return (`Error e)
+    | `Error e -> Lwt.return (`Error e)
     | `Ok () ->
       begin match req_hdr.Request.ty with
         | Command.Read ->
           (* TODO: use a page-aligned memory allocator *)
           Lwt_list.iter_s sock.read response_body
           >>= fun () ->
-          return (`Ok ())
-        | _ -> return (`Ok ())
+          Lwt.return (`Ok ())
+        | _ -> Lwt.return (`Ok ())
       end
 
   let send_one sock req_hdr req_body =
@@ -60,7 +60,7 @@ module NbdRpc = struct
     sock.write buf
     >>= fun () ->
     match req_body with
-    | None -> return ()
+    | None -> Lwt.return ()
     | Some data ->
       sock.write data
 
@@ -94,22 +94,22 @@ let make channel size_bytes flags =
   let size_sectors = size_bytes in
   let info = { read_write; sector_size; size_sectors } in
   let disconnected = false in
-  return { client; info; disconnected }
+  Lwt.return { client; info; disconnected }
 
 let list channel =
   let buf = Cstruct.create Announcement.sizeof in
   channel.read buf
   >>= fun () ->
   match Announcement.unmarshal buf with
-  | `Error e -> fail e
+  | `Error e -> Lwt.fail e
   | `Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-      | `Error e -> fail e
+      | `Error e -> Lwt.fail e
       | `Ok (Negotiate.V1 x) ->
-        return (`Error `Unsupported)
+        Lwt.return (`Error `Unsupported)
       | `Ok (Negotiate.V2 x) ->
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
@@ -125,10 +125,10 @@ let list channel =
           channel.read buf
           >>= fun () ->
           match OptionResponseHeader.unmarshal buf with
-          | `Error e -> fail e
-          | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> return (`Ok acc)
+          | `Error e -> Lwt.fail e
+          | `Ok { OptionResponseHeader.response_type = OptionResponse.Ack } -> Lwt.return (`Ok acc)
           | `Ok { OptionResponseHeader.response_type = OptionResponse.Policy } ->
-            return (`Error `Policy)
+            Lwt.return (`Error `Policy)
           | `Ok { OptionResponseHeader.response_type = OptionResponse.Server; length } ->
             let buf' = Cstruct.create (Int32.to_int length) in
             channel.read buf'
@@ -136,7 +136,7 @@ let list channel =
             begin match Server.unmarshal buf' with
               | `Ok server ->
                 loop (server.Server.name :: acc)
-              | `Error e -> fail e
+              | `Error e -> Lwt.fail e
             end
           | `Ok _ ->
             Lwt.fail_with "Server's OptionResponse had an invalid type" in
@@ -148,17 +148,17 @@ let negotiate channel export =
   channel.read buf
   >>= fun () ->
   match Announcement.unmarshal buf with
-  | `Error e -> fail e
+  | `Error e -> Lwt.fail e
   | `Ok kind ->
     let buf = Cstruct.create (Negotiate.sizeof kind) in
     channel.read buf
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
-      | `Error e -> fail e
+      | `Error e -> Lwt.fail e
       | `Ok (Negotiate.V1 x) ->
         make channel x.Negotiate.size x.Negotiate.flags
         >>= fun t ->
-        return (t, x.Negotiate.size, x.Negotiate.flags)
+        Lwt.return (t, x.Negotiate.size, x.Negotiate.flags)
       | `Ok (Negotiate.V2 x) ->
         let buf = Cstruct.create NegotiateResponse.sizeof in
         let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
@@ -177,11 +177,11 @@ let negotiate channel export =
         channel.read buf
         >>= fun () ->
         begin match DiskInfo.unmarshal buf with
-          | `Error e -> fail e
+          | `Error e -> Lwt.fail e
           | `Ok x ->
             make channel x.DiskInfo.size x.DiskInfo.flags
             >>= fun t ->
-            return (t, x.DiskInfo.size, x.DiskInfo.flags)
+            Lwt.return (t, x.DiskInfo.size, x.DiskInfo.flags)
         end
     end
 
@@ -196,7 +196,7 @@ type error = [
   | `Disconnected
 ]
 
-let get_info t = return t.info
+let get_info t = Lwt.return t.info
 
 let write_one t from buffer =
   let handle = get_handle () in
@@ -209,25 +209,25 @@ let write_one t from buffer =
 
 let write t from buffers =
   if t.disconnected
-  then return (`Error `Disconnected)
+  then Lwt.return (`Error `Disconnected)
   else begin
     let rec loop from = function
-      | [] -> return (`Ok ())
+      | [] -> Lwt.return (`Ok ())
       | b :: bs ->
         begin write_one t from b
           >>= function
           | `Ok () -> loop Int64.(add from (of_int (Cstruct.len b))) bs
-          | `Error e -> return (`Error e)
+          | `Error e -> Lwt.return (`Error e)
         end in
     loop from buffers
     >>= function
-    | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | `Ok x -> Lwt.return (`Ok x)
+    | `Error e -> Lwt.return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let read t from buffers =
   if t.disconnected
-  then return (`Error `Disconnected)
+  then Lwt.return (`Error `Disconnected)
   else begin
     let handle = get_handle () in
     let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
@@ -238,10 +238,10 @@ let read t from buffers =
     let req_body = None in
     Rpc.rpc req_hdr req_body buffers t.client
     >>= function
-    | `Ok x -> return (`Ok x)
-    | `Error e -> return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
+    | `Ok x -> Lwt.return (`Ok x)
+    | `Error e -> Lwt.return (`Error (`Unknown (Printf.sprintf "NBD client: %s" (Error.to_string e))))
   end
 
 let disconnect t =
   t.disconnected <- true;
-  return ()
+  Lwt.return ()
