@@ -246,7 +246,7 @@ let serve t (type t) block (b:t) =
                signalling no error), the server MUST immediately initiate a
                hard disconnect; it MUST NOT send any further data to the
                client." *)
-            Lwt.fail_with "Partial failure during a Block.read"
+            Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Block_error_printer.to_string e))
           | `Ok () ->
             t.channel.write subblock
             >>= fun () ->
