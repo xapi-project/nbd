@@ -240,14 +240,14 @@ let serve t (type t) block (b:t) =
           let subblock = Cstruct.sub block 0 n in
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
-          | Error _ ->
+          | Error e ->
             (* The NBD protocol documentation says about NBD_CMD_READ:
                "If an error occurs while reading after the server has already
                sent out the reply header with an error field set to zero (i.e.,
                signalling no error), the server MUST immediately initiate a
                hard disconnect; it MUST NOT send any further data to the
                client." *)
-            Lwt.fail_with "Partial failure during a Block.read"
+            Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Fmt.to_to_string Block.pp_error e))
           | Ok () ->
             t.channel.write subblock
             >>= fun () ->
