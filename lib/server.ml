@@ -258,6 +258,7 @@ let serve t (type t) block (b:t) =
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Disc; _ } ->
+      Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting" >>= fun () ->
       Lwt.return_unit
     | _ ->
       Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
