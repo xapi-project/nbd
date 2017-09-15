@@ -95,7 +95,7 @@ let make_client_channel test_sequence =
       else write buf
     | [] -> Lwt.fail_with "Client tried to write but the stream was empty" in
   let close () = Lwt.return () in
-  Channel.{ read; write; close; is_tls=false }
+  Channel.{ read_clear=read; write_clear=write; close_clear=close; make_tls_channel=None }
 
 let client_negotiation =
   "Perform a negotiation using the second version of the protocol from the

@@ -99,7 +99,7 @@ let connect hostname port =
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
   Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
   >>= fun () ->
-  (generic_channel_of_fd socket None)
+  Lwt.return (cleartext_channel_of_fd socket None)
 
 let init_tls_get_ctx ~certfile ~ciphersuites =
   Ssl_threads.init ();
