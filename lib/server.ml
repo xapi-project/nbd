@@ -246,7 +246,7 @@ let serve t (type t) block (b:t) =
                signalling no error), the server MUST immediately initiate a
                hard disconnect; it MUST NOT send any further data to the
                client." *)
-            Lwt.fail_with "Partial failure during a Block.read"
+            Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Block_error_printer.to_string e))
           | `Ok () ->
             t.channel.write subblock
             >>= fun () ->
@@ -257,6 +257,7 @@ let serve t (type t) block (b:t) =
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Disc; _ } ->
+      Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting" >>= fun () ->
       Lwt.return_unit
     | _ ->
       Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
