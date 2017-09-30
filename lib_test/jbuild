@@ -25,7 +25,7 @@ let coverage_rewriter ~full =
 let () = Printf.ksprintf Jbuild_plugin.V1.send {|
 (executable
  ((name suite)
-  (libraries (lwt.unix nbd oUnit))
+  (libraries (lwt.unix nbd oUnit io-page.unix))
   %s
   ))
 
