@@ -172,9 +172,9 @@ module V2_list_export_disabled = struct
             >>= fun (_export_name, _svr) ->
             Lwt.return_unit
           in
-          (* The Client.list function currently does not send NBD_OPT_ABORT when it
-             should, but incorrectly disconnects, so we expect this error from the
-             server side. *)
+          (* TODO: The Client.list function currently does not send
+             NBD_OPT_ABORT when it should, but incorrectly disconnects, so we
+             expect this error from the server side. *)
           OUnit.assert_raises
             Failed_to_read_empty_stream
             (fun () -> Lwt_main.run (t ()))
@@ -194,6 +194,9 @@ module V2_list_export_success = struct
     `Server, option_reply_magic_number;
     `Server, "\000\000\000\003";
     `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
+    (* TODO: the Client.list function incorrectly parses the server's response:
+       it expects one more 32 bit int than what the protocol describes - this
+       line shouldn't be here. *)
     `Server, "\000\000\000\011";
     `Server, "\000\000\000\007";
     `Server, "export1";
