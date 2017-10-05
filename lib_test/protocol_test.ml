@@ -274,15 +274,33 @@ module V2_read_only_test = struct
     `Client, "\000\000\000\000\000\000\000\001"; (* offset *)
     `Client, "\000\000\000\002"; (* length *)
 
+    (* We're allowed to read from a read-only export *)
     `Server, nbd_reply_magic;
-    `Server, "\000\000\000\000"; (* error *)
+    `Server, "\000\000\000\000"; (* error: no error *)
     `Server, "\000\000\000\000\000\000\000\000"; (* handle *)
     `Server, "sd"; (* 2 bytes of data *)
 
     `Client, nbd_request_magic;
     `Client, "\000\000"; (* command flags *)
-    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+    `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
     `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
+    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+    `Client, "\000\000\000\004"; (* length *)
+    (* The server should probably return the EPERM error immediately, and not
+       read any data associated with the write request, as the client should
+       recognize the error before transmitting the data, just like for EINVAL,
+       which is sent for unaligned requests. *)
+    (*`Client, "nope"; (* 4 bytes of data *)*)
+
+    (* However, we're not allowed to write to it *)
+    `Server, nbd_reply_magic;
+    `Server, "\000\000\000\001"; (* error: EPERM *)
+    `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
+
+    `Client, nbd_request_magic;
+    `Client, "\000\000"; (* command flags *)
+    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+    `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
     `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
     `Client, "\000\000\000\000"; (* length *)
   ]
