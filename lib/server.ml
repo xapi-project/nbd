@@ -212,28 +212,31 @@ let serve t (type t) ?(read_only=false) block (b:t) =
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->
-      if read_only
-      then error t handle `EPERM
-      else if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
-      then error t handle `EINVAL
-      else begin
-        let rec copy offset remaining =
-          let n = min block_size remaining in
-          let subblock = Cstruct.sub block 0 n in
-          t.channel.Channel.read subblock
-          >>= fun () ->
-          Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
-          >>= function
-          | `Error e ->
-            Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Block_error_printer.to_string e) >>= fun () ->
-            error t handle `EIO
-          | `Ok () ->
-            let remaining = remaining - n in
-            if remaining > 0
-            then copy Int64.(add offset (of_int n)) remaining
-            else ok t handle None >>= fun () -> loop () in
-        copy from (Int32.to_int request.Request.len)
+      begin
+        if read_only
+        then error t handle `EPERM
+        else if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+        then error t handle `EINVAL
+        else begin
+          let rec copy offset remaining =
+            let n = min block_size remaining in
+            let subblock = Cstruct.sub block 0 n in
+            t.channel.Channel.read subblock
+            >>= fun () ->
+            Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+            >>= function
+            | `Error e ->
+              Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Block_error_printer.to_string e) >>= fun () ->
+              error t handle `EIO
+            | `Ok () ->
+              let remaining = remaining - n in
+              if remaining > 0
+              then copy Int64.(add offset (of_int n)) remaining
+              else ok t handle None in
+          copy from (Int32.to_int request.Request.len)
+        end
       end
+      >>= loop
     | { ty = Command.Read; from; len; handle } ->
       if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
       then error t handle `EINVAL
