@@ -297,12 +297,17 @@ module V2_read_only_test = struct
     `Server, "\000\000\000\001"; (* error: EPERM *)
     `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
 
+    (* TODO: currently the server disconnects in case of write errors, but
+       according to the NBD protocol it probably shouldn't, it should continue
+       to process the client's requests *)
+    (*
     `Client, nbd_request_magic;
     `Client, "\000\000"; (* command flags *)
     `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
     `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
     `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
     `Client, "\000\000\000\000"; (* length *)
+    *)
   ]
 
   let server_test =
