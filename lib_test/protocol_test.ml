@@ -34,6 +34,7 @@ module TransmissionList = OUnitDiff.ListSimpleMake(TransmissionDiff)
 
 let option_reply_magic_number = "\x00\x03\xe8\x89\x04\x55\x65\xa9"
 let nbd_request_magic = "\x25\x60\x95\x13"
+let nbd_reply_magic = "\x67\x44\x66\x98"
 
 exception Failed_to_read_empty_stream
 
@@ -100,7 +101,7 @@ module V2_negotiation = struct
 
   let v2_negotiation = v2_negotiation_start @ [
     `Server, "\000\000\000\000\001\000\000\000"; (* size *)
-    `Server, "\000\000"; (* transmission flags *)
+    `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
     `Server, (String.make 124 '\000');
   ]
 
@@ -222,6 +223,85 @@ module V2_list_export_success = struct
         )
 end
 
+module Cstruct_block : (V1_LWT.BLOCK with type t = Cstruct.t) = struct
+  type page_aligned_buffer = Cstruct.t
+  type error =
+    [ `Disconnected | `Is_read_only | `Unimplemented | `Unknown of string ]
+  type 'a io = 'a Lwt.t
+  type t = Cstruct.t
+  type id = Id
+  type info = { read_write : bool; sector_size : int; size_sectors : int64; }
+
+  let disconnect _ = Lwt.return_unit
+  let get_info contents = Lwt.return { read_write = true; sector_size = 1; size_sectors = (Cstruct.len contents |> Int64.of_int) }
+  let read contents sector_start buffers =
+    let sector_start = Int64.to_int sector_start in
+    List.fold_left
+      (fun contents buffer -> Cstruct.fillv [contents] buffer |> ignore; Cstruct.shift contents (Cstruct.len buffer))
+      (Cstruct.shift contents sector_start)
+      buffers
+    |> ignore; Lwt.return (`Ok ())
+  let write contents sector_start buffers =
+    let sector_start = Int64.to_int sector_start in
+    Cstruct.fillv buffers (Cstruct.shift contents sector_start)
+    |> ignore; Lwt.return (`Ok ())
+end
+
+module V2_read_only_test = struct
+
+  let test_block = (Cstruct.of_string "asdf")
+
+  let sequence = [
+    `Server, "NBDMAGIC";
+    `Server, "IHAVEOPT";
+    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+    `Client, "IHAVEOPT";
+    `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+    `Client, "\000\000\000\007"; (* length of export name *)
+    `Client, "export1";
+
+    `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
+    `Server, "\000\003"; (* transmission flags: NBD_FLAG_READ_ONLY (bit 1) + NBD_FLAG_HAS_FLAGS (bit 0) *)
+    `Server, (String.make 124 '\000');
+    (* Now we've entered transmission mode *)
+
+    `Client, nbd_request_magic;
+    `Client, "\000\000"; (* command flags *)
+    `Client, "\000\000"; (* request type: NBD_CMD_READ *)
+    `Client, "\000\000\000\000\000\000\000\000"; (* handle: 4 bytes *)
+    `Client, "\000\000\000\000\000\000\000\001"; (* offset *)
+    `Client, "\000\000\000\002"; (* length *)
+
+    `Server, nbd_reply_magic;
+    `Server, "\000\000\000\000"; (* error *)
+    `Server, "\000\000\000\000\000\000\000\000"; (* handle *)
+    `Server, "sd"; (* 2 bytes of data *)
+
+    `Client, nbd_request_magic;
+    `Client, "\000\000"; (* command flags *)
+    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+    `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
+    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+    `Client, "\000\000\000\000"; (* length *)
+  ]
+
+  let server_test =
+    "Serve a read-only export and test that reads and writes are handled correctly."
+    >:: fun () ->
+      with_server_channel sequence (fun channel ->
+          let t =
+            Server.connect channel ()
+            >>= fun (export_name, svr) ->
+            OUnit.assert_equal ~msg:"The server did not receive the correct export name" "export1" export_name;
+            Server.serve svr ~read_only:true (module Cstruct_block) test_block
+          in
+          Lwt_main.run t
+        )
+
+end
+
 let tests =
   "Nbd client tests" >:::
   [ V2_negotiation.client_negotiation
@@ -229,4 +309,5 @@ let tests =
   ; V2_list_export_disabled.client_list_disabled
   ; V2_list_export_disabled.server_list_disabled
   ; V2_list_export_success.client_list_success
+  ; V2_read_only_test.server_test
   ]
