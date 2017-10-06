@@ -184,7 +184,7 @@ let error t handle code =
        t.channel.write t.reply
     )
 
-let serve t (type t) ?(read_only=false) block (b:t) =
+let serve t (type t) ?(read_only=true) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
   let module Block = (val block: V1_LWT.BLOCK with type t = t) in
 
