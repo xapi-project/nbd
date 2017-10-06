@@ -62,9 +62,12 @@ module type SERVER = sig
       application. If the name is invalid, the only option is to close the connection.
       If the name is valid then use the [serve] function. *)
 
-  val serve : t ->  (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
-  (** [serve t block b] runs forever processing requests from [t], using [block]
-      device type [b]. *)
+  val serve : t -> ?read_only:bool -> (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
+  (** [serve t read_only block b] runs forever processing requests from [t], using [block]
+      device type [b]. If [read_only] is true, the [block] device [b] is served
+      in read-only mode: the server will set the NBD_FLAG_READ_ONLY
+      transmission flag, and if the client issues a write command, the server
+      will send an EPERM error to the client and will terminate the session. *)
 
   val close: t -> unit Lwt.t
   (** [close t] shuts down the connection [t] and frees any allocated resources *)
