@@ -184,19 +184,23 @@ let error t handle code =
        t.channel.write t.reply
     )
 
-let serve t (type t) block (b:t) =
+let serve t (type t) ?(read_only=false) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
   let module Block = (val block: V1_LWT.BLOCK with type t = t) in
 
-  Lwt_log_core.notice ~section "Serving new client" >>= fun () ->
+  Lwt_log_core.notice_f ~section "Serving new client, read_only = %b" read_only >>= fun () ->
 
   Block.get_info b
   >>= fun info ->
   let size = Int64.(mul info.Block.size_sectors (of_int info.Block.sector_size)) in
-  (if info.Block.read_write then Lwt.return [] else
-     Lwt_log_core.warning ~section "Block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
-     Lwt.return [ PerExportFlag.Read_only ])
-  >>= fun flags ->
+  (match read_only, info.Block.read_write with
+   | true, _ -> Lwt.return true
+   | false, true -> Lwt.return false
+   | false, false ->
+     Lwt_log_core.error ~section "Read-write access was requested, but block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
+     Lwt.return true)
+  >>= fun read_only ->
+  let flags = if read_only then [ PerExportFlag.Read_only ] else [] in
   negotiate_end t size flags
   >>= fun t ->
 
@@ -208,27 +212,41 @@ let serve t (type t) block (b:t) =
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->
-      if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
-      then error t handle `EINVAL
-      else begin
-        let rec copy offset remaining =
-          let n = min block_size remaining in
-          let subblock = Cstruct.sub block 0 n in
-          t.channel.Channel.read subblock
-          >>= fun () ->
-          Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
-          >>= function
-          | `Error e ->
-            Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Block_error_printer.to_string e) >>= fun () ->
-            error t handle `EIO
-          | `Ok () ->
-            let remaining = remaining - n in
-            if remaining > 0
-            then copy Int64.(add offset (of_int n)) remaining
-            else ok t handle None >>= fun () -> loop () in
-        copy from (Int32.to_int request.Request.len)
+      begin
+        if read_only
+        then error t handle `EPERM
+        else if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
+        then error t handle `EINVAL
+        else begin
+          let rec copy offset remaining =
+            let n = min block_size remaining in
+            let subblock = Cstruct.sub block 0 n in
+            t.channel.Channel.read subblock
+            >>= fun () ->
+            Block.write b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
+            >>= function
+            | `Error e ->
+              Lwt_log_core.debug_f ~section "Error while writing: %s; returning EIO error" (Block_error_printer.to_string e) >>= fun () ->
+              error t handle `EIO
+            | `Ok () ->
+              let remaining = remaining - n in
+              if remaining > 0
+              then copy Int64.(add offset (of_int n)) remaining
+              else ok t handle None in
+          copy from (Int32.to_int request.Request.len)
+        end
       end
+      >>= loop
     | { ty = Command.Read; from; len; handle } ->
+      (* It is okay to disconnect here in case of errors. The NBD protocol
+         documentation says about NBD_CMD_READ:
+         "If an error occurs, the server SHOULD set the appropriate error code
+         in the error field. The server MAY then initiate a hard disconnect.
+         If it chooses not to, it MUST NOT send any payload for this request.
+         If an error occurs while reading after the server has already sent out
+         the reply header with an error field set to zero (i.e., signalling no
+         error), the server MUST immediately initiate a hard disconnect; it
+         MUST NOT send any further data to the client." *)
       if Int64.(rem from (of_int info.Block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
@@ -240,12 +258,6 @@ let serve t (type t) block (b:t) =
           Block.read b Int64.(div offset (of_int info.Block.sector_size)) [ subblock ]
           >>= function
           | `Error e ->
-            (* The NBD protocol documentation says about NBD_CMD_READ:
-               "If an error occurs while reading after the server has already
-               sent out the reply header with an error field set to zero (i.e.,
-               signalling no error), the server MUST immediately initiate a
-               hard disconnect; it MUST NOT send any further data to the
-               client." *)
             Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Block_error_printer.to_string e))
           | `Ok () ->
             t.channel.write subblock

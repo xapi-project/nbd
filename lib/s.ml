@@ -62,7 +62,7 @@ module type SERVER = sig
       application. If the name is invalid, the only option is to close the connection.
       If the name is valid then use the [serve] function. *)
 
-  val serve : t ->  (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
+  val serve : t -> ?read_only:bool -> (module V1_LWT.BLOCK with type t = 'b) -> 'b -> unit Lwt.t
   (** [serve t block b] runs forever processing requests from [t], using [block]
       device type [b]. *)
 
