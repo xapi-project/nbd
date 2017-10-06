@@ -178,7 +178,7 @@ module Impl = struct
                   clearchan
                   (fun _exportname svr ->
                      Nbd_lwt_unix.with_block filename
-                       (fun b -> Server.serve svr (module Block) b)
+                       (fun b -> Server.serve svr ~read_only:false (module Block) b)
                   )
              )
         )
