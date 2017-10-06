@@ -1,3 +1,9 @@
+2.5.0 (2017-10-06):
+* NBD server: add support for serving block devices as read-only
+
+2.4.0 (2017-09-15):
+* NBD server: add logging using Lwt_log
+
 2.3.2 (2017-09-06):
 * nbd.opam: make ppx_sexp_conv bound less restrictive
 
