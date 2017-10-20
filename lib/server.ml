@@ -185,19 +185,23 @@ let error t handle code =
        t.channel.write t.reply
     )
 
-let serve t (type t) block (b:t) =
+let serve t (type t) ?(read_only=true) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
   let module Block = (val block: Mirage_block_lwt.S with type t = t) in
 
-  Lwt_log_core.notice ~section "Serving new client" >>= fun () ->
+  Lwt_log_core.notice_f ~section "Serving new client, read_only = %b" read_only >>= fun () ->
 
   Block.get_info b
   >>= fun info ->
   let size = Int64.(mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)) in
-  (if info.Mirage_block.read_write then Lwt.return [] else
-     Lwt_log_core.warning ~section "Block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
-     Lwt.return [ PerExportFlag.Read_only ])
-  >>= fun flags ->
+  (match read_only, info.Mirage_block.read_write with
+   | true, _ -> Lwt.return true
+   | false, true -> Lwt.return false
+   | false, false ->
+     Lwt_log_core.error ~section "Read-write access was requested, but block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
+     Lwt.return true)
+  >>= fun read_only ->
+  let flags = if read_only then [ PerExportFlag.Read_only ] else [] in
   negotiate_end t size flags
   >>= fun t ->
 
@@ -209,7 +213,9 @@ let serve t (type t) block (b:t) =
     let open Request in
     match request with
     | { ty = Command.Write; from; len; handle } ->
-      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
+      if read_only
+      then error t handle `EPERM
+      else if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
         let rec copy offset remaining =
@@ -230,6 +236,15 @@ let serve t (type t) block (b:t) =
         copy from (Int32.to_int request.Request.len)
       end
     | { ty = Command.Read; from; len; handle } ->
+      (* It is okay to disconnect here in case of errors. The NBD protocol
+         documentation says about NBD_CMD_READ:
+         "If an error occurs, the server SHOULD set the appropriate error code
+         in the error field. The server MAY then initiate a hard disconnect.
+         If it chooses not to, it MUST NOT send any payload for this request.
+         If an error occurs while reading after the server has already sent out
+         the reply header with an error field set to zero (i.e., signalling no
+         error), the server MUST immediately initiate a hard disconnect; it
+         MUST NOT send any further data to the client." *)
       if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
       then error t handle `EINVAL
       else begin
@@ -241,12 +256,6 @@ let serve t (type t) block (b:t) =
           Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
           | Error e ->
-            (* The NBD protocol documentation says about NBD_CMD_READ:
-               "If an error occurs while reading after the server has already
-               sent out the reply header with an error field set to zero (i.e.,
-               signalling no error), the server MUST immediately initiate a
-               hard disconnect; it MUST NOT send any further data to the
-               client." *)
             Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Fmt.to_to_string Block.pp_error e))
           | Ok () ->
             t.channel.write subblock
