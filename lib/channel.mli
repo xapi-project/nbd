@@ -42,3 +42,6 @@ type channel = generic_channel
 val generic_of_tls_channel: tls_channel -> generic_channel
 
 val generic_of_cleartext_channel: cleartext_channel -> generic_channel
+
+exception Timeout of float
+(** An exception to be raised when a read or write exceeds a timeout (seconds) *)

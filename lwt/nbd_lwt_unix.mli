@@ -32,7 +32,7 @@ val cleartext_channel_of_fd :
 (** [cleartext_channel_of_fd fd role] returns a channel from an existing file descriptor.
     The channel will have a [make_tls_channel] value that corresponds to [role].
     If [timeout_seconds] is supplied and greater than 0.0, it is used for each read and
-    write; if it is reached, [Lwt.fail_with] is called. *)
+    write; if it is reached, exn [Channel.Timeout timeout_seconds] is raised. *)
 
 val init_tls_get_ctx: certfile:string -> ciphersuites:string -> Ssl.context
 (** Initialise the Ssl (TLS) library and then create and return a new context. *)
@@ -51,7 +51,7 @@ val with_channel:
     applies [f] to the resulting channel, with a guarantee to call
     the channel's [close_clear] function afterwards.
     If [timeout_seconds] is supplied and greater than 0.0, it is used for each read and
-    write; if it is reached, [Lwt.fail_with] is called. *)
+    write; if it is reached, exn [Channel.Timeout timeout_seconds] is raised. *)
 
 module Client: S.CLIENT
 (** A client allows you to access remote disks *)

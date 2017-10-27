@@ -59,7 +59,7 @@ let impatient timeout_seconds f buf =
     Lwt_unix.sleep timeout_seconds >>= fun () ->
     let msg = Printf.sprintf "Closing connection due to IO timeout: %f seconds" timeout_seconds in
     Lwt_log.warning msg >>= fun () ->
-    Lwt.fail_with msg
+    Lwt.fail (Channel.Timeout timeout_seconds)
   in
   if timeout_seconds > 0.0 then (
     Lwt.pick [timeout (); f buf]
