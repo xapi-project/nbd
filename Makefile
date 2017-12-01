@@ -18,6 +18,10 @@ clean:
 test:
 	jbuilder runtest
 
+# requires sudo access, nbd-client, and hdparm
+benchmark: build
+	./benchmark.sh
+
 # requires odoc
 doc:
 	jbuilder build @doc
