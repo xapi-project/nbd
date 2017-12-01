@@ -54,7 +54,22 @@ let io_complete op fd buffer =
   then Lwt.fail End_of_file
   else return ()
 
-let tls_channel_of_fd fd role () =
+let impatient ?timeout_seconds f buf =
+  let timeout timeout_seconds =
+    Lwt_unix.sleep timeout_seconds >>= fun () ->
+    let msg = Printf.sprintf "Closing connection due to IO timeout: %f seconds" timeout_seconds in
+    Lwt_log.warning msg >>= fun () ->
+    Lwt.fail (Channel.Timeout timeout_seconds)
+  in
+  match timeout_seconds with
+  | None -> f buf
+  | Some interval -> (
+    if interval < 1.0e-9
+    then Lwt.fail_invalid_arg (Printf.sprintf "Timeout must be at least one nanosecond; got %f s." interval)
+    else Lwt.pick [timeout interval; f buf]
+  )
+
+let tls_channel_of_fd ?timeout_seconds fd role () =
   let ctx, ssl_start =
     match role with
       | TlsClient ctx -> ctx, Lwt_ssl.ssl_connect
@@ -74,21 +89,28 @@ let tls_channel_of_fd fd role () =
     ignore (Lwt_ssl.ssl_shutdown sock);
     Lwt_ssl.close sock in
 
-  return { read_tls; write_tls; close_tls }
+  return {
+    read_tls = impatient ?timeout_seconds read_tls;
+    write_tls = impatient ?timeout_seconds write_tls;
+    close_tls
+  }
 
 
-let cleartext_channel_of_fd fd role_opt =
+let cleartext_channel_of_fd ?timeout_seconds fd role_opt =
   let read_clear = Lwt_cstruct.(complete (read fd)) in
   let write_clear = Lwt_cstruct.(complete (write fd)) in
   let close_clear () = Lwt_unix.close fd in
   let make_tls_channel = match role_opt with
     | None -> None
-    | Some role -> Some (tls_channel_of_fd fd role)
+    | Some role -> Some (tls_channel_of_fd ?timeout_seconds fd role)
   in
-  { read_clear; write_clear; close_clear; make_tls_channel }
+  {
+    read_clear = impatient ?timeout_seconds read_clear;
+    write_clear = impatient ?timeout_seconds write_clear;
+    close_clear; make_tls_channel }
 
-let generic_channel_of_fd fd role =
-  let ch = cleartext_channel_of_fd fd role
+let generic_channel_of_fd ?timeout_seconds fd role =
+  let ch = cleartext_channel_of_fd ?timeout_seconds fd role
   in return (Channel.generic_of_cleartext_channel ch)
 
 (* This function is used by the client. The channel has no TLS ability. *)
@@ -122,8 +144,8 @@ let with_block filename f =
 
 let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-let with_channel fd tls_role f =
-  let clearchan = cleartext_channel_of_fd fd tls_role in
+let with_channel ?timeout_seconds fd tls_role f =
+  let clearchan = cleartext_channel_of_fd ?timeout_seconds fd tls_role in
   Lwt.finalize
     (fun () -> f clearchan)
     (* We use ignore_exn lest clearchan was closed already by f. *)
