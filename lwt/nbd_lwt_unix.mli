@@ -24,16 +24,9 @@ val connect: string -> int -> Channel.channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
     a [generic_channel] with no TLS ability or potential. *)
 
-val cleartext_channel_of_fd :
-  ?timeout_seconds:float ->
-  Lwt_unix.file_descr ->
-  tls_role option ->
-  Nbd.Channel.cleartext_channel
+val cleartext_channel_of_fd: Lwt_unix.file_descr -> tls_role option -> Channel.cleartext_channel
 (** [cleartext_channel_of_fd fd role] returns a channel from an existing file descriptor.
-    The channel will have a [make_tls_channel] value that corresponds to [role].
-    If [timeout_seconds] is supplied, if it is less than 1.0e-9 an Invalid_argument exn is
-    raised; if it is at least a nanosecond it is used for each read and write.
-    If a read/write reaches the timeout, exn [Channel.Timeout timeout_seconds] is raised. *)
+    The channel will have a [make_tls_channel] value that corresponds to [role]. *)
 
 val init_tls_get_ctx: certfile:string -> ciphersuites:string -> Ssl.context
 (** Initialise the Ssl (TLS) library and then create and return a new context. *)
@@ -43,17 +36,13 @@ val with_block: string -> (Block.t -> 'a Block.io) -> 'a Block.io
     with a guarantee to call [Block.disconnect] afterwards. *)
 
 val with_channel:
-  ?timeout_seconds:float ->
   Lwt_unix.file_descr ->
   tls_role option ->
   (Nbd.Channel.cleartext_channel -> 'a Block.io) ->
   'a Block.io
 (** [with_channel fd role f] calls [cleartext_channel_of_fd fd role] then
     applies [f] to the resulting channel, with a guarantee to call
-    the channel's [close_clear] function afterwards.
-    If [timeout_seconds] is supplied, if it is less than 1.0e-9 an Invalid_argument exn is
-    raised; if it is at least a nanosecond it is used for each read and write.
-    If a read/write reaches the timeout, exn [Channel.Timeout timeout_seconds] is raised. *)
+    the channel's [close_clear] function afterwards. *)
 
 module Client: S.CLIENT
 (** A client allows you to access remote disks *)

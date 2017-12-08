@@ -48,5 +48,3 @@ let generic_of_cleartext_channel ch = {
   close = ch.close_clear;
   is_tls = false;
 }
-
-exception Timeout of float
