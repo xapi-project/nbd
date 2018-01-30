@@ -195,7 +195,7 @@ module Impl = struct
         (fun () ->
            Lwt_unix.setsockopt sock Lwt_unix.SO_REUSEADDR true;
            let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-           Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
+           Lwt_unix.bind sock sockaddr >>= fun () ->
            Lwt_unix.listen sock 5;
            let rec loop () =
              Lwt_unix.accept sock
@@ -221,7 +221,7 @@ module Impl = struct
     let t =
       let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
       let sockaddr = Lwt_unix.ADDR_INET(Unix.inet_addr_any, port) in
-      Lwt_unix.Versioned.bind_2 sock sockaddr >>= fun () ->
+      Lwt_unix.bind sock sockaddr >>= fun () ->
       Lwt_unix.listen sock 5;
       let module M = Mirror.Make(Device)(Device) in
       ( Device.connect (Uri.of_string filename)
