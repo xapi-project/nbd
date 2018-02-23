@@ -1,6 +1,10 @@
 (executable
  ((name suite)
-  (libraries (lwt.unix nbd oUnit))
+  (libraries
+   (io-page-unix
+    lwt.unix
+    nbd
+    oUnit))
   ))
 
 (alias
