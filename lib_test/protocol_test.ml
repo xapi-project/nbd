@@ -12,23 +12,17 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open OUnit
 open Nbd
 open Lwt.Infix
 
-module TransmissionDiff =
-struct
-  type t = [`Server | `Client] * string
-  let compare = compare
-  let pp_printer formatter s =
-    Format.pp_print_string formatter
-      (match s with
+let transmission =
+  let fmt =
+    Fmt.of_to_string
+      (function
        | `Server, x -> "Server: " ^ (String.escaped x)
        | `Client, x -> "Client: " ^ (String.escaped x))
-  let pp_print_sep = OUnitDiff.pp_comma_separator
-end
-
-module TransmissionList = OUnitDiff.ListSimpleMake(TransmissionDiff)
+  in
+  Alcotest.testable fmt (=)
 
 (* All the flags in the NBD protocol are in network byte order (big-endian) *)
 
@@ -63,7 +57,10 @@ let make_channel role test_sequence =
         let available = min (Cstruct.len buf) (String.length x) in
         let written = String.sub (Cstruct.to_string buf) 0 available in
         let expected = String.sub x 0 available in
-        OUnit.assert_equal ~msg:(Printf.sprintf "wrote bytes: '%s' (length: %d), expected: '%s' (length: %d)" (String.escaped written) (String.length written) (String.escaped expected) (String.length expected)) expected written;
+        Alcotest.(check string)
+          (Printf.sprintf "wrote bytes: '%s' (length: %d), expected: '%s' (length: %d)" (String.escaped written) (String.length written) (String.escaped expected) (String.length expected))
+          expected
+          written;
         next := if available = String.length x then rest else (source, (String.sub x available (String.length x - available))) :: rest;
         let buf = Cstruct.shift buf available in
         if Cstruct.len buf = 0
@@ -71,18 +68,20 @@ let make_channel role test_sequence =
         else write buf
       | [] -> Lwt.fail_with "Tried to write but the stream was empty" in
   let close () = Lwt.return () in
-  let assert_processed_complete_sequence () = TransmissionList.assert_equal [] !next in
+  let assert_processed_complete_sequence () = Alcotest.(check (list transmission)) "processed complete sequence" [] !next in
   (assert_processed_complete_sequence, (read, write, close))
 
 let with_client_channel s f =
-  let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Client s in
-  f Channel.{read; write; close; is_tls=false};
-  assert_processed_complete_sequence ()
+  fun () ->
+    let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Client s in
+    f Channel.{read; write; close; is_tls=false};
+    assert_processed_complete_sequence ()
 
 let with_server_channel s f =
-  let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Server s in
-  f Channel.{read_clear=read; write_clear=write; close_clear=close; make_tls_channel=None};
-  assert_processed_complete_sequence ()
+  fun () ->
+    let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Server s in
+    f Channel.{read_clear=read; write_clear=write; close_clear=close; make_tls_channel=None};
+    assert_processed_complete_sequence ()
 
 module V2_negotiation = struct
 
@@ -106,30 +105,30 @@ module V2_negotiation = struct
 
   let client_negotiation =
     "Perform a negotiation using the second version of the protocol from the
-     client's side."
-    >:: fun () ->
-      with_client_channel v2_negotiation (fun channel ->
-          let t =
-            Client.negotiate channel "export1"
-            >>= fun (t, size, flags) ->
-            Lwt.return ()
-          in
-          Lwt_main.run t
-        )
+     client's side.",
+    `Quick,
+    with_client_channel v2_negotiation (fun channel ->
+        let t =
+          Client.negotiate channel "export1"
+          >>= fun (t, size, flags) ->
+          Lwt.return ()
+        in
+        Lwt_main.run t
+      )
 
   let server_negotiation =
     "Perform a negotiation using the second version of the protocol from the
-     server's side."
-    >:: fun () ->
-      with_server_channel v2_negotiation_start (fun channel ->
-          let t =
-            Server.connect channel ()
-            >>= fun (export_name, svr) ->
-            OUnit.assert_equal ~msg:"The server did not receive the correct export name" "export1" export_name;
-            Lwt.return_unit
-          in
-          Lwt_main.run t
-        )
+     server's side.",
+    `Quick,
+    with_server_channel v2_negotiation_start (fun channel ->
+        let t =
+          Server.connect channel ()
+          >>= fun (export_name, svr) ->
+          Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
+          Lwt.return_unit
+        in
+        Lwt_main.run t
+      )
 end
 
 module V2_list_export_disabled = struct
@@ -150,35 +149,35 @@ module V2_list_export_disabled = struct
 
   let client_list_disabled =
     "Check that if we request a list of exports and are denied, the error is
-     reported properly."
-    >:: fun () ->
-      with_client_channel v2_list_export_disabled (fun channel ->
-          let t =
-            Client.list channel
-            >>= function
-            | Error `Policy ->
-              Lwt.return ()
-            | _ -> failwith "Expected to receive a Policy error" in
-          Lwt_main.run t
-        )
+     reported properly.",
+    `Quick,
+    with_client_channel v2_list_export_disabled (fun channel ->
+        let t =
+          Client.list channel
+          >>= function
+          | Error `Policy ->
+            Lwt.return ()
+          | _ -> failwith "Expected to receive a Policy error" in
+        Lwt_main.run t
+      )
 
   let server_list_disabled =
     "Check that the server denies listing the exports, and the error is
-     reported properly."
-    >:: fun () ->
-      with_server_channel v2_list_export_disabled (fun channel ->
-          let t () =
-            Server.connect channel ()
-            >>= fun (_export_name, _svr) ->
-            Lwt.return_unit
-          in
-          (* TODO: The Client.list function currently does not send
-             NBD_OPT_ABORT when it should, but incorrectly disconnects, so we
-             expect this error from the server side. *)
-          OUnit.assert_raises
-            Failed_to_read_empty_stream
-            (fun () -> Lwt_main.run (t ()))
-        )
+     reported properly.",
+    `Quick,
+    with_server_channel v2_list_export_disabled (fun channel ->
+        let t () =
+          Server.connect channel ()
+          >>= fun (_export_name, _svr) ->
+          Lwt.return_unit
+        in
+        (* TODO: The Client.list function currently does not send
+           NBD_OPT_ABORT when it should, but incorrectly disconnects, so we
+           expect this error from the server side. *)
+        try
+          Lwt_main.run (t ())
+        with Failed_to_read_empty_stream -> ()
+      )
 end
 
 module V2_list_export_success = struct
@@ -209,17 +208,17 @@ module V2_list_export_success = struct
 
   let client_list_success =
     "Check that if we request a list of exports, a list is returned and parsed
-     properly."
-    >:: fun () ->
-      with_client_channel v2_list_export_success (fun channel ->
-          let t =
-            Client.list channel
-            >>= function
-            | Ok [ "export1" ] ->
-              Lwt.return ()
-            | _ -> failwith "Expected to receive a list of exports" in
-          Lwt_main.run t
-        )
+     properly.",
+    `Quick,
+    with_client_channel v2_list_export_success (fun channel ->
+        let t =
+          Client.list channel
+          >>= function
+          | Ok [ "export1" ] ->
+            Lwt.return ()
+          | _ -> failwith "Expected to receive a list of exports" in
+        Lwt_main.run t
+      )
 end
 
 module Cstruct_block : (Mirage_block_lwt.S with type t = Cstruct.t) = struct
@@ -309,22 +308,22 @@ module V2_read_only_test = struct
   ]
 
   let server_test =
-    "Serve a read-only export and test that reads and writes are handled correctly."
-    >:: fun () ->
-      with_server_channel sequence (fun channel ->
-          let t =
-            Server.connect channel ()
-            >>= fun (export_name, svr) ->
-            OUnit.assert_equal ~msg:"The server did not receive the correct export name" "export1" export_name;
-            Server.serve svr ~read_only:true (module Cstruct_block) test_block
-          in
-          Lwt_main.run t
-        )
+    "Serve a read-only export and test that reads and writes are handled correctly.",
+    `Quick,
+    with_server_channel sequence (fun channel ->
+        let t =
+          Server.connect channel ()
+          >>= fun (export_name, svr) ->
+          Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
+          Server.serve svr ~read_only:true (module Cstruct_block) test_block
+        in
+        Lwt_main.run t
+      )
 
 end
 
 let tests =
-  "Nbd client tests" >:::
+  "Nbd client tests",
   [ V2_negotiation.client_negotiation
   ; V2_negotiation.server_negotiation
   ; V2_list_export_disabled.client_list_disabled

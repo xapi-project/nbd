@@ -1,4 +1,3 @@
-open OUnit
 open Sexplib.Std
 open Lwt.Infix
 
@@ -87,7 +86,9 @@ let (>>|=) m f =
 
 
 let test_rpc =
-  "Basic test of the rpc function" >:: fun () ->
+  "Basic test of the rpc function",
+  `Quick,
+  fun () ->
     let t =
       let transport = TestPacket.create () in
       T.create transport >>= fun client ->
@@ -97,10 +98,12 @@ let test_rpc =
       TestPacket.queue_response r1 transport >>= fun () ->
       t1 >>|= fun () ->
       Lwt.return (response = r1.res_payload)
-    in assert_bool "RPC response correct" (Lwt_main.run t)
+    in Alcotest.(check bool) "RPC response correct" true (Lwt_main.run t)
 
 let test_multi_rpc =
-  "Test queuing of rpc calls in the mux" >:: fun () ->
+  "Test queuing of rpc calls in the mux",
+  `Quick,
+  fun () ->
     let t =
       let transport = TestPacket.create () in
       T.create transport >>= fun client ->
@@ -113,11 +116,12 @@ let test_multi_rpc =
       TestPacket.queue_response r2 transport >>= fun () ->
       t1 >>|= fun () -> t2 >>|= fun () ->
       Lwt.return (response1 = r1.res_payload && response2 = r2.res_payload)
-    in assert_bool "Both responses correct" (Lwt_main.run t)
+    in Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t)
 
 let test_out_of_order_responses =
-  "Test RPC functions work when responses are received out of order"
-  >:: fun () ->
+  "Test RPC functions work when responses are received out of order",
+  `Quick,
+  fun () ->
     let t =
       let transport = TestPacket.create () in
       T.create transport >>= fun client ->
@@ -130,10 +134,12 @@ let test_out_of_order_responses =
       TestPacket.queue_response r1 transport >>= fun () ->
       t1 >>|= fun () -> t2 >>|= fun () ->
       Lwt.return (response1 = r1.res_payload && response2 = r2.res_payload)
-    in assert_bool "Both responses correct" (Lwt_main.run t)
+    in Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t)
 
 let test_memory_leak =
-  "Check the mux does not have a memory leak" >:: fun () ->
+  "Check the mux does not have a memory leak",
+  `Quick,
+  fun () ->
     let t =
       let transport = TestPacket.create () in
       T.create transport >>= fun client ->
@@ -156,10 +162,12 @@ let test_memory_leak =
       in
       megaqueue 0
     in
-    assert_bool "Memory leak" (Lwt_main.run t)
+    Alcotest.(check bool) "Memory leak" true (Lwt_main.run t)
 
 let test_exception_handling =
-  "Check that exceptions raised are handled correctly" >:: fun () ->
+  "Check that exceptions raised are handled correctly",
+  `Quick,
+  fun () ->
     let t =
       let transport = TestPacket.create () in
       T.create transport >>= fun client ->
@@ -170,13 +178,13 @@ let test_exception_handling =
       TestPacket.queue_response r2 transport >>= fun () ->
       Lwt.catch  (fun () -> t1 >>= function Ok _ -> Lwt.return false | Error _ -> Lwt.return true)
         (fun e -> Printf.printf "Exception: %s\n%!" (Printexc.to_string e); Lwt.return true)
-    in assert_bool "Exception handled" (Lwt_main.run t)
+    in Alcotest.(check bool) "Exception handled" true (Lwt_main.run t)
 
 let tests =
-  "Mux tests" >:::
-    [ test_rpc
-    ; test_multi_rpc
-    ; test_out_of_order_responses
-    ; test_memory_leak
-    ; test_exception_handling
-    ]
+  "Mux tests",
+  [ test_rpc
+  ; test_multi_rpc
+  ; test_out_of_order_responses
+  ; test_memory_leak
+  ; test_exception_handling
+  ]
