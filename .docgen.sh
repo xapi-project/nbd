@@ -28,8 +28,7 @@ rm -rf $DOCDIR
 # Don't expose GH_TOKEN
 git clone --quiet --branch=gh-pages https://${GH_TOKEN}@github.com/xapi-project/nbd $DOCDIR > /dev/null 2>&1
 git -C $DOCDIR rm -rf .
-cp -r _build/default/_doc/nbd* $DOCDIR
-cp .index.html $DOCDIR/index.html
+cp -r _build/default/_doc/* $DOCDIR
 git -C $DOCDIR config user.email "travis@travis-ci.org"
 git -C $DOCDIR config user.name "Travis"
 (cd $DOCDIR; git add *)
