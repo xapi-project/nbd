@@ -57,10 +57,7 @@ let make_channel role test_sequence =
         let available = min (Cstruct.len buf) (String.length x) in
         let written = String.sub (Cstruct.to_string buf) 0 available in
         let expected = String.sub x 0 available in
-        Alcotest.(check string)
-          (Printf.sprintf "wrote bytes: '%s' (length: %d), expected: '%s' (length: %d)" (String.escaped written) (String.length written) (String.escaped expected) (String.length expected))
-          expected
-          written;
+        Alcotest.(check string) "Wrote expected data" expected written;
         next := if available = String.length x then rest else (source, (String.sub x available (String.length x - available))) :: rest;
         let buf = Cstruct.shift buf available in
         if Cstruct.len buf = 0
@@ -294,9 +291,10 @@ module V2_read_only_test = struct
     `Server, "\000\000\000\001"; (* error: EPERM *)
     `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
 
-    (* TODO: currently the server disconnects in case of write errors, but
-       according to the NBD protocol it probably shouldn't, it should continue
-       to process the client's requests *)
+    (* TODO: currently the test fails with the below lines uncommented, because
+       the server disconnects in case of write errors, but according to the NBD
+       protocol it probably shouldn't, it should continue to process the
+       client's requests *)
     (*
     `Client, nbd_request_magic;
     `Client, "\000\000"; (* command flags *)
