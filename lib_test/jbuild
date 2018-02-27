@@ -1,9 +1,13 @@
 (executable
  ((name suite)
-  (libraries (lwt.unix nbd oUnit))
+  (libraries
+   (alcotest
+    io-page-unix
+    lwt.unix
+    nbd))
   ))
 
 (alias
  ((name   runtest)
   (deps   (suite.exe))
-  (action (run ${<} -runner sequential))))
+  (action (run ${<}))))

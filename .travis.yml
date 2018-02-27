@@ -2,7 +2,9 @@ language: c
 sudo: false
 services:
   - docker
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
+install:
+  - wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
+  - wget https://raw.githubusercontent.com/xapi-project/xapi-travis-scripts/master/coverage.sh
 script: bash ./$SCRIPT
 env:
   global:
@@ -11,7 +13,14 @@ env:
   - SCRIPT=.travis-docker.sh
   matrix:
   - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.03.0
-  - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.04.2
+  # We need to pass some Travis environment variables to the container to
+  # enable uploading to coveralls and detection of Travis CI.
+  # Also, set TESTS to false to avoid running them twice.
+  # We also have to install the test dependencies because they are not there
+  # when POST_INSTALL_HOOK is run, even if TESTS is set to true.
+  - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.04.2 \
+    TEST=false \
+    POST_INSTALL_HOOK="opam install alcotest io-page-unix; env TRAVIS=$TRAVIS TRAVIS_JOB_ID=$TRAVIS_JOB_ID bash -ex coverage.sh"
   - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.05.0
   - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.03.0
   - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.04.2
@@ -20,5 +29,7 @@ env:
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.03.0
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.04.2
   - PACKAGE=nbd-tool  DISTRO="debian-unstable" OCAML_VERSION=4.05.0
+matrix:
+  fast_finish: true
 branches:
   only: master
