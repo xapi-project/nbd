@@ -12,9 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** This module tests the core NBD library by verifying that the communication
+    between the client and the server exactly matches the specified test
+    sequences. *)
+
 open Nbd
 open Lwt.Infix
 
+(** An Alcotest TESTABLE for the data transmissions in the test sequences *)
 let transmission =
   let fmt =
     Fmt.of_to_string
@@ -30,8 +35,18 @@ let option_reply_magic_number = "\x00\x03\xe8\x89\x04\x55\x65\xa9"
 let nbd_request_magic = "\x25\x60\x95\x13"
 let nbd_reply_magic = "\x67\x44\x66\x98"
 
+(** The client or server wanted to read and there is no more data from the
+    other side. *)
 exception Failed_to_read_empty_stream
 
+(** [make_channel role test_sequence] creates a channel for use by the NBD library
+    from a test sequence containing the expected communication between the
+    client and the server. Reads and writes will verify that the communication
+    matches exactly what is in [test_sequence], which is a list of data
+    transmission tuples, each specifying whether the client or the server is
+    sending the data, and the actual data sent. [role] specifies whether the
+    client or the server will use the created channel, the other side will be
+    simulated by taking the responses from [test_sequence]. *)
 let make_channel role test_sequence =
   let next = ref test_sequence in
   let rec read buf =
@@ -68,12 +83,18 @@ let make_channel role test_sequence =
   let assert_processed_complete_sequence () = Alcotest.(check (list transmission)) "processed complete sequence" [] !next in
   (assert_processed_complete_sequence, (read, write, close))
 
+(** Passes a channel for use by the NBD client to the given function, verifying
+    that all communcation matches the given test sequence and that the complete
+    sequence has been processed after the function returns. *)
 let with_client_channel s f =
   fun () ->
     let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Client s in
     f Channel.{read; write; close; is_tls=false};
     assert_processed_complete_sequence ()
 
+(** Passes a channel for use by the NBD server to the given function, verifying
+    that all communcation matches the given test sequence and that the complete
+    sequence has been processed after the function returns. *)
 let with_server_channel s f =
   fun () ->
     let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Server s in
@@ -218,6 +239,7 @@ module V2_list_export_success = struct
       )
 end
 
+(** A Mirage block module backed by a Cstruct for unit testing the NBD server *)
 module Cstruct_block : (Mirage_block_lwt.S with type t = Cstruct.t) = struct
   type page_aligned_buffer = Cstruct.t
   type error = Mirage_block.error
