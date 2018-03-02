@@ -239,30 +239,6 @@ module V2_list_export_success = struct
       )
 end
 
-(** A Mirage block module backed by a Cstruct for unit testing the NBD server *)
-module Cstruct_block : (Mirage_block_lwt.S with type t = Cstruct.t) = struct
-  type page_aligned_buffer = Cstruct.t
-  type error = Mirage_block.error
-  let pp_error = Mirage_block.pp_error
-  type write_error = Mirage_block.write_error
-  let pp_write_error = Mirage_block.pp_write_error
-  type 'a io = 'a Lwt.t
-  type t = Cstruct.t
-  let disconnect _ = Lwt.return_unit
-  let get_info contents = Lwt.return Mirage_block.{ read_write = true; sector_size = 1; size_sectors = (Cstruct.len contents |> Int64.of_int) }
-  let read contents sector_start buffers =
-    let sector_start = Int64.to_int sector_start in
-    List.fold_left
-      (fun contents buffer -> Cstruct.fillv [contents] buffer |> ignore; Cstruct.shift contents (Cstruct.len buffer))
-      (Cstruct.shift contents sector_start)
-      buffers
-    |> ignore; Lwt.return_ok ()
-  let write contents sector_start buffers =
-    let sector_start = Int64.to_int sector_start in
-    Cstruct.fillv buffers (Cstruct.shift contents sector_start)
-    |> ignore; Lwt.return_ok ()
-end
-
 module V2_read_only_test = struct
 
   let test_block = (Cstruct.of_string "asdf")
@@ -335,7 +311,7 @@ module V2_read_only_test = struct
           Server.connect channel ()
           >>= fun (export_name, svr) ->
           Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
-          Server.serve svr ~read_only:true (module Cstruct_block) test_block
+          Server.serve svr ~read_only:true (module Cstruct_block.Block) test_block
         in
         Lwt_main.run t
       )
@@ -391,7 +367,7 @@ module V2_write_test = struct
           Server.connect channel ()
           >>= fun (export_name, svr) ->
           Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
-          Server.serve svr ~read_only:false (module Cstruct_block) test_block
+          Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
         in
         Lwt_main.run t;
         Alcotest.(check string) "Data written by server"
