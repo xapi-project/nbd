@@ -10,6 +10,7 @@ depends: [
   "jbuilder" {build}
   "cmdliner"
   "lwt" {>= "2.7.0"}
+  "lwt_log"
   "mirage-block-unix"
   "nbd-lwt-unix"
   "uri"
