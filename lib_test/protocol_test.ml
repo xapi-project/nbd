@@ -12,9 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** This module tests the core NBD library by verifying that the communication
+    between the client and the server exactly matches the specified test
+    sequences. *)
+
 open Nbd
 open Lwt.Infix
 
+(** An Alcotest TESTABLE for the data transmissions in the test sequences *)
 let transmission =
   let fmt =
     Fmt.of_to_string
@@ -30,8 +35,18 @@ let option_reply_magic_number = "\x00\x03\xe8\x89\x04\x55\x65\xa9"
 let nbd_request_magic = "\x25\x60\x95\x13"
 let nbd_reply_magic = "\x67\x44\x66\x98"
 
+(** The client or server wanted to read and there is no more data from the
+    other side. *)
 exception Failed_to_read_empty_stream
 
+(** [make_channel role test_sequence] creates a channel for use by the NBD library
+    from a test sequence containing the expected communication between the
+    client and the server. Reads and writes will verify that the communication
+    matches exactly what is in [test_sequence], which is a list of data
+    transmission tuples, each specifying whether the client or the server is
+    sending the data, and the actual data sent. [role] specifies whether the
+    client or the server will use the created channel, the other side will be
+    simulated by taking the responses from [test_sequence]. *)
 let make_channel role test_sequence =
   let next = ref test_sequence in
   let rec read buf =
@@ -68,12 +83,18 @@ let make_channel role test_sequence =
   let assert_processed_complete_sequence () = Alcotest.(check (list transmission)) "processed complete sequence" [] !next in
   (assert_processed_complete_sequence, (read, write, close))
 
+(** Passes a channel for use by the NBD client to the given function, verifying
+    that all communcation matches the given test sequence and that the complete
+    sequence has been processed after the function returns. *)
 let with_client_channel s f =
   fun () ->
     let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Client s in
     f Channel.{read; write; close; is_tls=false};
     assert_processed_complete_sequence ()
 
+(** Passes a channel for use by the NBD server to the given function, verifying
+    that all communcation matches the given test sequence and that the complete
+    sequence has been processed after the function returns. *)
 let with_server_channel s f =
   fun () ->
     let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Server s in
@@ -218,29 +239,6 @@ module V2_list_export_success = struct
       )
 end
 
-module Cstruct_block : (Mirage_block_lwt.S with type t = Cstruct.t) = struct
-  type page_aligned_buffer = Cstruct.t
-  type error = Mirage_block.error
-  let pp_error = Mirage_block.pp_error
-  type write_error = Mirage_block.write_error
-  let pp_write_error = Mirage_block.pp_write_error
-  type 'a io = 'a Lwt.t
-  type t = Cstruct.t
-  let disconnect _ = Lwt.return_unit
-  let get_info contents = Lwt.return Mirage_block.{ read_write = true; sector_size = 1; size_sectors = (Cstruct.len contents |> Int64.of_int) }
-  let read contents sector_start buffers =
-    let sector_start = Int64.to_int sector_start in
-    List.fold_left
-      (fun contents buffer -> Cstruct.fillv [contents] buffer |> ignore; Cstruct.shift contents (Cstruct.len buffer))
-      (Cstruct.shift contents sector_start)
-      buffers
-    |> ignore; Lwt.return_ok ()
-  let write contents sector_start buffers =
-    let sector_start = Int64.to_int sector_start in
-    Cstruct.fillv buffers (Cstruct.shift contents sector_start)
-    |> ignore; Lwt.return_ok ()
-end
-
 module V2_read_only_test = struct
 
   let test_block = (Cstruct.of_string "asdf")
@@ -313,9 +311,68 @@ module V2_read_only_test = struct
           Server.connect channel ()
           >>= fun (export_name, svr) ->
           Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
-          Server.serve svr ~read_only:true (module Cstruct_block) test_block
+          Server.serve svr ~read_only:true (module Cstruct_block.Block) test_block
         in
         Lwt_main.run t
+      )
+
+end
+
+module V2_write_test = struct
+
+  let test_block = (Cstruct.of_string "asdf")
+
+  let sequence = [
+    `Server, "NBDMAGIC";
+    `Server, "IHAVEOPT";
+    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+    `Client, "IHAVEOPT";
+    `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+    `Client, "\000\000\000\007"; (* length of export name *)
+    `Client, "export1";
+
+    `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
+    `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+    `Server, (String.make 124 '\000');
+    (* Now we've entered transmission mode *)
+
+    `Client, nbd_request_magic;
+    `Client, "\000\000"; (* command flags *)
+    `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
+    `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
+    `Client, "\000\000\000\000\000\000\000\002"; (* offset *)
+    `Client, "\000\000\000\002"; (* length *)
+    `Client, "12"; (* 2 bytes of data *)
+
+    (* We're allowed to read from a read-only export *)
+    `Server, nbd_reply_magic;
+    `Server, "\000\000\000\000"; (* error: no error *)
+    `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
+
+    `Client, nbd_request_magic;
+    `Client, "\000\000"; (* command flags *)
+    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+    `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
+    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+    `Client, "\000\000\000\000"; (* length *)
+  ]
+
+  let server_test =
+    "Serve a read-write export and test that writes are handled correctly.",
+    `Quick,
+    with_server_channel sequence (fun channel ->
+        let t =
+          Server.connect channel ()
+          >>= fun (export_name, svr) ->
+          Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
+          Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
+        in
+        Lwt_main.run t;
+        Alcotest.(check string) "Data written by server"
+          "as12"
+          (Cstruct.to_string test_block)
       )
 
 end
@@ -328,4 +385,5 @@ let tests =
   ; V2_list_export_disabled.server_list_disabled
   ; V2_list_export_success.client_list_success
   ; V2_read_only_test.server_test
+  ; V2_write_test.server_test
   ]
