@@ -4,6 +4,7 @@
    (alcotest
     io-page-unix
     lwt.unix
+    lwt_log
     nbd))
   ))
 
