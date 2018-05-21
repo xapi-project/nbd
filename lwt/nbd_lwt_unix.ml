@@ -26,7 +26,11 @@ let connect hostname port =
   Lwt_unix.gethostbyname hostname
   >>= fun host_info ->
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
-  Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
+  Lwt.catch (fun () ->
+      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
+    ) (fun e ->
+      Lwt_unix.close socket >>= fun () -> Lwt.fail e
+    )
   >>= fun () ->
   return (of_fd socket)
 
