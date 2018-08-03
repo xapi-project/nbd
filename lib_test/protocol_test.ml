@@ -211,9 +211,6 @@ module V2_list_export_success = struct
     `Server, option_reply_magic_number;
     `Server, "\000\000\000\003";
     `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
-    (* TODO: the Client.list function incorrectly parses the server's response:
-       it expects one more 32 bit int than what the protocol describes - this
-       line shouldn't be here. *)
     `Server, "\000\000\000\011";
     `Server, "\000\000\000\007";
     `Server, "export1";
