@@ -80,6 +80,7 @@ module Device = struct
       >>= function
       | Result.Error `Disconnected -> Lwt.return_error `Disconnected
       | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
+      | Result.Error _ -> Lwt.return_error `Disconnected
       | Result.Ok x -> Lwt.return_ok x
 
   let write t off bufs = match t with
@@ -90,6 +91,7 @@ module Device = struct
       | Result.Error `Disconnected -> Lwt.return_error `Disconnected
       | Result.Error `Unimplemented -> Lwt.return_error `Unimplemented
       | Result.Error `Is_read_only -> Lwt.return_error `Is_read_only
+      | Result.Error _ -> Lwt.return_error `Disconnected
       | Result.Ok x -> Lwt.return_ok x
 
   let disconnect t = match t with

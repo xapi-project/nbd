@@ -6,14 +6,14 @@ module TestPacket = struct
 
   type request_hdr = {
     req_id : int;
-    req_payload : string;
+    req_payload : bytes;
   } [@@deriving sexp]
 
   type request_body = bytes
 
   type response_hdr = {
     res_id : int option;
-    res_payload : string;
+    res_payload : bytes;
   } [@@deriving sexp]
 
   type response_body = bytes
@@ -52,7 +52,7 @@ module TestPacket = struct
     r.req_id
 
   let handle_unrequested_packet t p =
-    if p.res_payload = "exception"
+    if p.res_payload |> Bytes.to_string = "exception"
     then Lwt.fail_with "requested exception"
     else Lwt.return ()
 
@@ -72,10 +72,10 @@ end
 module T = Nbd.Mux.Make(TestPacket)
 
 (* Some helpful packets for all tests *)
-let p1 = TestPacket.{ req_id = 1; req_payload = "p1" }
-let p2 = TestPacket.{ req_id = 2; req_payload = "p2" }
-let r1 = TestPacket.{ res_id = Some 1; res_payload = "r1" }
-let r2 = TestPacket.{ res_id = Some 2; res_payload = "r2" }
+let p1 = TestPacket.{ req_id = 1; req_payload = "p1" |> Bytes.of_string }
+let p2 = TestPacket.{ req_id = 2; req_payload = "p2" |> Bytes.of_string }
+let r1 = TestPacket.{ res_id = Some 1; res_payload = "r1" |> Bytes.of_string }
+let r2 = TestPacket.{ res_id = Some 2; res_payload = "r2" |> Bytes.of_string }
 
 let (>>|=) m f =
   (* Check for an `Ok result in an Lwt thread, and fail the
@@ -173,7 +173,7 @@ let test_exception_handling =
       T.create transport >>= fun client ->
       let open TestPacket in
       let response1 = Bytes.create 2 in
-      TestPacket.queue_response { res_id=None; res_payload="exception" } transport >>= fun () ->
+      TestPacket.queue_response { res_id=None; res_payload="exception" |> Bytes.of_string} transport >>= fun () ->
       let t1 = T.rpc p1 p1.req_payload response1 client in
       TestPacket.queue_response r2 transport >>= fun () ->
       Lwt.catch  (fun () -> t1 >>= function Ok _ -> Lwt.return false | Error _ -> Lwt.return true)

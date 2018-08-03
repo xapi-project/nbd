@@ -29,6 +29,10 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     | `Primary of Primary.write_error
     | `Secondary of Secondary.write_error
   ]
+  type mirror_error = [
+    | `Primary of Primary.error
+    | `Secondary of Secondary.write_error
+  ]
 
   let pp_error ppf = function
     | #Mirage_block.error as e -> Mirage_block.pp_error ppf e
@@ -142,7 +146,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     secondary_block_size: int; (* number of secondary sectors per info.sector_size *)
     info: Mirage_block.info;
     lock: Region_lock.t;
-    result: (unit, Secondary.write_error) result Lwt.t;
+    result: (unit, mirror_error) result Lwt.t;
     mutable percent_complete: int;
     progress_cb: [ `Percent of int | `Complete ] -> unit;
     mutable disconnected: bool;
@@ -222,12 +226,10 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     ( match read_result, write_result with
       | Ok (), Ok () ->
         Lwt.wakeup u (Ok ())
-      | Error `Unimplemented, _ ->
-        Lwt.wakeup u (Error `Unimplemented)
-      | Error `Disconnected, _ ->
-        Lwt.wakeup u (Error `Disconnected)
+      | Error e, _ ->
+        Lwt.wakeup u (Error (`Primary e))
       | Ok (), Error e ->
-        Lwt.wakeup u (Error e) );
+        Lwt.wakeup u (Error (`Secondary e)) );
     Lwt.return ()
 
   type _id = unit

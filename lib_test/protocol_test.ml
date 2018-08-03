@@ -211,9 +211,6 @@ module V2_list_export_success = struct
     `Server, option_reply_magic_number;
     `Server, "\000\000\000\003";
     `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
-    (* TODO: the Client.list function incorrectly parses the server's response:
-       it expects one more 32 bit int than what the protocol describes - this
-       line shouldn't be here. *)
     `Server, "\000\000\000\011";
     `Server, "\000\000\000\007";
     `Server, "export1";
@@ -233,6 +230,44 @@ module V2_list_export_success = struct
           Client.list channel
           >>= function
           | Ok [ "export1" ] ->
+            Lwt.return ()
+          | _ -> failwith "Expected to receive a list of exports" in
+        Lwt_main.run t
+      )
+end
+
+module V2_list_export_extra_data = struct
+  let v2_list_export_extra_data = [
+    `Server, "NBDMAGIC"; (* read *)
+    `Server, "IHAVEOPT";
+    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+    `Client, "IHAVEOPT";
+    `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
+    `Client, "\000\000\000\000";
+
+    `Server, option_reply_magic_number;
+    `Server, "\000\000\000\003";
+    `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
+    `Server, "\000\000\000\018";
+    `Server, "\000\000\000\007";
+     (* The NBD protocol allows for extra implementation-specific data after the export name *)
+    `Server, "export2<extra>";
+
+    `Server, option_reply_magic_number;
+    `Server, "\000\000\000\003";
+    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+    `Server, "\000\000\000\000";
+  ]
+
+  let client_list_extra_data =
+    "List exports with extra data after export name",
+    `Quick,
+    with_client_channel v2_list_export_extra_data (fun channel ->
+        let t =
+          Client.list channel
+          >>= function
+          | Ok [ "export2" ] ->
             Lwt.return ()
           | _ -> failwith "Expected to receive a list of exports" in
         Lwt_main.run t
@@ -384,6 +419,7 @@ let tests =
   ; V2_list_export_disabled.client_list_disabled
   ; V2_list_export_disabled.server_list_disabled
   ; V2_list_export_success.client_list_success
+  ; V2_list_export_extra_data.client_list_extra_data
   ; V2_read_only_test.server_test
   ; V2_write_test.server_test
   ]
