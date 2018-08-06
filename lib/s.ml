@@ -53,6 +53,9 @@ module type SERVER = sig
   (** The name of an export. In the 'new style' protocol as used in nbd >= 2.9.17
       the client must select an export by name. *)
 
+  exception Client_requested_abort
+  (** The client terminated the option haggling phase by sending NBD_OPT_ABORT *)
+
   val connect : cleartext_channel -> ?offer:name list -> unit -> (name * t) Lwt.t
   (** [connect cleartext_channel ?offer ()] performs the 'new style' initial
       handshake and options negotiation.
@@ -62,7 +65,10 @@ module type SERVER = sig
       requests a list of exports, otherwise we will return EPERM.
       The client's choice of name is returned which must be looked up by the
       application. If the name is invalid, the only option is to close the connection.
-      If the name is valid then use the [serve] function. *)
+      If the name is valid then use the [serve] function.
+
+      Raises {!Client_requested_abort} if the client aborts the option haggilng
+      phase instead of entering the transmission phase *)
 
   val serve : t -> ?read_only:bool -> (module Mirage_block_lwt.S with type t = 'b) -> 'b -> unit Lwt.t
   (** [serve t read_only block b] runs forever processing requests from [t], using [block]

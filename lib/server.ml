@@ -42,6 +42,14 @@ let connect channel ?offer () =
   let section = Lwt_log_core.Section.make("Server.connect") in
   Lwt_log_core.notice ~section "Starting fixed-newstyle negotiation" >>= fun () ->
 
+  (match offer with
+  | Some offers ->
+    Lwt_list.iter_s
+      (fun name ->
+         if String.length name > 4096 then Lwt.fail_with "export name must be no longer than 4096 bytes" else Lwt.return_unit)
+      offers
+  | None -> Lwt.return_unit) >>= fun () ->
+
   let buf = Cstruct.create Announcement.sizeof in
   Announcement.(marshal buf `V2);
   channel.write_clear buf
@@ -83,7 +91,12 @@ let connect channel ?offer () =
         respond opt resp chan.write
         >>= loop
       | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan)
-      | Option.Abort -> Lwt.fail Client_requested_abort
+      | Option.Abort ->
+        Lwt.catch
+          (fun () -> send_ack opt chan.write)
+          (fun exn -> Lwt_log_core.warning ~section ~exn "Failed to send ack after receiving abort")
+        >>= fun () ->
+        Lwt.fail Client_requested_abort
       | Option.Unknown _ ->
         respond opt OptionResponse.Unsupported chan.write
         >>= loop
@@ -97,13 +110,15 @@ let connect channel ?offer () =
               | [] -> send_ack opt chan.write
               | x :: xs ->
                 let len = String.length x in
-                respond ~len opt OptionResponse.Server chan.write
+                respond ~len:(len + 4) opt OptionResponse.Server chan.write
                 >>= fun () ->
-                let name = Cstruct.create len in
-                Cstruct.blit_from_string x 0 name 0 len;
+                let name = Cstruct.create (len + 4) in
+                Cstruct.BE.set_uint32 name 0 (Int32.of_int len);
+                Cstruct.blit_from_string x 0 name 4 len;
                 chan.write name
                 >>= fun () ->
-                advertise xs in
+                advertise xs
+            in
             advertise offers
             >>= loop
         end

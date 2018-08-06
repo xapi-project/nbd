@@ -42,26 +42,23 @@ let with_channels f =
     connecting the server and the client together. *)
 let test ~server ~client () =
   Lwt_log.add_rule "*" Lwt_log.Debug;
-  let t =
-    with_channels (fun client_channel server_channel ->
-        let test_server = server server_channel in
-        let cancel, _ = Lwt.task () in
-        let test_server =
-          Lwt.catch
-            (fun () -> Lwt.pick [test_server; cancel])
-            (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
-        in
-        let test_client =
-          client client_channel
-          (* TODO: because Client.disconnect does not send NBD_CMD_DISC,
-             the server loop will not stop - we have to stop it manually.
-             Once this is fixed, this cancel mechanism should be removed. *)
-          >|= fun () -> Lwt.cancel cancel
-        in
-        Lwt.join [test_server; test_client]
-      )
-  in
-  Lwt_main.run t
+  with_channels (fun client_channel server_channel ->
+      let test_server = server server_channel in
+      let cancel, _ = Lwt.task () in
+      let test_server =
+        Lwt.catch
+          (fun () -> Lwt.pick [test_server; cancel])
+          (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+      in
+      let test_client =
+        client client_channel
+        (* TODO: because Client.disconnect does not send NBD_CMD_DISC,
+           the server loop will not stop - we have to stop it manually.
+           Once this is fixed, this cancel mechanism should be removed. *)
+        >|= fun () -> Lwt.cancel cancel
+      in
+      Lwt.join [test_server; test_client]
+    )
 
 (** We fail the test if an error occurs *)
 let check msg =
@@ -69,7 +66,7 @@ let check msg =
   | Result.Ok a -> Lwt.return a
   | Result.Error _ -> Lwt.fail_with msg
 
-let test_connect_disconnect =
+let test_connect_disconnect _switch =
   let test_block = (Cstruct.of_string "asdf") in
   test
     ~server:(fun server_channel ->
@@ -86,7 +83,26 @@ let test_connect_disconnect =
         Nbd.Client.disconnect t
       )
 
-let test_read_write =
+let test_list_exports _switch =
+  test
+    ~server:(fun server_channel ->
+        Lwt.catch
+          (fun () ->
+             Nbd.Server.connect ~offer:["export1";"export2"] server_channel () >>= fun _ ->
+             Alcotest.fail "Server should not enter transmission mode")
+          (function
+            | Nbd.Server.Client_requested_abort -> Lwt.return_unit
+            | e -> Lwt.fail e)
+      )
+    ~client:(fun client_channel ->
+        Nbd.Client.list client_channel >|= fun exports ->
+        Alcotest.(check (result (slist string String.compare) reject))
+          "Received correct export names"
+          (Ok ["export1";"export2"])
+          exports
+      )
+
+let test_read_write _switch =
   let test_block = (Cstruct.of_string "asdf") in
   test
     ~server:(fun server_channel ->
@@ -111,7 +127,9 @@ let test_read_write =
       )
 
 let tests =
+  let t = Alcotest_lwt.test_case in
   "Nbd client-server connection tests",
-  [ "test_connect_disconnect", `Quick, test_connect_disconnect
-  ; "test_read_write", `Quick, test_read_write
+  [ t "test_connect_disconnect" `Quick test_connect_disconnect
+  ; t "test_list_exports" `Quick test_list_exports
+  ; t "test_read_write" `Quick test_read_write
   ]
