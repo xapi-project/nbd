@@ -104,6 +104,8 @@ let make channel size_bytes flags =
   Lwt.return { client; info; disconnected }
 
 let list channel =
+  let section = Lwt_log_core.Section.make("Client.list") in
+
   let buf = Cstruct.create Announcement.sizeof in
   channel.read buf
   >>= fun () ->
@@ -148,7 +150,28 @@ let list channel =
             end
           | Ok _ ->
             Lwt.fail_with "Server's OptionResponse had an invalid type" in
-        loop []
+        loop [] >>= fun result ->
+        (* Send NBD_OPT_ABORT to terminate the option haggling *)
+        let buf = Cstruct.create OptionRequestHeader.sizeof in
+        OptionRequestHeader.(marshal buf { ty = Option.Abort; length = 0l });
+        channel.write buf >>= fun () ->
+        (* The NBD protocol says: "the client SHOULD gracefully handle the
+         * server closing the connection after receiving an NBD_OPT_ABORT
+         * without it sending a reply" *)
+        Lwt.catch
+          (fun () ->
+             (* Read ack from server *)
+            let buf = Cstruct.create OptionResponseHeader.sizeof in
+            channel.read buf
+            >>= fun () ->
+            match OptionResponseHeader.unmarshal buf with
+            | Error e -> Lwt.fail e
+            | Ok { OptionResponseHeader.response_type = OptionResponse.Ack; _} -> Lwt.return_unit
+            | Ok _ -> Lwt.fail_with "Server's OptionResponse had an invalid type"
+          )
+          (fun exn -> Lwt_log_core.warning ~section ~exn "Got exception while reading ack from server")
+        >|= fun () ->
+        result
     end
 
 let negotiate channel export =

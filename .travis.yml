@@ -19,7 +19,7 @@ env:
   # when POST_INSTALL_HOOK is run, even if TESTS is set to true.
   - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.06 \
     TEST=false \
-    POST_INSTALL_HOOK="opam install alcotest io-page-unix; env TRAVIS=$TRAVIS TRAVIS_JOB_ID=$TRAVIS_JOB_ID bash -ex coverage.sh"
+    POST_INSTALL_HOOK="opam install alcotest alcotest-lwt io-page-unix; env TRAVIS=$TRAVIS TRAVIS_JOB_ID=$TRAVIS_JOB_ID bash -ex coverage.sh"
   - PACKAGE=nbd  DISTRO="debian-unstable" OCAML_VERSION=4.07
   # Upload docs for both nbd and nbd-lwt-unix
   - PACKAGE=nbd-lwt-unix  DISTRO="debian-unstable" OCAML_VERSION=4.06 SCRIPT=.travis-docker-docgen.sh
