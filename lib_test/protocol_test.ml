@@ -146,7 +146,7 @@ module V2_negotiation = struct
       `Quick
       (with_client_channel v2_negotiation (fun channel ->
            Nbd.Client.negotiate channel "export1"
-           >>= fun (t, size, flags) ->
+           >>= fun _ ->
            Lwt.return ()
          ))
 
@@ -157,7 +157,7 @@ module V2_negotiation = struct
       `Quick
       (with_server_channel v2_negotiation_start (fun channel ->
            Nbd.Server.connect channel ()
-           >|= fun (export_name, svr) ->
+           >|= fun (export_name, _svr) ->
            Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name
          ))
 end

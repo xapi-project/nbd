@@ -13,12 +13,12 @@ module Block : (Mirage_block_lwt.S with type t = Cstruct.t) = struct
   let read contents sector_start buffers =
     let sector_start = Int64.to_int sector_start in
     List.fold_left
-      (fun contents buffer -> Cstruct.fillv [contents] buffer |> ignore; Cstruct.shift contents (Cstruct.len buffer))
+      (fun contents buffer -> Cstruct.fillv ~src:[contents] ~dst:buffer |> ignore; Cstruct.shift contents (Cstruct.len buffer))
       (Cstruct.shift contents sector_start)
       buffers
     |> ignore; Lwt.return_ok ()
   let write contents sector_start buffers =
     let sector_start = Int64.to_int sector_start in
-    Cstruct.fillv buffers (Cstruct.shift contents sector_start)
+    Cstruct.fillv ~src:buffers ~dst:(Cstruct.shift contents sector_start)
     |> ignore; Lwt.return_ok ()
 end

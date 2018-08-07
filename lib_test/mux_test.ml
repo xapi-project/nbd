@@ -1,4 +1,3 @@
-open Sexplib.Std
 open Lwt.Infix
 
 module TestPacket = struct
@@ -31,7 +30,7 @@ module TestPacket = struct
 
   let recv_hdr t =
     Lwt_mutex.with_lock t.mutex (fun () ->
-        let rec loop () =
+        let loop () =
           if Queue.is_empty t.recv_queue then begin
             Lwt_condition.wait ~mutex:t.mutex t.recv_cond
           end else Lwt.return () in
@@ -40,7 +39,7 @@ module TestPacket = struct
         if !record_sequence then t.seq <- (Response res) :: t.seq;
         Lwt.return (res.res_id, res))
 
-  let recv_body t req_hdr rsp_hdr rsp_body =
+  let recv_body _t _req_hdr rsp_hdr rsp_body =
     Bytes.blit rsp_hdr.res_payload 0 rsp_body 0 (Bytes.length rsp_hdr.res_payload);
     Lwt.return_ok ()
 
@@ -51,7 +50,7 @@ module TestPacket = struct
   let id_of_request r =
     r.req_id
 
-  let handle_unrequested_packet t p =
+  let handle_unrequested_packet _t p =
     if p.res_payload |> Bytes.to_string = "exception"
     then Lwt.fail_with "requested exception"
     else Lwt.return ()

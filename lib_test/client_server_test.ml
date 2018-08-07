@@ -76,7 +76,7 @@ let test_connect_disconnect _switch =
         Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
       )
     ~client:(fun client_channel ->
-        Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, flags) ->
+        Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, _flags) ->
         Alcotest.(check int64) "size received by client"
           (Int64.of_int (Cstruct.len test_block))
           size;
@@ -106,11 +106,11 @@ let test_read_write _switch =
   let test_block = (Cstruct.of_string "asdf") in
   test
     ~server:(fun server_channel ->
-        Nbd.Server.connect server_channel () >>= fun (export_name, svr) ->
+        Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
         Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
       )
     ~client:(fun client_channel ->
-        Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, flags) ->
+        Nbd.Client.negotiate client_channel "export1" >>= fun (t, _size, _flags) ->
 
         let buf = Cstruct.create 2 in
         Nbd.Client.read t 1L [buf] >>= check "1st read failed" >>= fun () ->

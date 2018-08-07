@@ -1,22 +1,22 @@
 .PHONY: build release install uninstall clean test doc reindent
 
 build:
-	jbuilder build @install --dev
+	dune build @install
 
 release:
-	jbuilder build @install
+	dune build --profile release @install
 
 install:
-	jbuilder install
+	dune install
 
 uninstall:
-	jbuilder uninstall
+	dune uninstall
 
 clean:
-	jbuilder clean
+	dune clean
 
 test:
-	jbuilder runtest
+	dune runtest
 
 # requires sudo access, nbd-client, and hdparm
 benchmark: build
@@ -24,7 +24,7 @@ benchmark: build
 
 # requires odoc
 doc:
-	jbuilder build @doc
+	dune build @doc
 
 gh-pages:
 	bash .docgen.sh
