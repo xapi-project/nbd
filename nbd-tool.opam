@@ -5,9 +5,9 @@ license: "LGPL-2 with OCaml linking exception"
 homepage: "https://github.com/xapi-project/nbd"
 dev-repo: "https://github.com/xapi-project/nbd.git"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
-build: ["jbuilder" "build" "-p" name "-j" jobs]
+build: ["dune" "build" "-p" name "-j" jobs]
 depends: [
-  "jbuilder" {build}
+  "dune" {build}
   "cmdliner"
   "lwt" {>= "2.7.0"}
   "lwt_log"
