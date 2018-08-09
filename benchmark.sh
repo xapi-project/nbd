@@ -1,32 +1,18 @@
 #!/bin/bash
 
-# Run this script to benchmark the NBD server using nbd-client and hdparm.
+# Run this script to benchmark the NBD server using qemu-img.
 
 set -eux
 
 dd if=/dev/zero of=/tmp/test bs=1M count=100
-_build/default/cli/main.exe serve --no-tls /tmp/test &
+_build/default/cli/main.exe serve --exportname test --no-tls /tmp/test &
 SERVER_PROCESS=$!
-echo $SERVER_PROCESS
+# Wait for the server to start the main loop
+sleep 0.1
 
-function stop_server {
-  kill $(jobs -p)
+stop_server() {
+  kill -9 $SERVER_PROCESS
 }
 trap stop_server EXIT
 
-
-sudo modprobe nbd
-
-sudo nbd-client -N test localhost /dev/nbd0
-
-function stop_client {
-  sudo nbd-client -d /dev/nbd0
-  stop_server
-}
-trap stop_client EXIT
-
-sudo hdparm -t /dev/nbd0
-sudo hdparm -t /dev/nbd0
-sudo hdparm -t /dev/nbd0
-sudo hdparm -t /dev/nbd0
-sudo hdparm -t /dev/nbd0
+qemu-img bench 'nbd:0.0.0.0:10809:exportname=test'
