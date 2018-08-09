@@ -173,17 +173,30 @@ module Impl = struct
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-  let serve _common filename port certfile ciphersuites no_tls =
+  let serve _common filename port exportname certfile ciphersuites no_tls =
     let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
     let filename = require "filename" filename in
+    let validate ~client_exportname =
+      match exportname with
+      | Some exportname when exportname <> client_exportname ->
+        Lwt.fail_with
+          (Printf.sprintf "Client requested invalid exportname %s, name of the export is %s" client_exportname exportname)
+      | _ -> Lwt.return_unit
+    in
     let handle_connection fd =
       Lwt.finalize
         (fun () ->
            Nbd_lwt_unix.with_channel fd tls_role
              (fun clearchan ->
+                let offer = match exportname with
+                  | None -> None
+                  | Some exportname -> Some [exportname]
+                in
                 Server.with_connection
+                  ?offer
                   clearchan
-                  (fun _exportname svr ->
+                  (fun client_exportname svr ->
+                     validate ~client_exportname >>= fun () ->
                      Nbd_lwt_unix.with_block filename
                        (Server.serve svr ~read_only:false (module Block))
                   )
@@ -286,10 +299,19 @@ let serve_cmd =
   let port =
     let doc = "Local port to listen for connections on" in
     Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
+  let exportname =
+    let doc = {|Export name to use when serving the file. If specified, clients
+                will be able to list this export, and only this export name
+                will be accepted. If unspecified, listing the exports will not
+                be allowed, and all export names will be accepted when
+                connecting.|}
+    in
+    Arg.(value & opt (some string) None & info ["exportname"] ~doc)
+  in
   let no_tls =
     let doc = "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
     Arg.(value & flag & info ["no-tls"] ~doc) in
-  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ certfile $ ciphersuites $ no_tls)),
+  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ exportname $ certfile $ ciphersuites $ no_tls)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
 let mirror_cmd =

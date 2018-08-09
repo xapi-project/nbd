@@ -14,6 +14,7 @@ depends: [
   "dune" {build}
   "alcotest" {test}
   "alcotest-lwt" {test}
+  "io-page-unix" {test}
   "cstruct" {>= "3.1.0"}
   "io-page"
   "mirage-block-lwt"
