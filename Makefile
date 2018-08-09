@@ -18,7 +18,7 @@ clean:
 test:
 	dune runtest
 
-# requires sudo access, nbd-client, and hdparm
+# requires qemu-img
 benchmark: build
 	./benchmark.sh
 
