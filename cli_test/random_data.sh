@@ -30,7 +30,7 @@ trap stop_server EXIT
 for i in $(seq 100)
 do
   echo "**** Option handling: iteration $i ****"
-  dd if=/dev/urandom bs=1M count=20 | nc 0.0.0.0 10809
+  dd if=/dev/urandom bs=1M count=20 | nc 0.0.0.0 10809 || true
   # Check if the server is still running
   stat /proc/$SERVER
 done
@@ -43,7 +43,7 @@ do
   # We connect to the export and then enter the transmission phase
   printf '\000\000\000\001IHAVEOPT\000\000\000\001\000\000\000\004test' > "$DATA"
   dd if=/dev/urandom bs=1M count=20 >> "$DATA"
-  nc 0.0.0.0 10809 < "$DATA"
+  nc 0.0.0.0 10809 < "$DATA" || true
   # Check if the server is still running
   stat /proc/$SERVER
 done
