@@ -15,6 +15,7 @@
   (:cli ../cli/main.exe)
   ./test-qemu.sh
   ./test-nbd-client.sh
+  ./random_data.sh
  )
  (action (run %{suite} --cli %{cli}))
 )
