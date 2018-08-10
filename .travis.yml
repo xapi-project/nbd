@@ -27,10 +27,10 @@ env:
   # when POST_INSTALL_HOOK is run, even if TESTS is set to true.
   # And we hvae to pass some Travis environment variables to the container to
   # enable uploading to coveralls and detection of Travis CI.
-  - PACKAGE=nbd-tool DISTRO="debian-unstable" PRE_INSTALL_HOOK="sudo apt-get install -y qemu-utils nbd-client" OCAML_VERSION=4.06 \
+  - PACKAGE=nbd-tool DISTRO="debian-unstable" PRE_INSTALL_HOOK="sudo apt-get install -y qemu-utils nbd-client netcat-openbsd" OCAML_VERSION=4.06 \
     TESTS=false \
     POST_INSTALL_HOOK="opam install alcotest alcotest-lwt io-page-unix; env TRAVIS=$TRAVIS TRAVIS_JOB_ID=$TRAVIS_JOB_ID bash -ex coverage.sh"
-  - PACKAGE=nbd-tool DISTRO="debian-unstable" PRE_INSTALL_HOOK="sudo apt-get install -y qemu-utils nbd-client" OCAML_VERSION=4.07
+  - PACKAGE=nbd-tool DISTRO="debian-unstable" PRE_INSTALL_HOOK="sudo apt-get install -y qemu-utils nbd-client netcat-openbsd" OCAML_VERSION=4.07
 matrix:
   fast_finish: true
   allow_failures:
