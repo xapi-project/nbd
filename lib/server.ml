@@ -97,6 +97,9 @@ let connect channel ?offer () =
           (fun exn -> Lwt_log_core.warning ~section ~exn "Failed to send ack after receiving abort")
         >>= fun () ->
         Lwt.fail Client_requested_abort
+      | Option.StructuredReply ->
+        respond opt OptionResponse.Unsupported chan.write
+        >>= loop
       | Option.Unknown _ ->
         respond opt OptionResponse.Unsupported chan.write
         >>= loop

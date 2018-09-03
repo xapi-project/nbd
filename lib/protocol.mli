@@ -103,6 +103,8 @@ module Option: sig
     | List       (** The client would like to receive a list of known
                      disk/exports. *)
     | StartTLS   (** The client would like to protect the session with TLS. *)
+    | StructuredReply (** The client wishes to use structured replies during
+                          the transmission phase *)
     | Unknown of int32 (** This option is unknown to this implementation *)
   [@@deriving sexp]
 
