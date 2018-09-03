@@ -199,6 +199,7 @@ module Option = struct
     | StartTLS
     | Go
     | StructuredReply
+    | SetMetaContext
     | Unknown of int32
   [@@deriving sexp]
 
@@ -212,7 +213,7 @@ module Option = struct
     | 5l -> StartTLS
     | 7l -> Go
     | 8l -> StructuredReply
-    (* 6 is not supported in this implementation. *)
+    | 10l -> SetMetaContext
     | c -> Unknown c
 
   let to_int32 = function
@@ -222,6 +223,7 @@ module Option = struct
     | StartTLS -> 5l
     | Go -> 7l
     | StructuredReply -> 8l
+    | SetMetaContext -> 10l
     | Unknown c -> c
 end
 
