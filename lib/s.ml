@@ -37,6 +37,45 @@ module type CLIENT = sig
   (** [negotiate channel export] takes an already-connected channel,
       performs the initial protocol negotiation and connects to
       the named export. Returns [disk * remote disk size * flags] *)
+
+  (** {2 Option negotiation} *)
+
+  (** {!negotiate} above is a convenience function that immediately connects to
+      the specified export, and enters the transmission phase. However, the
+      fixed-newstyle version of the NBD protocol allows one to negotiate options
+      with the server before entering transmission phase. The below functions
+      allow one to interact with a server supporting fixed-newstyle negotiation
+      and then select the desired export. *)
+
+  type client
+  (** Represents a client connected to the server that is still in the option
+      haggling phase *)
+
+  val connect: channel -> client Lwt.t
+  (** Takes a channel, and performs the initial handshake without connecting to
+      an export. Fails if the server does not support fixed-newstyle negotiation. *)
+
+  val negotiate_structured_reply: client -> unit Lwt.t
+  (** Enable structured replies during the transmission phase. *)
+
+  val list_meta_contexts: client -> string -> string list -> string list Lwt.t
+  (** [list_meta_contexts client export queries] returns the metadata contexts
+      available to the client that match one of the given queries.
+      Structured replies must be negotiated first. *)
+
+  val set_meta_contexts: client -> string -> string list -> (int32 * string) list Lwt.t
+  (** [set_meta_contexts client export queries] changes the set of active
+      metadata contexts for the specified export. Structured replies must be
+      negotiated first.
+      Returns the list of selected metadata contexts, each with a unique meta
+      context ID. *)
+
+  val request_export: client -> string -> Protocol.DiskInfo.t Lwt.t
+  (** Connect to the specified export and enter tansmission phase *)
+
+  val abort: client -> unit Lwt.t
+  (** Abort the negotiation and terminate the session without connecting to an
+      export *)
 end
 
 module type SERVER = sig

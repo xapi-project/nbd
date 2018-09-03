@@ -160,6 +160,34 @@ module Impl = struct
         exit 2 in
     `Ok (Lwt_main.run t)
 
+  let list_meta_contexts _common (connection, export) queries =
+    let t =
+      let export = match export with Some e -> e | None -> "" in
+      (match connection with
+      | `Tcp (host, port) -> Nbd_lwt_unix.connect host port
+      | `UnixDomainSocket path ->
+        let socket = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+        Lwt.catch
+          (fun () -> Lwt_unix.connect socket (Lwt_unix.ADDR_UNIX path))
+          (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
+        >|= fun () ->
+        Nbd_lwt_unix.cleartext_channel_of_fd socket None
+        |> Channel.generic_of_cleartext_channel
+      )
+      >>= fun channel ->
+      Lwt.finalize
+        (fun () ->
+           Nbd.Client.connect channel >>= fun c ->
+           Nbd.Client.negotiate_structured_reply c >>= fun () ->
+           Nbd.Client.list_meta_contexts c export queries >>= fun l ->
+           Lwt_io.printl "Got meta contexts:" >>= fun () ->
+           Lwt_list.iter_s Lwt_io.printl l >>= fun () ->
+           Nbd.Client.abort c
+        )
+        channel.close
+    in
+    Lwt_main.run t
+
   (* Helper function for use within this module *)
   let init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls =
     if no_tls then None
@@ -355,13 +383,37 @@ let list_cmd =
   Term.(ret(pure Impl.list $ common_options_t $ host $ port)),
   Term.info "list" ~sdocs:_common_options ~doc ~man
 
+let list_meta_contexts_cmd =
+  let doc = "list the available metadata contexts for an export" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Queries a server and returns the list NBD metadata contexts available for the given export that match one of the queries. Note: this will fail for older servers that do not support fixed-newstyle negotiation.";
+  ] @ help in
+  let uri =
+    let doc = {|NBD uri of the form
+                "nbd:unix:<domain-socket>[:exportname=<export>]" or
+                "nbd:<server>:<port>[:exportname=<export>]"|}
+    in
+    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"uri") in
+  let parse_uri uri =
+    match Nbd.Nbd_uri.parse uri with
+    | Ok _ as r -> r
+    | Error () -> Error (`Msg ("Invalid NBD URI: " ^ uri))
+  in
+  let uri = Term.(term_result ~usage:true (const parse_uri $ uri)) in
+  let queries =
+    let doc = "Name of the export" in
+    Arg.(value & pos_right 0 string [] & info [] ~doc ~docv:"query") in
+  Term.(pure Impl.list_meta_contexts $ common_options_t $ uri $ queries),
+  Term.info "list-meta-contexts" ~sdocs:_common_options ~doc ~man
+
 let default_cmd =
   let doc = "manipulate NBD clients and servers" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
+let cmds = [serve_cmd; list_cmd; size_cmd; list_meta_contexts_cmd; mirror_cmd]
 
 let () =
   match Term.eval_choice default_cmd cmds with

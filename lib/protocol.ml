@@ -404,6 +404,32 @@ module OptionRequestHeader = struct
     Ok { ty; length }
 end
 
+module MetaContextRequest = struct
+  type t = string * string list
+
+  let sizeof (exportname, queries) =
+    List.fold_left
+      (fun size s -> size + 4 (* length *) + (String.length s))
+      (4 (* export name length *) + (String.length exportname) + 4 (* query number *))
+      queries
+
+  let marshal buf (exportname, queries) =
+    Cstruct.BE.set_uint32 buf 0 (String.length exportname |> Int32.of_int);
+    Cstruct.blit_from_string exportname 0 buf 4 (String.length exportname);
+    let buf = Cstruct.shift buf ((String.length exportname) + 4) in
+    Cstruct.BE.set_uint32 buf 0 (List.length queries |> Int32.of_int);
+    let buf = Cstruct.shift buf 4 in
+    List.fold_left
+      (fun buf s ->
+         Cstruct.BE.set_uint32 buf 0 (String.length s |> Int32.of_int);
+         Cstruct.blit_from_string s 0 buf 4 (String.length s);
+         Cstruct.shift buf ((String.length s) + 4)
+      )
+      buf
+      queries
+    |> ignore
+end
+
 (* This is the option sent by the client to select a particular disk
    export. *)
 module ExportName = struct
@@ -502,6 +528,15 @@ module Server = struct
     let buf = Cstruct.shift buf sizeof_t in
     let name = Cstruct.(to_string (sub buf 0 length)) in
     Ok { name }
+end
+
+module MetaContext = struct
+  type t = int32 * string
+
+  let unmarshal buf =
+    let meta_context_id = Cstruct.BE.get_uint32 buf 0 in
+    let meta_context_name = Cstruct.shift buf 4 |> Cstruct.to_string in
+    (meta_context_id, meta_context_name)
 end
 
 module Request = struct

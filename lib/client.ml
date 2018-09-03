@@ -85,6 +85,8 @@ let pp_write_error ppf = function
   | #Mirage_block.write_error as e -> Mirage_block.pp_write_error ppf e
   | `Protocol_error e -> Fmt.string ppf (Protocol.Error.to_string e)
 
+type client = generic_channel
+
 type t = {
   client: Rpc.client;
   info: Mirage_block.info;
@@ -103,9 +105,28 @@ let make channel size_bytes flags =
   let disconnected = false in
   Lwt.return { client; info; disconnected }
 
-let list channel =
-  let section = Lwt_log_core.Section.make("Client.list") in
+let read_ack channel =
+  let buf = Cstruct.create OptionResponseHeader.sizeof in
+  channel.read buf
+  >>= fun () ->
+  match OptionResponseHeader.unmarshal buf with
+  | Error e -> Lwt.fail e
+  | Ok { OptionResponseHeader.response_type = OptionResponse.Ack; _} -> Lwt.return_unit
+  | Ok r -> Lwt.fail_with ("Server's OptionResponse had an invalid type" ^ (OptionResponseHeader.to_string r))
 
+let abort channel =
+  (* Send NBD_OPT_ABORT to terminate the option haggling *)
+  let buf = Cstruct.create OptionRequestHeader.sizeof in
+  OptionRequestHeader.(marshal buf { ty = Option.Abort; length = 0l });
+  channel.write buf >>= fun () ->
+  (* The NBD protocol says: "the client SHOULD gracefully handle the
+   * server closing the connection after receiving an NBD_OPT_ABORT
+   * without it sending a reply" *)
+  Lwt.catch
+    (fun () -> read_ack channel)
+    (fun exn -> Lwt_log_core.warning ~exn "Got exception while reading ack from server after abort")
+
+let list channel =
   let buf = Cstruct.create Announcement.sizeof in
   channel.read buf
   >>= fun () ->
@@ -151,30 +172,11 @@ let list channel =
           | Ok _ ->
             Lwt.fail_with "Server's OptionResponse had an invalid type" in
         loop [] >>= fun result ->
-        (* Send NBD_OPT_ABORT to terminate the option haggling *)
-        let buf = Cstruct.create OptionRequestHeader.sizeof in
-        OptionRequestHeader.(marshal buf { ty = Option.Abort; length = 0l });
-        channel.write buf >>= fun () ->
-        (* The NBD protocol says: "the client SHOULD gracefully handle the
-         * server closing the connection after receiving an NBD_OPT_ABORT
-         * without it sending a reply" *)
-        Lwt.catch
-          (fun () ->
-             (* Read ack from server *)
-            let buf = Cstruct.create OptionResponseHeader.sizeof in
-            channel.read buf
-            >>= fun () ->
-            match OptionResponseHeader.unmarshal buf with
-            | Error e -> Lwt.fail e
-            | Ok { OptionResponseHeader.response_type = OptionResponse.Ack; _} -> Lwt.return_unit
-            | Ok _ -> Lwt.fail_with "Server's OptionResponse had an invalid type"
-          )
-          (fun exn -> Lwt_log_core.warning ~section ~exn "Got exception while reading ack from server")
-        >|= fun () ->
+        abort channel >|= fun () ->
         result
     end
 
-let negotiate channel export =
+let receive_announcement channel =
   let buf = Cstruct.create Announcement.sizeof in
   channel.read buf
   >>= fun () ->
@@ -186,35 +188,97 @@ let negotiate channel export =
     >>= fun () ->
     begin match Negotiate.unmarshal buf kind with
       | Error e -> Lwt.fail e
-      | Ok (Negotiate.V1 x) ->
-        make channel x.Negotiate.size x.Negotiate.flags
-        >>= fun t ->
-        Lwt.return (t, x.Negotiate.size, x.Negotiate.flags)
+      | Ok (Negotiate.V1 x) -> Lwt.return (`Oldstyle x)
       | Ok (Negotiate.V2 x) ->
+        let variant = if List.mem GlobalFlag.Fixed_newstyle x then `Fixed else `NonFixed in
+        let client_flags = match variant with `Fixed -> [ ClientFlag.Fixed_newstyle ] | `NonFixed -> [] in
         let buf = Cstruct.create NegotiateResponse.sizeof in
-        let flags = if List.mem GlobalFlag.Fixed_newstyle x then [ ClientFlag.Fixed_newstyle ] else [] in
-        NegotiateResponse.marshal buf flags;
-        channel.write buf
-        >>= fun () ->
-        let buf = Cstruct.create OptionRequestHeader.sizeof in
-        OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
-        channel.write buf
-        >>= fun () ->
-        let buf = Cstruct.create (ExportName.sizeof export) in
-        ExportName.marshal buf export;
-        channel.write buf
-        >>= fun () ->
-        let buf = Cstruct.create DiskInfo.sizeof in
-        channel.read buf
-        >>= fun () ->
-        begin match DiskInfo.unmarshal buf with
-          | Error e -> Lwt.fail e
-          | Ok x ->
-            make channel x.DiskInfo.size x.DiskInfo.flags
-            >>= fun t ->
-            Lwt.return (t, x.DiskInfo.size, x.DiskInfo.flags)
-        end
+        NegotiateResponse.marshal buf client_flags;
+        channel.write buf >>= fun () ->
+        Lwt.return (`Newstyle (variant, x))
     end
+
+let request_export channel export =
+  let buf = Cstruct.create OptionRequestHeader.sizeof in
+  OptionRequestHeader.(marshal buf { ty = Option.ExportName; length = Int32.of_int (String.length export) });
+  channel.write buf
+  >>= fun () ->
+  let buf = Cstruct.create (ExportName.sizeof export) in
+  ExportName.marshal buf export;
+  channel.write buf
+  >>= fun () ->
+  let buf = Cstruct.create DiskInfo.sizeof in
+  channel.read buf
+  >>= fun () ->
+  begin match DiskInfo.unmarshal buf with
+    | Error e -> Lwt.fail e
+    | Ok x -> Lwt.return x
+  end
+
+let negotiate channel export =
+  receive_announcement channel >>= function
+  | `Oldstyle x ->
+    make channel x.Negotiate.size x.Negotiate.flags
+    >>= fun t ->
+    Lwt.return (t, x.Negotiate.size, x.Negotiate.flags)
+  | `Newstyle (_variant, _handshake_flags) ->
+    request_export channel export >>= fun x ->
+    make channel x.DiskInfo.size x.DiskInfo.flags
+    >>= fun t ->
+    Lwt.return (t, x.DiskInfo.size, x.DiskInfo.flags)
+
+let connect channel =
+  receive_announcement channel >>= function
+  | `Oldstyle _ -> Lwt.fail_with "Server uses oldstyle negotiation"
+  | `Newstyle (`NonFixed, _) -> Lwt.fail_with "Server uses non-fixed newstyle negotiation"
+  | `Newstyle (`Fixed, _handshake_flags) -> Lwt.return channel
+
+let abort channel =
+  let buf = Cstruct.create OptionRequestHeader.sizeof in
+  OptionRequestHeader.(marshal buf { ty = Option.Abort; length = 0l });
+  channel.write buf >>= fun () ->
+  read_ack channel
+
+let negotiate_structured_reply channel =
+  let buf = Cstruct.create OptionRequestHeader.sizeof in
+  OptionRequestHeader.(marshal buf { ty = Option.StructuredReply; length = 0l });
+  channel.write buf >>= fun () ->
+  read_ack channel
+
+let send_meta_context_option ty channel export queries =
+  let buf = Cstruct.create OptionRequestHeader.sizeof in
+  let length = MetaContextRequest.sizeof (export, queries) in
+  OptionRequestHeader.(marshal buf { ty; length = length |> Int32.of_int });
+  channel.write buf >>= fun () ->
+  let buf = Cstruct.create length in
+  MetaContextRequest.marshal buf (export, queries);
+  channel.write buf >>= fun () ->
+  let buf = Cstruct.create OptionResponseHeader.sizeof in
+  let rec loop acc =
+    channel.read buf
+    >>= fun () ->
+    match OptionResponseHeader.unmarshal buf with
+    | Error e -> Lwt.fail e
+    | Ok OptionResponseHeader.{ request_type; response_type = OptionResponse.Ack; length = 0l } when request_type = ty->
+      Lwt.return acc
+    | Ok OptionResponseHeader.{ request_type; response_type = OptionResponse.MetaContext; length } when request_type = ty->
+      let buf = Cstruct.create (Int32.to_int length) in
+      channel.read buf >>= fun () ->
+      let meta_context = MetaContext.unmarshal buf in
+      loop (meta_context :: acc)
+    | Ok r -> Lwt.fail_with ("unexpected option response: " ^ (OptionResponseHeader.to_string r))
+  in
+  loop []
+
+let list_meta_contexts channel export queries =
+  send_meta_context_option Option.ListMetaContext channel export queries >|= fun l ->
+  (** The NBD protocol currently says "The metadata context ID in these replies
+      is reserved and SHOULD be set to zero; clients MUST disregard it." *)
+  let _ids, contexts = List.split l in
+  contexts
+
+let set_meta_contexts = send_meta_context_option Option.SetMetaContext
+
 
 type 'a io = 'a Lwt.t
 

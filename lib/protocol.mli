@@ -200,6 +200,15 @@ module OptionRequestHeader: sig
   val unmarshal: Cstruct.t -> (t, exn) result
 end
 
+module MetaContextRequest: sig
+  (** A list of queries to list or set the meta contexts *)
+  type t = string * string list
+
+  val sizeof: t -> int
+
+  val marshal: Cstruct.t -> t -> unit
+end
+
 module ExportName: sig
   (** An ExportName option payload *)
 
@@ -261,6 +270,17 @@ module Server: sig
   val sizeof: t -> int
 
   val unmarshal: Cstruct.t -> (t, exn) result
+end
+
+module MetaContext: sig
+  (** In response to a [SetMetaContext] or [ListMetaContext] option, the server
+      sends a number of [MetaContext] responses and then finally an [Ack] *)
+
+  type t = int32 * string
+  (** A description of a metadata context. A pair of NBD metadat context ID and
+      metadata context name *)
+
+  val unmarshal: Cstruct.t -> t
 end
 
 module Request: sig
