@@ -199,6 +199,7 @@ module Option = struct
     | StartTLS
     | Go
     | StructuredReply
+    | ListMetaContext
     | SetMetaContext
     | Unknown of int32
   [@@deriving sexp]
@@ -213,6 +214,7 @@ module Option = struct
     | 5l -> StartTLS
     | 7l -> Go
     | 8l -> StructuredReply
+    | 9l -> ListMetaContext
     | 10l -> SetMetaContext
     | c -> Unknown c
 
@@ -223,6 +225,7 @@ module Option = struct
     | StartTLS -> 5l
     | Go -> 7l
     | StructuredReply -> 8l
+    | ListMetaContext -> 9l
     | SetMetaContext -> 10l
     | Unknown c -> c
 end

@@ -107,6 +107,8 @@ module Option: sig
              using NBD_OPT_GO *)
     | StructuredReply (** The client wishes to use structured replies during
                           the transmission phase *)
+    | ListMetaContext (** List the metadata contexts that are available to the
+                          client. *)
     | SetMetaContext (** Change the set of active metadata contexts. *)
     | Unknown of int32 (** This option is unknown to this implementation *)
   [@@deriving sexp]
