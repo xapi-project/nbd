@@ -234,6 +234,7 @@ module OptionResponse = struct
   type t =
     | Ack
     | Server
+    | MetaContext
     | Unsupported
     | Policy
     | Invalid
@@ -247,6 +248,7 @@ module OptionResponse = struct
   let of_int32 = function
     | 1l -> Ack
     | 2l -> Server
+    | 4l -> MetaContext
     | -2147483647l -> Unsupported
     | -2147483646l -> Policy
     | -2147483645l -> Invalid
@@ -257,6 +259,7 @@ module OptionResponse = struct
   let to_int32 = function
     | Ack -> 1l
     | Server -> 2l
+    | MetaContext -> 4l
     | Unsupported -> -2147483647l
     | Policy -> -2147483646l
     | Invalid -> -2147483645l

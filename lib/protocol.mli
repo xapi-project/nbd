@@ -122,6 +122,7 @@ module OptionResponse: sig
   type t =
     | Ack (** Option acknowledged *)
     | Server (** A description of an export (in reponse to [List]) *)
+    | MetaContext (** A description of a metadata context. *)
     | Unsupported (** The option is unsupported *)
     | Policy (** The option is blocked by an admin policy *)
     | Invalid (** The option was invalid (i.e. the client is buggy) *)
