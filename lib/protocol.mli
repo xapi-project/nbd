@@ -14,7 +14,7 @@
 
 (** Types representing NBD protocol requests and responses. *)
 
-open Result
+(** {2 Constants} *)
 
 module Error: sig
   (** Read and write requests can fail with an error response. *)
@@ -25,8 +25,10 @@ module Error: sig
     | `ENOMEM (** Cannot allocate memory *)
     | `EINVAL (** Invalid argument *)
     | `ENOSPC (** No space left on device *)
+    | `EOVERFLOW (** Value too large *)
+    | `ESHUTDOWN (** Server is in the process of being shut down *)
     | `Unknown of int32
-  ] [@@deriving sexp]
+  ]
   (** Defined error codes which can be returned in response to a request
       in the data-pushing phase. *)
 
@@ -45,9 +47,9 @@ module Command: sig
                 this one will have completed before this command is acknowledged. *)
     | Trim  (** A hint that a data region is nolonger required and may be
                 discarded. *)
+    | BlockStatus (** A block status query request. *)
     | Unknown of int32 (** A command which this protocol implementation doesn't
-                           suport. *)
-  [@@deriving sexp]
+                           support. *)
 
   val to_string: t -> string
 end
@@ -62,7 +64,7 @@ module PerExportFlag: sig
     | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
     | Rotational  (** let the client schedule I/O for a rotational medium *)
     | Send_trim   (** server supports Command.Trim *)
-  [@@deriving sexp]
+ 
   (** Per-export flags *)
 
   val to_string: t -> string
@@ -75,7 +77,6 @@ module GlobalFlag: sig
   type t =
     | Fixed_newstyle (** server supports the fixed newstyle protocol *)
     | No_zeroes      (** request to omit the 124 bytes of zeroes *)
-  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -87,7 +88,6 @@ module ClientFlag: sig
   type t =
     | Fixed_newstyle (** client acknowledges use of fixed newstyle protocol *)
     | No_zeroes      (** client acknowledges omission of 124 bytes of zeroes *)
-  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -103,6 +103,8 @@ module Option: sig
     | List       (** The client would like to receive a list of known
                      disk/exports. *)
     | StartTLS   (** The client would like to protect the session with TLS. *)
+    | Info (** The client would like to get details about an export with the
+               given name *)
     | Go (** The client would like to connect to a given disk/export by name
              using NBD_OPT_GO *)
     | StructuredReply (** The client wishes to use structured replies during
@@ -111,7 +113,6 @@ module Option: sig
                           client. *)
     | SetMetaContext (** Change the set of active metadata contexts. *)
     | Unknown of int32 (** This option is unknown to this implementation *)
-  [@@deriving sexp]
 
   val to_string: t -> string
 end
@@ -119,26 +120,84 @@ end
 module OptionResponse: sig
   (** When the client sends an option request, the server must reply. *)
 
-  type t =
+  type reply =
     | Ack (** Option acknowledged *)
     | Server (** A description of an export (in reponse to [List]) *)
+    | Info (** A detailed description about an aspect of an export *)
     | MetaContext (** A description of a metadata context. *)
+    | Unknown of int32 (** The response is unknown to this implementation. *)
+
+  type error_reply =
     | Unsupported (** The option is unsupported *)
     | Policy (** The option is blocked by an admin policy *)
     | Invalid (** The option was invalid (i.e. the client is buggy) *)
     | Platform (** The option is not supported in this platform. *)
     | TlsReqd (** The option is not allowed when the connection is not using TLS. *)
+    | UnknownExport
+    | Shutdown
+    | BlockSizeReqd
+    | TooBig
     | Unknown of int32 (** The response is unknown to this implementation. *)
-  [@@deriving sexp]
+
+  type t = (reply, error_reply) result
 
   val to_string: t -> string
 end
+
+module OptionError : sig
+  (** An error response to an option sent in the option haggling phase, with an
+   * optional error message suitable for display to the user. *)
+
+  type t = OptionResponse.error_reply * string option
+
+  val to_string : t -> string
+end
+
+module Info : sig
+  (** Information types (NBD_INFO). These are used in information requests and
+      responses. *)
+
+  type t =
+    | Export (** Basic information about an export *)
+    | Name (** Represents the server's canonical name of the export. *)
+    | Description (** A description of the export *)
+    | BlockSize (** Represents the server's advertised block size constraints *)
+    | Unknown of int
+
+  val to_string : t -> string
+  val of_int : int -> t
+  val to_int : t -> int
+end
+
+module StructuredReplyType : sig
+  type t =
+    | None
+    | OffsetData
+    | OffsetHole
+    | BlockStatus
+    | Error
+    | ErrorOffset
+    | Unknown of int
+
+  val to_string : t -> string
+end
+
+module StructuredReplyFlag : sig
+  type t =
+    | Done
+
+  val to_string : t -> string
+end
+
+(** {2 Unmarshalling and marshalling messages} *)
+
+(** {3 Handshake} *)
 
 module Announcement: sig
   (** The server sends an initial greeting when the connectino is opened. It
       can be of two main types: the original [V1] and a 'newstyle' [V2]. *)
 
-  type t = [ `V1 | `V2 ] [@@deriving sexp]
+  type t = [ `V1 | `V2 ]
 
   val sizeof: int
 
@@ -152,10 +211,10 @@ module Negotiate: sig
   type v1 = {
     size: int64; (** The size of the disk *)
     flags: PerExportFlag.t list; (** Flags associated with the disk *)
-  } [@@deriving sexp]
+  }
   (** The original [V1] protocol supports only one disk. *)
 
-  type v2 = GlobalFlag.t list [@@deriving sexp]
+  type v2 = GlobalFlag.t list
   (** The 'newstyle' [V2] protocol supports an option negotiation
       phase and a number of sub-options [GlobalFlag.t]s *)
 
@@ -175,7 +234,7 @@ end
 module NegotiateResponse: sig
   (** The client's initial response to the server's greeting *)
 
-  type t = ClientFlag.t list [@@deriving sexp]
+  type t = ClientFlag.t list
   (** The client can send some flags, in response to flags set by the server. *)
 
   val sizeof: int
@@ -185,13 +244,15 @@ module NegotiateResponse: sig
   val unmarshal: Cstruct.t -> t
 end
 
+(** {3 Option negotiation} *)
+
 module OptionRequestHeader: sig
   (** Every option the client requests has the same header. *)
 
   type t = {
     ty: Option.t; (** The option type *)
     length: int32; (** The length of the option data *)
-  } [@@deriving sexp]
+  }
   (** The header of an option request sent by the client *)
 
   val sizeof: int
@@ -200,19 +261,10 @@ module OptionRequestHeader: sig
   val unmarshal: Cstruct.t -> (t, exn) result
 end
 
-module MetaContextRequest: sig
-  (** A list of queries to list or set the meta contexts *)
-  type t = string * string list
-
-  val sizeof: t -> int
-
-  val marshal: Cstruct.t -> t -> unit
-end
-
 module ExportName: sig
   (** An ExportName option payload *)
 
-  type t = string [@@deriving sexp]
+  type t = string
   (** The name of the export the client wishes to connect to *)
 
   val sizeof: t -> int
@@ -226,8 +278,8 @@ module DiskInfo: sig
 
   type t = {
     size: int64; (** The size of the disk in bytes *)
-    flags: PerExportFlag.t list; (** Flags associated with the disk *)
-  } [@@deriving sexp]
+    flags: PerExportFlag.t list; (** Transmission flags associated with the disk *)
+  }
   (** Details about the export chosen by the client. *)
 
   val sizeof: int
@@ -235,6 +287,30 @@ module DiskInfo: sig
   val unmarshal: Cstruct.t -> (t, exn) result
   val marshal: Cstruct.t -> t -> unit
 end
+
+module MetaContextRequest: sig
+  (** A list of queries to list or set the meta contexts *)
+
+  type t = string * string list
+
+  val sizeof: t -> int
+
+  val marshal: Cstruct.t -> t -> unit
+end
+
+module InfoRequest: sig
+  (** Payload of an information request (NBD_OPT_INFO) option.
+      Sent by the client to get details about the export. *)
+
+  type t = {
+    export : string;
+    requests : Info.t list;
+  }
+  val sizeof: t -> int
+  val marshal: Cstruct.t -> t -> unit
+  val unmarshal: Cstruct.t -> t
+end
+
 
 module OptionResponseHeader: sig
   (** The server sends a response to every option request sent by the
@@ -245,7 +321,7 @@ module OptionResponseHeader: sig
     request_type: Option.t; (** The option type requested *)
     response_type: OptionResponse.t; (** The response code *)
     length: int32; (** The length of the payload associated with the response *)
-  } [@@deriving sexp]
+  }
   (** The header of the response sent by the server in response to
       the client requesting an option. *)
 
@@ -263,7 +339,7 @@ module Server: sig
 
   type t = {
     name: string; (** The name of an available disk. *)
-  } [@@deriving sexp]
+  }
   (** A reponse to a [List] option. Note this option is repeated, once
       per available disk. *)
 
@@ -283,6 +359,35 @@ module MetaContext: sig
   val unmarshal: Cstruct.t -> t
 end
 
+module InfoResponse : sig
+  (** NBD_REP_INFO: A detailed description about an aspect of an export. *)
+
+  type block_size = {
+    min: int32;
+    preferred: int32;
+    max: int32;
+  }
+  type t =
+    | Export of DiskInfo.t
+    | Name of string
+    | Description of string
+    | BlockSize of block_size
+
+  val to_string : t -> string
+  val sizeof : t -> int
+  val marshal : Cstruct.t -> t -> unit
+
+  val unmarshal : Cstruct.t -> t option
+  (** Returns None for unknown information types *)
+end
+
+val default_client_blocksize : InfoResponse.block_size
+(** The default block sizes a client desiring maximum interoperability should
+    use, as defined by the NBD protocol. *)
+
+
+(** {3 Transmission phase} *)
+
 module Request: sig
   (** After the negotation phase, clients send I/O requests to the server. *)
 
@@ -291,7 +396,7 @@ module Request: sig
     handle : int64; (** A unique handle used to match requests with responses.*)
     from : int64;   (** The start of the data region *)
     len : int32;    (** The length of the data region *)
-  } [@@deriving sexp]
+  }
   (** An I/O request sent by the client to the server. *)
 
   val to_string: t -> string
@@ -309,7 +414,7 @@ module Reply: sig
   type t = {
     error : (unit, Error.t) result; (** Success or failure of the request *)
     handle : int64; (** The unique id in the [Request] *)
-  } [@@deriving sexp]
+  }
 
   val to_string: t -> string
 
@@ -317,4 +422,114 @@ module Reply: sig
 
   val marshal: Cstruct.t -> t -> unit
   val unmarshal: Cstruct.t -> (t, exn) result
+end
+
+module StructuredReplyChunk : sig
+  (** A structured reply chunk sent from the server in response to a [Request].
+      Note: replies may not be sent in the same order as requests, and
+      structured reply chunks from one request may be interleaved with reply
+      messages from other requests. *)
+
+  type t = {
+    flags : StructuredReplyFlag.t list;
+    reply_type : StructuredReplyType.t;
+    handle : int64;
+    length : int32;
+  }
+
+  val to_string: t -> string
+
+  val sizeof: int
+
+  val marshal: Cstruct.t -> t -> unit
+  val unmarshal: Cstruct.t -> (t, exn) result
+
+  module OffsetDataChunk : sig
+    type t = int64
+    val sizeof : int
+    val marshal : Cstruct.t -> t -> unit
+    val unmarshal : Cstruct.t -> t
+  end
+
+  module OffsetHoleChunk : sig
+    type t = {
+      offset : int64;
+      hole_size : int32;
+    }
+
+    val to_string : t -> string
+
+    val sizeof : int
+    val marshal : Cstruct.t -> t -> unit
+    val unmarshal : Cstruct.t -> t
+  end
+
+  module BlockStatusChunk : sig
+    type descriptor = {
+      length : int32;
+      status_flags : int32;
+    }
+    type t = {
+      meta_context_id : int32;
+      descriptors : descriptor list;
+    }
+
+    val to_string : t -> string
+
+    val sizeof : t -> int
+    val marshal : Cstruct.t -> t -> unit
+    val unmarshal : Cstruct.t -> t
+  end
+
+  module ErrorChunk : sig
+    type t = {
+      error : Error.t;
+      message : string;
+    }
+
+    val to_string : t -> string
+
+    val sizeof : t -> int
+    val marshal : Cstruct.t -> t -> unit
+    val unmarshal : Cstruct.t -> t
+  end
+
+  module ErrorOffsetChunk : sig
+    type t = {
+      error : Error.t;
+      message : string;
+      offset : int64;
+    }
+
+    val to_string : t -> string
+
+    val sizeof : t -> int
+    val marshal : Cstruct.t -> t -> unit
+    val unmarshal : Cstruct.t -> t
+  end
+end
+
+module GenericReply : sig
+  (** A reply message that is either a simple or a structured reply. *)
+
+  type t =
+    | Simple of Reply.t
+    | Structured of StructuredReplyChunk.t
+
+  val to_string : t -> string
+
+  type reply_type =
+    | SimpleReply
+    | StructuredReply
+
+  val get_reply_type : int32 -> (reply_type, exn) result
+
+  val sizeof_magic : int
+
+  val get_magic : Cstruct.t -> int32
+
+
+  val sizeof : reply_type -> int
+
+  val unmarshal : reply_type -> Cstruct.t -> (t, exn) result
 end

@@ -18,59 +18,48 @@
     used to match responses to requests. *)
 
 open Lwt.Infix
-open Result
 
 module type RPC = sig
   type transport
   (** The transport mechanism used to send and receive messages *)
 
   type id
-  (** Each [request_hdr] and [response_hdr] carries an [id] that is used to
-      match responses to requests. *)
 
   type request_hdr
-  type request_body
   type response_hdr
-  type response_body
 
-  val recv_hdr : transport -> (id option * response_hdr) Lwt.t
-
-  val recv_body : transport -> request_hdr -> response_hdr -> response_body -> (unit, Protocol.Error.t) result Lwt.t
-  (** [recv_body transport request_hdr response_hdr response_body] returns [Ok ()]
-      and receives and writes the body of the response into [response_body] if
-      the request has been successful, otherwise returns an [Error]. The
-      [request_hdr] parameter is the output of a preceding [recv_hdr] call. *)
-
-  val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
-  (** Send a single request. Invocations of this function will not be interleaved
-      because they are protected by a mutex *)
+  val send_hdr : transport -> request_hdr -> unit Lwt.t
+  val recv_hdr : transport -> response_hdr Lwt.t
 
   val id_of_request : request_hdr -> id
-  val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
-end
 
+  val id_of_response : response_hdr -> id
+  val final_response : response_hdr -> bool
+end
 
 module Make (R : RPC) : sig
   type client
 
-  val rpc : R.request_hdr -> R.request_body -> R.response_body -> client -> (unit, Protocol.Error.t) Result.result Lwt.t
-  (** [rpc req_hdr req_body response_body client] sends a request to the server, and
-      saves the response into [response_body]. Will block until a response to
-      this request is received from the server. *)
+  type send_request_body = R.transport -> unit Lwt.t
+  type 'a recv_response_body = 'a -> R.transport -> R.response_hdr -> 'a Lwt.t
+
+  val rpc : client -> R.request_hdr -> send_request_body -> 'a recv_response_body -> 'a -> 'a Lwt.t
 
   val create : R.transport -> client Lwt.t
-  (** [create transport] creates a new client that manages parallel requests
-      over the given transport channel. All communication over this channel
-      must go through the returned client. *)
 
 end = struct
+  type send_request_body = R.transport -> unit Lwt.t
+  type 'a recv_response_body = 'a -> R.transport -> R.response_hdr -> 'a Lwt.t
+
   exception Unexpected_id of R.id
   exception Shutdown
+
+  type callback = RecvCallback : 'a Lwt.u * 'a * 'a recv_response_body -> callback
 
   type client = {
     transport : R.transport;
     outgoing_mutex: Lwt_mutex.t;
-    id_to_wakeup : (R.id, R.request_hdr * ((unit, Protocol.Error.t) result Lwt.u) * R.response_body) Hashtbl.t;
+    id_to_wakeup : (R.id, callback) Hashtbl.t;
     mutable dispatcher_thread : unit Lwt.t;
     mutable dispatcher_shutting_down : bool;
   }
@@ -78,36 +67,44 @@ end = struct
   let rec dispatcher t =
     let th = Lwt.catch
         (fun () ->
-           R.recv_hdr t.transport
-           >>= fun (id, pkt) ->
-           match id with
-           | None -> R.handle_unrequested_packet t.transport pkt
-           | Some id ->
-             if not(Hashtbl.mem t.id_to_wakeup id)
-             then Lwt.fail (Unexpected_id id)
-             else begin
-               let request_hdr, waker, response_body = Hashtbl.find t.id_to_wakeup id in
-               R.recv_body t.transport request_hdr pkt response_body
-               >>= fun response ->
-               Lwt.wakeup waker response;
-               Hashtbl.remove t.id_to_wakeup id;
+           R.recv_hdr t.transport >>= fun response_hdr ->
+           let id = R.id_of_response response_hdr in
+           let final = R.final_response response_hdr in
+           if not(Hashtbl.mem t.id_to_wakeup id)
+           then Lwt.fail (Unexpected_id id)
+           else begin
+             match Hashtbl.find t.id_to_wakeup id with
+             | RecvCallback (waker, res, recv_response_body) ->
+               recv_response_body res t.transport response_hdr >>= fun res ->
+               if final then begin
+                 Hashtbl.remove t.id_to_wakeup id;
+                 Lwt.wakeup waker res
+               end else begin
+                 Hashtbl.replace
+                   t.id_to_wakeup
+                   id
+                   (RecvCallback (waker, res, recv_response_body))
+               end;
                Lwt.return ()
-             end
+           end
         ) (fun e ->
-            t.dispatcher_shutting_down <- true;
-            Hashtbl.iter (fun _ (_,u, _) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
-            Lwt.fail e)
+           t.dispatcher_shutting_down <- true;
+           Hashtbl.iter (fun _ -> function RecvCallback (u,_,_) -> Lwt.wakeup_later_exn u e) t.id_to_wakeup;
+           Lwt.fail e)
     in th >>= fun () -> dispatcher t
 
-  let rpc req_hdr req_body response_body t =
+  let rpc t request_hdr send_request_body recv_response_body init =
     let sleeper, waker = Lwt.wait () in
     if t.dispatcher_shutting_down
     then Lwt.fail Shutdown
     else begin
-      let id = R.id_of_request req_hdr in
-      Hashtbl.add t.id_to_wakeup id (req_hdr, waker, response_body);
+      let id = R.id_of_request request_hdr in
+      Hashtbl.add t.id_to_wakeup id (RecvCallback (waker, init, recv_response_body));
       Lwt_mutex.with_lock t.outgoing_mutex
-        (fun () -> R.send_one t.transport req_hdr req_body)
+        (fun () ->
+           R.send_hdr t.transport request_hdr >>= fun () ->
+           send_request_body t.transport
+        )
       >>= fun () ->
       sleeper
     end

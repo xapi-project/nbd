@@ -55,27 +55,39 @@ module type CLIENT = sig
   (** Takes a channel, and performs the initial handshake without connecting to
       an export. Fails if the server does not support fixed-newstyle negotiation. *)
 
-  val negotiate_structured_reply: client -> unit Lwt.t
+  val negotiate_structured_reply: client -> (unit, Protocol.OptionError.t) result Lwt.t
   (** Enable structured replies during the transmission phase. *)
 
-  val list_meta_contexts: client -> string -> string list -> string list Lwt.t
+  val list_meta_contexts: client -> string -> string list -> (string list, Protocol.OptionError.t) result Lwt.t
   (** [list_meta_contexts client export queries] returns the metadata contexts
       available to the client that match one of the given queries.
       Structured replies must be negotiated first. *)
 
-  val set_meta_contexts: client -> string -> string list -> (int32 * string) list Lwt.t
+  val set_meta_contexts: client -> string -> string list -> ((int32 * string) list, Protocol.OptionError.t) result Lwt.t
   (** [set_meta_contexts client export queries] changes the set of active
       metadata contexts for the specified export. Structured replies must be
       negotiated first.
       Returns the list of selected metadata contexts, each with a unique meta
       context ID. *)
 
-  val request_export: client -> string -> Protocol.DiskInfo.t Lwt.t
-  (** Connect to the specified export and enter tansmission phase *)
+  val query_info: client -> string -> Protocol.Info.t list -> (Protocol.InfoResponse.t list, Protocol.OptionError.t) result Lwt.t
+
+  val request_export: client -> string -> ((t * Protocol.DiskInfo.t * Protocol.InfoResponse.block_size option), Protocol.OptionError.t) result Lwt.t
+  (** Connect to the specified export and enter tansmission phase.
+      If the returned block size information is not None, the client MUST
+      respect these limits. *)
 
   val abort: client -> unit Lwt.t
   (** Abort the negotiation and terminate the session without connecting to an
       export *)
+
+  (** {2 Transmission phase} *)
+
+  val query_block_status: t -> int64 -> int32 -> (Protocol.StructuredReplyChunk.BlockStatusChunk.t list, error) result Lwt.t
+  (** [query_block_status client offset length] the block status descriptors
+      for each of the metadata contexts selected by [set_meta_contexts]. *)
+
+  val read_chunked : t -> int64 -> int32 -> (Channel.generic_channel -> size -> int32 -> unit Lwt.t) -> (unit, Protocol.Error.t) result Lwt.t
 end
 
 module type SERVER = sig

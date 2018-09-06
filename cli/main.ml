@@ -160,29 +160,154 @@ module Impl = struct
         exit 2 in
     `Ok (Lwt_main.run t)
 
+  let channel_of_connection = function
+    | `Tcp (host, port) -> Nbd_lwt_unix.connect host port
+    | `UnixDomainSocket path ->
+      let socket = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+      Lwt.catch
+        (fun () -> Lwt_unix.connect socket (Lwt_unix.ADDR_UNIX path))
+        (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
+      >|= fun () ->
+      Nbd_lwt_unix.cleartext_channel_of_fd socket None
+      |> Channel.generic_of_cleartext_channel
+
+  let get_exportname = function Some e -> e | None -> ""
+
+  let fail_on_option_error msg p =
+    p >>= function
+    | Error e -> Lwt.fail_with (msg ^ ": " ^ (Protocol.OptionError.to_string e))
+    | Ok x -> Lwt.return x
+
+  let require_structured_reply c =
+    Nbd.Client.negotiate_structured_reply c |> fail_on_option_error "Failed to negotiate structured replies"
+
+  let require_export c export =
+    Nbd.Client.request_export c export >>= function
+    | Ok x -> Lwt.return x
+    | Error e -> Lwt.fail_with (Protocol.OptionError.to_string e)
+
   let list_meta_contexts _common (connection, export) queries =
     let t =
-      let export = match export with Some e -> e | None -> "" in
-      (match connection with
-      | `Tcp (host, port) -> Nbd_lwt_unix.connect host port
-      | `UnixDomainSocket path ->
-        let socket = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-        Lwt.catch
-          (fun () -> Lwt_unix.connect socket (Lwt_unix.ADDR_UNIX path))
-          (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
-        >|= fun () ->
-        Nbd_lwt_unix.cleartext_channel_of_fd socket None
-        |> Channel.generic_of_cleartext_channel
-      )
-      >>= fun channel ->
+      let export = get_exportname export in
+      channel_of_connection connection >>= fun channel ->
       Lwt.finalize
         (fun () ->
            Nbd.Client.connect channel >>= fun c ->
-           Nbd.Client.negotiate_structured_reply c >>= fun () ->
-           Nbd.Client.list_meta_contexts c export queries >>= fun l ->
+           require_structured_reply c >>= fun () ->
+           Nbd.Client.list_meta_contexts c export queries |> fail_on_option_error "Failed to list meta contexts" >>= fun l ->
            Lwt_io.printl "Got meta contexts:" >>= fun () ->
            Lwt_list.iter_s Lwt_io.printl l >>= fun () ->
            Nbd.Client.abort c
+        )
+        channel.close
+    in
+    Lwt_main.run t
+
+  let query_block_status _common (connection, export) offset length queries =
+    let t =
+      let export = get_exportname export in
+      channel_of_connection connection >>= fun channel ->
+      Lwt.finalize
+        (fun () ->
+           Nbd.Client.connect channel >>= fun c ->
+           require_structured_reply c >>= fun () ->
+           Nbd.Client.set_meta_contexts c export queries |> fail_on_option_error "Failed to set meta contexts" >>= fun l ->
+           Lwt_io.printl "Got meta contexts:" >>= fun () ->
+           Lwt_list.iter_s (fun (id, name) -> Lwt_io.printlf "%ld: %s" id name) l >>= fun () ->
+           require_export c export >>= fun (c, _, _block_sizes) ->
+           (* Here we assume that the CLI user's request respects the max block size *)
+           Nbd.Client.query_block_status c offset length >>= fun res ->
+           begin match res with
+             | Error e -> Lwt.fail_with (Fmt.to_to_string Client.pp_error e)
+             | Ok l ->
+               Lwt_list.iter_s
+                 (fun x -> Lwt_io.printl (Protocol.StructuredReplyChunk.BlockStatusChunk.to_string x))
+                 l
+           end >>= fun () ->
+           Nbd.Client.disconnect c
+        )
+        channel.close
+    in
+    Lwt_main.run t
+
+  let query_info _common (connection, export) infos =
+    let t =
+      let export = get_exportname export in
+      channel_of_connection connection >>= fun channel ->
+      Lwt.finalize
+        (fun () ->
+           Nbd.Client.connect channel >>= fun c ->
+           Nbd.Client.query_info c export infos >>= fun res ->
+           begin match res with
+             | Error e -> Lwt.fail_with (Protocol.OptionError.to_string e)
+             | Ok l ->
+               Lwt_io.printl "Got infos:" >>= fun () ->
+               Lwt_list.iter_s
+                 (fun x -> Lwt_io.printl (Protocol.InfoResponse.to_string x))
+                 l
+           end >>= fun () ->
+           Nbd.Client.abort c
+        )
+        channel.close
+    in
+    Lwt_main.run t
+
+  let download _common (connection, export) offset length output =
+    let t =
+      let export = get_exportname export in
+      channel_of_connection connection >>= fun channel ->
+      Lwt.finalize
+        (fun () ->
+           Nbd.Client.connect channel >>= fun c ->
+           Nbd.Client.negotiate_structured_reply c >>=
+           (function
+             | Ok () -> Lwt_io.eprintl "Using structured replies"
+             | Error e -> Lwt_io.eprintf "Could not negotiate structured replies: %s" (Protocol.OptionError.to_string e))
+           >>= fun () ->
+           Lwt_unix.openfile output Unix.[O_CREAT; O_RDWR; O_EXCL] 0o600 >>= fun fd ->
+           (* The file will be prezeroed, and will only use storage space for
+            * the onn-null data *)
+           Lwt_unix.ftruncate fd (Int32.to_int length) >>= fun () ->
+           require_export c export >>= fun (c, _disk_info, block_sizes) ->
+           let block_sizes =
+             match block_sizes with
+             | Some b -> b
+             | None -> Protocol.default_client_blocksize
+           in
+           let max_block_size = block_sizes.Protocol.InfoResponse.max in
+           let buf = Cstruct.create (max_block_size |> Int32.to_int) in
+           let download offset length =
+             Nbd.Client.read_chunked c offset length
+               (fun channel offset length ->
+                  let rec loop = function
+                    | 0 -> Lwt.return_unit
+                    | length ->
+                      let l = min length (Cstruct.len buf) in
+                      let buf = Cstruct.sub buf 0 l in
+                      channel.read buf >>= fun () ->
+                      Lwt_cstruct.(complete (write fd)) buf >>= fun () ->
+                      loop (length - l)
+                  in
+                  Lwt_unix.LargeFile.lseek fd offset Unix.SEEK_SET >>= fun new_offs ->
+                  (if new_offs <> offset then Lwt.fail_with "seek failed" else Lwt.return_unit) >>= fun () ->
+                  loop (Int32.to_int length)
+               ) >>= function
+             | Error e -> Lwt.fail_with (Protocol.Error.to_string e)
+             | Ok () -> Lwt.return_unit
+           in
+           (* We need to read in chunks because the max request length is limited *)
+           let rec loop offset length =
+             if length <= max_block_size then
+               download offset length
+             else
+               download offset max_block_size >>= fun () ->
+               let length = Int32.sub length max_block_size in
+               let offset = Int64.add offset (Int64.of_int32 max_block_size) in
+               loop offset length
+           in
+           loop offset length >>= fun () ->
+           Lwt_unix.close fd >>= fun () ->
+           Nbd.Client.disconnect c
         )
         channel.close
     in
@@ -383,29 +508,99 @@ let list_cmd =
   Term.(ret(pure Impl.list $ common_options_t $ host $ port)),
   Term.info "list" ~sdocs:_common_options ~doc ~man
 
+let uri_t i =
+  let uri =
+    let doc = {|NBD uri of the form
+                "nbd:unix:<domain-socket>[:exportname=<export>]" or
+                "nbd:<server>:<port>[:exportname=<export>]"|}
+    in
+    Arg.(required & pos i (some string) None & info [] ~doc ~docv:"uri") in
+  let parse_uri uri =
+    match Nbd.Nbd_uri.parse uri with
+    | Ok _ as r -> r
+    | Error () -> Error (`Msg ("Invalid NBD URI: " ^ uri))
+  in
+  Term.(term_result ~usage:true (const parse_uri $ uri))
+
+let queries_t i =
+  let doc = "Possibly empty list of meta context queries" in
+  Arg.(value & pos_right i string [] & info [] ~doc ~docv:"query")
+
 let list_meta_contexts_cmd =
   let doc = "list the available metadata contexts for an export" in
   let man = [
     `S "DESCRIPTION";
     `P "Queries a server and returns the list NBD metadata contexts available for the given export that match one of the queries. Note: this will fail for older servers that do not support fixed-newstyle negotiation.";
   ] @ help in
-  let uri =
-    let doc = {|NBD uri of the form
-                "nbd:unix:<domain-socket>[:exportname=<export>]" or
-                "nbd:<server>:<port>[:exportname=<export>]"|}
-    in
-    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"uri") in
-  let parse_uri uri =
-    match Nbd.Nbd_uri.parse uri with
-    | Ok _ as r -> r
-    | Error () -> Error (`Msg ("Invalid NBD URI: " ^ uri))
-  in
-  let uri = Term.(term_result ~usage:true (const parse_uri $ uri)) in
-  let queries =
-    let doc = "Name of the export" in
-    Arg.(value & pos_right 0 string [] & info [] ~doc ~docv:"query") in
+  let uri = uri_t 0 in
+  let queries = queries_t 0 in
   Term.(pure Impl.list_meta_contexts $ common_options_t $ uri $ queries),
   Term.info "list-meta-contexts" ~sdocs:_common_options ~doc ~man
+
+let query_block_status_cmd =
+  let doc = "query the block status for the selected meta contexts in the given range" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Queries a server and returns the block status descriptors for the given range, for each NBD metadata context available for the given export that match one of the queries. Note: this will fail for older servers that do not support fixed-newstyle negotiation.";
+  ] @ help in
+  let uri = uri_t 0 in
+  let offset =
+    let doc = "The start of the range from which block status descriptors should be returned" in
+    Arg.(required & pos 1 (some int64) None & info [] ~doc ~docv:"offset")
+  in
+  let length =
+    let doc = "The length of the range from which block status descriptors should be returned" in
+    Arg.(required & pos 2 (some int32) None & info [] ~doc ~docv:"length")
+  in
+  let queries = queries_t 2 in
+  Term.(pure Impl.query_block_status $ common_options_t $ uri $ offset $ length $ queries),
+  Term.info "query-block-status" ~sdocs:_common_options ~doc ~man
+
+let query_info_cmd =
+  let doc = "query information about an export" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Get details about the export. This may not be supported by the server.";
+  ] @ help in
+  let uri = uri_t 0 in
+  let infos =
+    let info_conv =
+      let parse s =
+        match int_of_string s |> Nbd.Protocol.Info.of_int with
+        | Unknown n -> Error (`Msg ("Unknown info type: " ^ (string_of_int n)))
+        | n -> Ok n
+        | exception e -> Error (`Msg (Printexc.to_string e))
+      in
+      let print fmt s = Format.pp_print_string fmt (Nbd.Protocol.Info.to_string s) in
+      Arg.conv (parse, print)
+    in
+    let doc = "Possibly empty list of information request numbers, as defined by the NBD protocol (NBD_INFO)" in
+    Arg.(value & pos_right 0 info_conv [] & info [] ~doc ~docv:"infos")
+  in
+  Term.(pure Impl.query_info $ common_options_t $ uri $ infos),
+  Term.info "query-info" ~sdocs:_common_options ~doc ~man
+
+let download_cmd =
+  let doc = "download the whole or part of an export" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Downloads the specified region of the NBD export, using structured replies for skipping holes in the export and only writing the non-null data to a sparse file, if possible.";
+  ] @ help in
+  let uri = uri_t 0 in
+  let offset =
+    let doc = "The start of the region to download" in
+    Arg.(required & pos 1 (some int64) None & info [] ~doc ~docv:"offset")
+  in
+  let length =
+    let doc = "The length of the region to download" in
+    Arg.(required & pos 2 (some int32) None & info [] ~doc ~docv:"length")
+  in
+  let output =
+    let doc = "The output file" in
+    Arg.(required & pos 3 (some string) None & info [] ~doc ~docv:"output")
+  in
+  Term.(pure Impl.download $ common_options_t $ uri $ offset $ length $ output),
+  Term.info "download" ~sdocs:_common_options ~doc ~man
 
 let default_cmd =
   let doc = "manipulate NBD clients and servers" in
@@ -413,7 +608,7 @@ let default_cmd =
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [serve_cmd; list_cmd; size_cmd; list_meta_contexts_cmd; mirror_cmd]
+let cmds = [serve_cmd; list_cmd; size_cmd; list_meta_contexts_cmd; query_block_status_cmd; query_info_cmd; download_cmd; mirror_cmd]
 
 let () =
   match Term.eval_choice default_cmd cmds with

@@ -32,6 +32,7 @@ let _nbd_cmd_trim = 4l
 
 let nbd_request_magic = 0x25609513l
 let nbd_reply_magic = 0x67446698l
+let nbd_structured_reply_magic = 0x668e33efl
 
 let nbd_flag_has_flags = 1
 let nbd_flag_read_only = 2
@@ -45,6 +46,8 @@ let nbd_flag_no_zeroes = 2
 
 let nbd_flag_c_fixed_newstyle = 1
 let nbd_flag_c_no_zeroes = 2
+
+let nbd_reply_flag_done = 1
 
 let zero buf =
   for i = 0 to Cstruct.len buf - 1 do
@@ -139,6 +142,8 @@ module Error = struct
     | `ENOMEM
     | `EINVAL
     | `ENOSPC
+    | `EOVERFLOW
+    | `ESHUTDOWN
     | `Unknown of int32
   ] [@@deriving sexp]
 
@@ -150,6 +155,8 @@ module Error = struct
     | 12l -> `ENOMEM
     | 22l -> `EINVAL
     | 28l -> `ENOSPC
+    | 75l -> `EOVERFLOW
+    | 108l -> `ESHUTDOWN
     | x -> `Unknown x
 
   let to_int32 = function
@@ -158,6 +165,8 @@ module Error = struct
     | `ENOMEM -> 12l
     | `EINVAL -> 22l
     | `ENOSPC -> 28l
+    | `EOVERFLOW -> 75l
+    | `ESHUTDOWN -> 108l
     | `Unknown x -> x
 end
 
@@ -168,6 +177,7 @@ module Command = struct
     | Disc
     | Flush
     | Trim
+    | BlockStatus
     | Unknown of int32
   [@@deriving sexp]
 
@@ -179,6 +189,7 @@ module Command = struct
     | 2l -> Disc
     | 3l -> Flush
     | 4l -> Trim
+    | 7l -> BlockStatus
     | c  -> Unknown c
 
   let to_int32 = function
@@ -187,6 +198,7 @@ module Command = struct
     | Disc -> 2l
     | Flush -> 3l
     | Trim -> 4l
+    | BlockStatus -> 7l
     | Unknown c -> c
 
 end
@@ -197,6 +209,7 @@ module Option = struct
     | Abort
     | List
     | StartTLS
+    | Info
     | Go
     | StructuredReply
     | ListMetaContext
@@ -212,6 +225,7 @@ module Option = struct
     | 3l -> List
     (* 4 is not in use in the NBD protocol. *)
     | 5l -> StartTLS
+    | 6l -> Info
     | 7l -> Go
     | 8l -> StructuredReply
     | 9l -> ListMetaContext
@@ -223,6 +237,7 @@ module Option = struct
     | Abort -> 2l
     | List -> 3l
     | StartTLS -> 5l
+    | Info -> 6l
     | Go -> 7l
     | StructuredReply -> 8l
     | ListMetaContext -> 9l
@@ -231,43 +246,154 @@ module Option = struct
 end
 
 module OptionResponse = struct
-  type t =
+  type reply =
     | Ack
     | Server
+    | Info
     | MetaContext
+    | Unknown of int32
+  [@@deriving sexp]
+
+  type error_reply =
     | Unsupported
     | Policy
     | Invalid
     | Platform
     | TlsReqd
+    | UnknownExport
+    | Shutdown
+    | BlockSizeReqd
+    | TooBig
     | Unknown of int32
+  [@@deriving sexp]
+
+  type t = (reply, error_reply) result
   [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
+  let bit_31 = -2147483648l
+
   let of_int32 = function
-    | 1l -> Ack
-    | 2l -> Server
-    | 4l -> MetaContext
-    | -2147483647l -> Unsupported
-    | -2147483646l -> Policy
-    | -2147483645l -> Invalid
-    | -2147483644l -> Platform
-    | -2147483643l -> TlsReqd
-    | x -> Unknown x
+    | 1l -> Ok Ack
+    | 2l -> Ok Server
+    | 3l -> Ok Info
+    | 4l -> Ok MetaContext
+    | -2147483647l -> Error Unsupported
+    | -2147483646l -> Error Policy
+    | -2147483645l -> Error Invalid
+    | -2147483644l -> Error Platform
+    | -2147483643l -> Error TlsReqd
+    | -2147483642l -> Error UnknownExport
+    | -2147483641l -> Error Shutdown
+    | -2147483640l -> Error BlockSizeReqd
+    | -2147483639l -> Error TooBig
+      (** Errors are denoted by having bit 31 set *)
+    | x when Int32.logand x bit_31 = bit_31 -> Error (Unknown x)
+    | x -> Ok (Unknown x)
 
   let to_int32 = function
-    | Ack -> 1l
-    | Server -> 2l
-    | MetaContext -> 4l
-    | Unsupported -> -2147483647l
-    | Policy -> -2147483646l
-    | Invalid -> -2147483645l
-    | Platform -> -2147483644l
-    | TlsReqd -> -2147483643l
-    | Unknown x -> x
+    | Ok Ack -> 1l
+    | Ok Server -> 2l
+    | Ok Info -> 3l
+    | Ok MetaContext -> 4l
+    | Error Unsupported -> -2147483647l
+    | Error Policy -> -2147483646l
+    | Error Invalid -> -2147483645l
+    | Error Platform -> -2147483644l
+    | Error TlsReqd -> -2147483643l
+    | Error UnknownExport -> -2147483642l
+    | Error Shutdown      -> -2147483641l
+    | Error BlockSizeReqd -> -2147483640l
+    | Error TooBig        -> -2147483639l
+    | Error (Unknown x) | Ok (Unknown x) -> x
 
 end
+
+module OptionError = struct
+  type t = OptionResponse.error_reply * string option [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+end
+
+module Info = struct
+  type t =
+    | Export
+    | Name
+    | Description
+    | BlockSize
+    | Unknown of int
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int = function
+    | 0 -> Export
+    | 1 -> Name
+    | 2 -> Description
+    | 3 -> BlockSize
+    | x -> Unknown x
+
+  let to_int = function
+    | Export      -> 0
+    | Name        -> 1
+    | Description -> 2
+    | BlockSize   -> 3
+    | Unknown x   -> x
+end
+
+module StructuredReplyType = struct
+  type t =
+    | None
+    | OffsetData
+    | OffsetHole
+    | BlockStatus
+    | Error
+    | ErrorOffset
+    | Unknown of int
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int = function
+    | 0 -> None
+    | 1 -> OffsetData
+    | 2 -> OffsetHole
+    | 5 -> BlockStatus
+    | 32769 -> Error
+    | 32770 -> ErrorOffset
+    | x -> Unknown x
+
+  let to_int = function
+    | None -> 0
+    | OffsetData -> 1
+    | OffsetHole -> 2
+    | BlockStatus -> 5
+    | Error -> 32769
+    | ErrorOffset -> 32770
+    | Unknown x -> x
+end
+
+module StructuredReplyFlag = struct
+  type t =
+    | Done
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int flags =
+    let is_set mask = mask land flags <> 0 in
+    List.map snd
+      (List.filter (fun (mask,_) -> is_set mask)
+         [ nbd_reply_flag_done, Done ])
+
+  let to_int flags =
+    let one = function
+      | Done -> nbd_reply_flag_done
+    in
+    List.fold_left (lor) 0 (List.map one flags)
+end
+
 
 (* Sent by the server to the client which includes an initial
    protocol choice *)
@@ -404,32 +530,6 @@ module OptionRequestHeader = struct
     Ok { ty; length }
 end
 
-module MetaContextRequest = struct
-  type t = string * string list
-
-  let sizeof (exportname, queries) =
-    List.fold_left
-      (fun size s -> size + 4 (* length *) + (String.length s))
-      (4 (* export name length *) + (String.length exportname) + 4 (* query number *))
-      queries
-
-  let marshal buf (exportname, queries) =
-    Cstruct.BE.set_uint32 buf 0 (String.length exportname |> Int32.of_int);
-    Cstruct.blit_from_string exportname 0 buf 4 (String.length exportname);
-    let buf = Cstruct.shift buf ((String.length exportname) + 4) in
-    Cstruct.BE.set_uint32 buf 0 (List.length queries |> Int32.of_int);
-    let buf = Cstruct.shift buf 4 in
-    List.fold_left
-      (fun buf s ->
-         Cstruct.BE.set_uint32 buf 0 (String.length s |> Int32.of_int);
-         Cstruct.blit_from_string s 0 buf 4 (String.length s);
-         Cstruct.shift buf ((String.length s) + 4)
-      )
-      buf
-      queries
-    |> ignore
-end
-
 (* This is the option sent by the client to select a particular disk
    export. *)
 module ExportName = struct
@@ -468,6 +568,71 @@ module DiskInfo = struct
     set_t_size buf t.size;
     set_t_flags buf (PerExportFlag.to_int t.flags)
 end
+
+module MetaContextRequest = struct
+  type t = string * string list
+
+  let sizeof (exportname, queries) =
+    List.fold_left
+      (fun size s -> size + 4 (* length *) + (String.length s))
+      (4 (* export name length *) + (String.length exportname) + 4 (* query number *))
+      queries
+
+  let marshal buf (exportname, queries) =
+    Cstruct.BE.set_uint32 buf 0 (String.length exportname |> Int32.of_int);
+    Cstruct.blit_from_string exportname 0 buf 4 (String.length exportname);
+    let buf = Cstruct.shift buf ((String.length exportname) + 4) in
+    Cstruct.BE.set_uint32 buf 0 (List.length queries |> Int32.of_int);
+    let buf = Cstruct.shift buf 4 in
+    List.fold_left
+      (fun buf s ->
+         Cstruct.BE.set_uint32 buf 0 (String.length s |> Int32.of_int);
+         Cstruct.blit_from_string s 0 buf 4 (String.length s);
+         Cstruct.shift buf ((String.length s) + 4)
+      )
+      buf
+      queries
+    |> ignore
+end
+
+module InfoRequest = struct
+  type t = {
+    export : string;
+    requests : Info.t list;
+  } [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let sizeof t =
+    4 (* export name len *) + (String.length t.export) + 2 (* number of requests *) + 2 * (List.length t.requests)
+
+  let marshal buf t =
+    let export_name_len = String.length t.export in
+    Cstruct.BE.set_uint32 buf 0 (export_name_len |> Int32.of_int);
+    Cstruct.blit_from_string t.export 0 buf 4 export_name_len;
+    let buf = Cstruct.shift buf (4 + export_name_len) in
+    Cstruct.BE.set_uint16 buf 0 (List.length t.requests);
+    let buf = Cstruct.shift buf 2 in
+    List.iteri
+      (fun i r -> Cstruct.BE.set_uint16 buf (i * 2) (Info.to_int r))
+      t.requests
+
+  let unmarshal buf =
+    let export_name_len = Cstruct.BE.get_uint32 buf 0 |> Int32.to_int in
+    let export = Cstruct.sub buf 4 export_name_len |> Cstruct.to_string in
+    let buf = Cstruct.shift buf (4 + export_name_len) in
+    let num_requests = Cstruct.BE.get_uint16 buf 0 in
+    let buf = Cstruct.shift buf 2 in
+    let rec loop acc buf = function
+      | 0 -> List.rev acc
+      | n ->
+        let i = Cstruct.BE.get_uint16 buf 0 |> Info.of_int in
+        loop (i::acc) (Cstruct.shift buf 2) (n - 1)
+    in
+    let requests = loop [] buf num_requests in
+    { export; requests }
+end
+
 
 (* In the 'fixed new' style handshake, all options apart from ExportName
    should result in reply packets as follows: *)
@@ -539,6 +704,69 @@ module MetaContext = struct
     (meta_context_id, meta_context_name)
 end
 
+module InfoResponse = struct
+  type block_size = {
+    min: int32;
+    preferred: int32;
+    max: int32;
+  } [@@deriving sexp]
+  type t =
+    | Export of DiskInfo.t
+    | Name of string
+    | Description of string
+    | BlockSize of block_size
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let sizeof = function
+    | Export _ -> 2 (* type *) + 8 (* size *) + 2 (* flags *)
+    | Name s | Description s -> 2 (* type *) + (String.length s)
+    | BlockSize _ -> 2 (* type *) + 4 (* min *) + 4 (* preferred *) + 4 (* max *)
+
+  let get_type = function
+    | Export _ -> Info.Export
+    | Name _ -> Info.Name
+    | Description _ -> Info.Description
+    | BlockSize _ -> Info.BlockSize
+
+  let marshal buf t =
+    Cstruct.BE.set_uint16 buf 0 (get_type t |> Info.to_int);
+    let buf = Cstruct.shift buf 2 in
+    match t with
+    | Export DiskInfo.{size; flags} ->
+      Cstruct.BE.set_uint64 buf 0 size;
+      Cstruct.BE.set_uint16 buf 8 (PerExportFlag.to_int flags)
+    | Name s | Description s ->
+      Cstruct.blit_from_string s 0 buf 0 (String.length s)
+    | BlockSize {min; preferred; max} ->
+      Cstruct.BE.set_uint32 buf 0 min;
+      Cstruct.BE.set_uint32 buf 4 preferred;
+      Cstruct.BE.set_uint32 buf 8 max
+
+  let unmarshal buf =
+    let ty = Cstruct.BE.get_uint16 buf 0 |> Info.of_int in
+    let buf = Cstruct.shift buf 2 in
+    match ty with
+    | Export ->
+      let size = Cstruct.BE.get_uint64 buf 0 in
+      let flags = Cstruct.BE.get_uint16 buf 8 |> Int32.of_int |> PerExportFlag.of_int32 in
+      Some (Export {size; flags})
+    | Name -> Some (Name (Cstruct.to_string buf))
+    | Description -> Some (Description (Cstruct.to_string buf))
+    | BlockSize ->
+      let min = Cstruct.BE.get_uint32 buf 0 in
+      let preferred = Cstruct.BE.get_uint32 buf 4 in
+      let max = Cstruct.BE.get_uint32 buf 8 in
+      Some (BlockSize {min; preferred; max})
+    | Unknown _ ->
+      (* A client "MUST ignore information types that it does not recognize" *)
+      None
+end
+
+let default_client_blocksize =
+  InfoResponse.{min = 512l; preferred = 4096l; max = 33_554_432l}
+
 module Request = struct
   type t = {
     ty : Command.t;
@@ -601,7 +829,7 @@ module Reply = struct
     let open Rresult in
     let magic = get_t_magic buf in
     ( if nbd_reply_magic <> magic
-      then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic nbd_reply_magic))
+      then Error (Failure (Printf.sprintf "Bad reply magic: expected %ld, got %ld" nbd_reply_magic magic))
       else Ok () ) >>= fun () ->
     let error = get_t_error buf in
     let error = if error = 0l then Ok () else Error (Error.of_int32 error) in
@@ -617,4 +845,215 @@ module Reply = struct
       | Error e -> Error.to_int32 e in
     set_t_error buf error;
     set_t_handle buf t.handle
+end
+
+module StructuredReplyChunk = struct
+  type t = {
+    flags : StructuredReplyFlag.t list;
+    reply_type : StructuredReplyType.t;
+    handle : int64;
+    length : int32;
+  } [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  [%%cstruct
+    type t = {
+      magic: uint32_t;
+      flags: uint16_t;
+      reply_type: uint16_t;
+      handle: uint64_t;
+      length: uint32_t;
+    } [@@big_endian]
+  ]
+  let unmarshal buf =
+    let open Rresult in
+    let magic = get_t_magic buf in
+    ( if nbd_structured_reply_magic <> magic
+      then Error (Failure (Printf.sprintf "Bad structured reply magic: expected %ld, got %ld" nbd_structured_reply_magic magic))
+      else Ok () ) >>= fun () ->
+    let flags = get_t_flags buf |> StructuredReplyFlag.of_int in
+    let reply_type = get_t_reply_type buf |> StructuredReplyType.of_int in
+    let handle = get_t_handle buf in
+    let length = get_t_length buf in
+    Ok { flags; reply_type; handle; length }
+
+  let sizeof = sizeof_t
+
+  let marshal buf t =
+    set_t_magic buf nbd_structured_reply_magic;
+    set_t_flags buf (t.flags |> StructuredReplyFlag.to_int);
+    set_t_reply_type buf (t.reply_type |> StructuredReplyType.to_int);
+    set_t_handle buf t.handle;
+    set_t_length buf t.length;
+
+  module OffsetDataChunk = struct
+    type t = int64
+    let sizeof = 8
+    let marshal buf t = Cstruct.BE.set_uint64 buf 0 t
+    let unmarshal buf = Cstruct.BE.get_uint64 buf 0
+  end
+
+  module OffsetHoleChunk = struct
+    type t = {
+      offset : int64;
+      hole_size : int32;
+    } [@@deriving sexp]
+
+    [%%cstruct
+      type t = {
+        offset : uint64_t;
+        hole_size : uint32_t;
+      } [@@big_endian]
+    ]
+
+    let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+    let sizeof = sizeof_t
+
+    let marshal buf t =
+      set_t_offset buf t.offset;
+      set_t_hole_size buf t.hole_size
+
+    let unmarshal buf =
+      let offset = get_t_offset buf in
+      let hole_size = get_t_hole_size buf in
+      { offset; hole_size }
+  end
+
+  module BlockStatusChunk = struct
+    type descriptor = {
+      length : int32;
+      status_flags : int32;
+    } [@@deriving sexp]
+    type t = {
+      meta_context_id : int32;
+      descriptors : descriptor list;
+    } [@@deriving sexp]
+
+    let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+    let sizeof t =
+      4 (* meta context id *) + (4 (* length *) + 4 (* status flags *)) * (List.length t.descriptors)
+
+    let marshal buf t =
+      Cstruct.BE.set_uint32 buf 0 t.meta_context_id;
+      let buf = Cstruct.shift buf 4 in
+      List.iteri
+        (fun i {length; status_flags} ->
+           Cstruct.BE.set_uint32 buf (8 * i) length;
+           Cstruct.BE.set_uint32 buf (8 * i + 4) status_flags)
+        t.descriptors
+
+    let unmarshal buf =
+      let meta_context_id = Cstruct.BE.get_uint32 buf 0 in
+      let buf = Cstruct.shift buf 4 in
+      let rec loop acc buf = match Cstruct.len buf with
+        | 0 -> List.rev acc
+        | _ ->
+          let length = Cstruct.BE.get_uint32 buf 0 in
+          let status_flags = Cstruct.BE.get_uint32 buf 4 in
+          loop ({length; status_flags}::acc) (Cstruct.shift buf 8)
+      in
+      let descriptors = loop [] buf in
+      { meta_context_id; descriptors }
+  end
+
+  module ErrorChunk = struct
+    type t = {
+      error : Error.t;
+      message : string;
+    } [@@deriving sexp]
+
+    let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+    [%%cstruct
+      type t = {
+        error: uint32_t;
+        msg_len: uint16_t;
+      } [@@big_endian]
+    ]
+
+    let sizeof t = sizeof_t + (String.length t.message)
+
+    let marshal buf t =
+      set_t_error buf (t.error |> Error.to_int32);
+      set_t_msg_len buf (String.length t.message);
+      Cstruct.blit_from_string t.message 0 buf sizeof_t (String.length t.message)
+
+    let unmarshal buf =
+      let error = get_t_error buf |> Error.of_int32 in
+      let msg_len = get_t_msg_len buf in
+      let message = Cstruct.sub buf sizeof_t msg_len |> Cstruct.to_string in
+      { error; message }
+  end
+
+  module ErrorOffsetChunk = struct
+    type t = {
+      error : Error.t;
+      message : string;
+      offset : int64;
+    } [@@deriving sexp]
+
+    let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+    let sizeof t = 4 + 2 + (String.length t.message) + 8
+
+    let marshal buf t =
+      Cstruct.BE.set_uint32 buf 0 (t.error |> Error.to_int32);
+      Cstruct.BE.set_uint16 buf 4 (String.length t.message);
+      Cstruct.blit_from_string t.message 0 buf 6 (String.length t.message);
+      Cstruct.BE.set_uint64 buf (6 + String.length t.message) t.offset
+
+    let unmarshal buf =
+      let error = Cstruct.BE.get_uint32 buf 0 |> Error.of_int32 in
+      let msg_len = Cstruct.BE.get_uint16 buf 4 in
+      let message = Cstruct.sub buf 6 msg_len |> Cstruct.to_string in
+      let offset = Cstruct.BE.get_uint64 buf (6 + msg_len) in
+      { error; message; offset }
+  end
+
+  (** XXX We could also detect unkown errors with bit 15 set, but it's not
+   * mandatory: "If the client receives an unknown or unexpected type with bit
+   * 15 set, it MUST consider the current reply as errored, but MAY continue
+   * transmission unless it detects that message length is too large to fit
+   * within the length specified by the header. For all other messages with
+   * unknown or unexpected type or inconsistent contents, the client MUST
+   * initiate a hard disconnect." *)
+end
+
+module GenericReply = struct
+  type t =
+    | Simple of Reply.t
+    | Structured of StructuredReplyChunk.t
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  type reply_type =
+    | SimpleReply
+    | StructuredReply
+
+  let get_reply_type magic =
+    match magic with
+    | m when m = nbd_reply_magic -> Ok SimpleReply
+    | m when m = nbd_structured_reply_magic -> Ok StructuredReply
+    | m ->
+      Error (Failure (Printf.sprintf "Bad reply magic: expected %ld or %ld, got %ld" nbd_reply_magic nbd_structured_reply_magic m))
+
+  let sizeof_magic = 4
+
+  let get_magic buf = Cstruct.BE.get_uint32 buf 0
+
+  let sizeof = function
+    | SimpleReply -> Reply.sizeof
+    | StructuredReply -> StructuredReplyChunk.sizeof
+
+  let unmarshal t buf =
+    let open Rresult in
+    match t with
+    | SimpleReply ->
+      Reply.unmarshal buf >>| fun r -> Simple r
+    | StructuredReply ->
+      StructuredReplyChunk.unmarshal buf >>| fun r -> Structured r
 end

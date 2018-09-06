@@ -71,7 +71,7 @@ let connect channel ?offer () =
     OptionResponseHeader.(marshal res { request_type = opt; response_type = resp; length = Int32.of_int len });
     writefn res
   in
-  let send_ack opt writefn = respond opt OptionResponse.Ack writefn
+  let send_ack opt writefn = respond opt (Ok OptionResponse.Ack) writefn
   in
   let read_hdr_and_payload readfn =
     readfn req >>= fun () ->
@@ -88,7 +88,7 @@ let connect channel ?offer () =
       >>= fun (opt, payload) -> match opt with
       | Option.StartTLS ->
         let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
-        respond opt resp chan.write
+        respond opt (Error resp) chan.write
         >>= loop
       | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan)
       | Option.Abort ->
@@ -97,23 +97,23 @@ let connect channel ?offer () =
           (fun exn -> Lwt_log_core.warning ~section ~exn "Failed to send ack after receiving abort")
         >>= fun () ->
         Lwt.fail Client_requested_abort
-      | Option.StructuredReply | Option.Go | Option.ListMetaContext | Option.SetMetaContext ->
-        respond opt OptionResponse.Unsupported chan.write
+      | Option.StructuredReply | Option.Info | Option.Go | Option.ListMetaContext | Option.SetMetaContext ->
+        respond opt (Error OptionResponse.Unsupported) chan.write
         >>= loop
       | Option.Unknown _ ->
-        respond opt OptionResponse.Unsupported chan.write
+        respond opt (Error OptionResponse.Unsupported) chan.write
         >>= loop
       | Option.List ->
         begin match offer with
           | None ->
-            respond opt OptionResponse.Policy chan.write
+            respond opt (Error OptionResponse.Policy) chan.write
             >>= loop
           | Some offers ->
             let rec advertise = function
               | [] -> send_ack opt chan.write
               | x :: xs ->
                 let len = String.length x in
-                respond ~len:(len + 4) opt OptionResponse.Server chan.write
+                respond ~len:(len + 4) opt (Ok OptionResponse.Server) chan.write
                 >>= fun () ->
                 let name = Cstruct.create (len + 4) in
                 Cstruct.BE.set_uint32 name 0 (Int32.of_int len);
@@ -140,7 +140,7 @@ let connect channel ?offer () =
           generic_loop (Channel.generic_of_tls_channel tch)
         )
       (* For any other option, respond saying TLS is required, then await next OptionRequest. *)
-      | _ -> respond opt OptionResponse.TlsReqd channel.write_clear
+      | _ -> respond opt (Error OptionResponse.TlsReqd) channel.write_clear
         >>= negotiate_tls
     in negotiate_tls ()
   in
