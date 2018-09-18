@@ -26,17 +26,18 @@ type t = {
   request: Cstruct.t; (* buffer used to read the request headers *)
   reply: Cstruct.t;   (* buffer used to write the response headers *)
   m: Lwt_mutex.t; (* prevents partial message interleaving *)
+  connect_opt: [`ExportName | `Go]; (* whether the client connected using NBD_OPT_GO or NBD_OPT_EXPORT_NAME *)
 }
 
 type size = int64
 
 let close t = t.channel.close ()
 
-let make channel =
+let make channel connect_opt =
   let request = Cstruct.create Request.sizeof in
   let reply = Cstruct.create Reply.sizeof in
   let m = Lwt_mutex.create () in
-  { channel; request; reply; m }
+  { channel; request; reply; m; connect_opt }
 
 let connect channel ?offer () =
   let section = Lwt_log_core.Section.make("Server.connect") in
@@ -90,14 +91,19 @@ let connect channel ?offer () =
         let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
         respond opt (Error resp) chan.write
         >>= loop
-      | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan)
+      | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan `ExportName)
+      | Option.Go ->
+        let req = Protocol.InfoRequest.unmarshal payload in
+        (* We ignore all the information requests and only send the required
+         * NBD_INFO_EXPORT in negotiate_end - the protcol allows this *)
+        Lwt.return (req.InfoRequest.export, make chan `Go)
       | Option.Abort ->
         Lwt.catch
           (fun () -> send_ack opt chan.write)
           (fun exn -> Lwt_log_core.warning ~section ~exn "Failed to send ack after receiving abort")
         >>= fun () ->
         Lwt.fail Client_requested_abort
-      | Option.StructuredReply | Option.Info | Option.Go | Option.ListMetaContext | Option.SetMetaContext ->
+      | Option.StructuredReply | Option.Info | Option.ListMetaContext | Option.SetMetaContext ->
         respond opt (Error OptionResponse.Unsupported) chan.write
         >>= loop
       | Option.Unknown _ ->
@@ -171,12 +177,28 @@ let with_connection clearchan ?offer f =
     (fun () -> f exportname t)
     (fun () -> close t)
 
-let negotiate_end t  size flags : t Lwt.t =
-  let buf = Cstruct.create DiskInfo.sizeof in
-  DiskInfo.(marshal buf { size; flags });
-  t.channel.write buf
-  >>= fun () ->
-  Lwt.return { channel = t.channel; request = t.request; reply = t.reply; m = t.m }
+let negotiate_end t size flags =
+  let diskinfo = DiskInfo.{size; flags} in
+  match t.connect_opt with
+  | `ExportName ->
+    let buf = Cstruct.create DiskInfo.sizeof in
+    DiskInfo.marshal buf diskinfo;
+    t.channel.write buf
+  | `Go ->
+    (* Client connected using NBD_OPT_GO *)
+    (* We must always return a NBD_INFO_EXPORT *)
+    let resp = InfoResponse.Export diskinfo in
+    let length = Protocol.InfoResponse.sizeof resp in
+    let buf = Cstruct.create OptionResponseHeader.sizeof in
+    OptionResponseHeader.(marshal buf { request_type = Option.Go; response_type = Ok OptionResponse.Info; length = length |> Int32.of_int });
+    t.channel.write buf >>= fun () ->
+    let buf = Cstruct.create length in
+    InfoResponse.marshal buf resp;
+    t.channel.write buf >>= fun () ->
+    (* Then we send the final ack before entering transmission phase *)
+    let res = Cstruct.create OptionResponseHeader.sizeof in
+    OptionResponseHeader.(marshal res { request_type = Option.Go; response_type = Ok OptionResponse.Ack; length = 0l });
+    t.channel.write res
 
 let next t =
   t.channel.read t.request
@@ -221,7 +243,7 @@ let serve t (type t) ?(read_only=true) block (b:t) =
   >>= fun read_only ->
   let flags = if read_only then [ PerExportFlag.Read_only ] else [] in
   negotiate_end t size flags
-  >>= fun t ->
+  >>= fun () ->
 
   let block = Io_page.(to_cstruct (get 128)) in
   let block_size = Cstruct.len block in
