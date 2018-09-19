@@ -25,6 +25,9 @@ type t = {
   channel: channel;
   request: Cstruct.t; (* buffer used to read the request headers *)
   reply: Cstruct.t;   (* buffer used to write the response headers *)
+  structured_reply: Cstruct.t option; (* Buffer used to write the structured reply chunk headers,
+                                         present if the client has negotiated structured replies
+                                         using NBD_OPT_STRUCTURED_REPLY *)
   m: Lwt_mutex.t; (* prevents partial message interleaving *)
   connect_opt: [`ExportName | `Go]; (* whether the client connected using NBD_OPT_GO or NBD_OPT_EXPORT_NAME *)
 }
@@ -33,11 +36,12 @@ type size = int64
 
 let close t = t.channel.close ()
 
-let make channel connect_opt =
+let make channel connect_opt ~structured_reply =
   let request = Cstruct.create Request.sizeof in
   let reply = Cstruct.create Reply.sizeof in
+  let structured_reply = if structured_reply then Some (Cstruct.create StructuredReplyChunk.sizeof) else None in
   let m = Lwt_mutex.create () in
-  { channel; request; reply; m; connect_opt }
+  { channel; request; reply; structured_reply; m; connect_opt }
 
 let connect channel ?offer () =
   let section = Lwt_log_core.Section.make("Server.connect") in
@@ -84,36 +88,38 @@ let connect channel ?offer () =
       >>= fun () -> Lwt.return (hdr.OptionRequestHeader.ty, payload)
   in
   let generic_loop chan =
-    let rec loop () =
+    let rec loop ~structured_reply () =
       read_hdr_and_payload chan.read
       >>= fun (opt, payload) -> match opt with
       | Option.StartTLS ->
         let resp = if chan.is_tls then OptionResponse.Invalid else OptionResponse.Policy in
         respond opt (Error resp) chan.write
-        >>= loop
-      | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan `ExportName)
+        >>= loop ~structured_reply
+      | Option.ExportName -> Lwt.return (Cstruct.to_string payload, make chan `ExportName ~structured_reply)
       | Option.Go ->
         let req = Protocol.InfoRequest.unmarshal payload in
         (* We ignore all the information requests and only send the required
          * NBD_INFO_EXPORT in negotiate_end - the protcol allows this *)
-        Lwt.return (req.InfoRequest.export, make chan `Go)
+        Lwt.return (req.InfoRequest.export, make chan `Go ~structured_reply)
       | Option.Abort ->
         Lwt.catch
           (fun () -> send_ack opt chan.write)
           (fun exn -> Lwt_log_core.warning ~section ~exn "Failed to send ack after receiving abort")
         >>= fun () ->
         Lwt.fail Client_requested_abort
-      | Option.StructuredReply | Option.Info | Option.ListMetaContext | Option.SetMetaContext ->
+      | Option.StructuredReply ->
+        send_ack opt chan.write >>= loop ~structured_reply:true
+      | Option.Info | Option.ListMetaContext | Option.SetMetaContext ->
         respond opt (Error OptionResponse.Unsupported) chan.write
-        >>= loop
+        >>= loop ~structured_reply
       | Option.Unknown _ ->
         respond opt (Error OptionResponse.Unsupported) chan.write
-        >>= loop
+        >>= loop ~structured_reply
       | Option.List ->
         begin match offer with
           | None ->
             respond opt (Error OptionResponse.Policy) chan.write
-            >>= loop
+            >>= loop ~structured_reply
           | Some offers ->
             let rec advertise = function
               | [] -> send_ack opt chan.write
@@ -129,9 +135,9 @@ let connect channel ?offer () =
                 advertise xs
             in
             advertise offers
-            >>= loop
+            >>= loop ~structured_reply
         end
-    in loop ()
+    in loop ~structured_reply:false ()
   in
   let negotiate_tls make_tls_channel =
     let rec negotiate_tls () =
@@ -218,12 +224,34 @@ let ok t handle payload =
        | Some data -> t.channel.write data
     )
 
+let read_ok t handle ~offset ~length =
+  match t.structured_reply with
+  | None -> ok t handle None
+  | Some structured_reply ->
+    let length = Int32.add (StructuredReplyChunk.OffsetDataChunk.sizeof |> Int32.of_int) length in
+    StructuredReplyChunk.(marshal structured_reply {flags = [StructuredReplyFlag.Done]; reply_type = StructuredReplyType.OffsetData; handle; length});
+    let buf = Cstruct.create StructuredReplyChunk.OffsetDataChunk.sizeof in
+    StructuredReplyChunk.OffsetDataChunk.marshal buf offset;
+    Lwt_mutex.with_lock t.m
+      (fun () ->
+         t.channel.write structured_reply >>= fun () ->
+         t.channel.write buf)
+
 let error t handle code =
   Lwt_mutex.with_lock t.m
     (fun () ->
        Reply.marshal t.reply { Reply.handle; error = Error code };
        t.channel.write t.reply
     )
+
+let read_error t handle code =
+  match t.structured_reply with
+  | None -> error t handle code
+  | Some structured_reply ->
+    let error = StructuredReplyChunk.ErrorChunk.{ error = code; message = "" } in
+    let length = StructuredReplyChunk.ErrorChunk.sizeof error |> Int32.of_int in
+    StructuredReplyChunk.(marshal structured_reply {flags = [StructuredReplyFlag.Done]; reply_type = StructuredReplyType.Error; handle; length});
+    Lwt_mutex.with_lock t.m (fun () -> t.channel.write t.reply)
 
 let serve t (type t) ?(read_only=true) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
@@ -286,9 +314,9 @@ let serve t (type t) ?(read_only=true) block (b:t) =
          error), the server MUST immediately initiate a hard disconnect; it
          MUST NOT send any further data to the client." *)
       if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
-      then error t handle `EINVAL
+      then read_error t handle `EINVAL
       else begin
-        ok t handle None
+        read_ok t handle ~offset:from ~length:len
         >>= fun () ->
         let rec copy offset remaining =
           let n = min block_size remaining in
