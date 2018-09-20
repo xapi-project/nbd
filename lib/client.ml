@@ -387,17 +387,17 @@ let handle_error_offset_chunk chan length =
   (** TODO also return msg & offset & and all errors from server *)
   Lwt.return_error e.error
 
-let write_one t from buffer =
+let write_cmd t ty ~from ~len ~writefn =
   let handle = get_handle () in
   let req_hdr = {
-    Request.ty = Command.Write;
+    Request.ty = ty;
     handle; from;
-    len = Int32.of_int (Cstruct.len buffer)
+    len
   } in
   Rpc.rpc
     t.client
     req_hdr
-    (fun chan -> chan.write buffer)
+    writefn
     (fun res chan -> function
        | Simple { error = Ok (); _ } -> Lwt.return (Ok ())
        | Simple { error = Error _ as e; _ } -> Lwt.return e
@@ -418,6 +418,10 @@ let write_one t from buffer =
     )
     (Ok ())
 
+let write_one t from buffer =
+  write_cmd t Command.Write ~from ~len:(Cstruct.len buffer |> Int32.of_int)
+    ~writefn:(fun chan -> chan.write buffer)
+
 let write t from buffers =
   if t.disconnected
   then Lwt.return_error `Disconnected
@@ -431,6 +435,16 @@ let write t from buffers =
           | Error e -> Lwt.return_error e
         end in
     loop from buffers
+    >>= function
+    | Error e -> Lwt.return_error (`Protocol_error e)
+    | Ok () -> Lwt.return_ok ()
+  end
+
+let write_zeroes t from len =
+  if t.disconnected
+  then Lwt.return_error `Disconnected
+  else begin
+    write_cmd t Command.WriteZeroes ~from ~len ~writefn:(fun _ -> Lwt.return_unit)
     >>= function
     | Error e -> Lwt.return_error (`Protocol_error e)
     | Ok () -> Lwt.return_ok ()

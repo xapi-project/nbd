@@ -88,6 +88,8 @@ module type CLIENT = sig
       for each of the metadata contexts selected by [set_meta_contexts]. *)
 
   val read_chunked : t -> int64 -> int32 -> (Channel.generic_channel -> size -> int32 -> unit Lwt.t) -> (unit, Protocol.Error.t) result Lwt.t
+
+  val write_zeroes : t -> int64 -> int32 -> (unit, error) result Lwt.t
 end
 
 module type SERVER = sig

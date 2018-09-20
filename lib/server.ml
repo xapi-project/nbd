@@ -337,7 +337,7 @@ let serve t (type t) ?(read_only=true) block (b:t) =
     | { ty = Command.Disc; _ } ->
       Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting" >>= fun () ->
       Lwt.return_unit
-    | _ ->
+    | { ty = Command.(Flush | Trim | WriteZeroes | BlockStatus | Unknown _); _ } ->
       Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
       error t request.Request.handle `EINVAL in
   loop ()

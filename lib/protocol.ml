@@ -177,6 +177,7 @@ module Command = struct
     | Disc
     | Flush
     | Trim
+    | WriteZeroes
     | BlockStatus
     | Unknown of int32
   [@@deriving sexp]
@@ -189,6 +190,7 @@ module Command = struct
     | 2l -> Disc
     | 3l -> Flush
     | 4l -> Trim
+    | 6l -> WriteZeroes
     | 7l -> BlockStatus
     | c  -> Unknown c
 
@@ -198,6 +200,7 @@ module Command = struct
     | Disc -> 2l
     | Flush -> 3l
     | Trim -> 4l
+    | WriteZeroes -> 6l
     | BlockStatus -> 7l
     | Unknown c -> c
 

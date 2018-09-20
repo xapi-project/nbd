@@ -47,6 +47,7 @@ module Command: sig
                 this one will have completed before this command is acknowledged. *)
     | Trim  (** A hint that a data region is nolonger required and may be
                 discarded. *)
+    | WriteZeroes (** A write request with no payload to zero out data on disk *)
     | BlockStatus (** A block status query request. *)
     | Unknown of int32 (** A command which this protocol implementation doesn't
                            support. *)
