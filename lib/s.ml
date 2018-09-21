@@ -16,13 +16,16 @@ open Result
 
 (** Common signatures used in the library. *)
 
+type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
+type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
+
 module type CLIENT = sig
   (** A Client allows you to list the disks available on a server, connect to
       a specific disk and then issue read and write requests. *)
 
   include Mirage_block_lwt.S
-    with type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
-     and type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
+    with type error = error
+     and type write_error = write_error
 
   type size = int64
   (** The size of a remote disk *)
@@ -87,9 +90,11 @@ module type CLIENT = sig
   (** [query_block_status client offset length] the block status descriptors
       for each of the metadata contexts selected by [set_meta_contexts]. *)
 
-  val read_chunked : t -> int64 -> int32 -> (Channel.generic_channel -> size -> int32 -> unit Lwt.t) -> (unit, Protocol.Error.t) result Lwt.t
+  val read_chunked : t -> int64 -> int32
+    -> ([`Data of Channel.generic_channel * size * int32 | `Hole of Protocol.StructuredReplyChunk.OffsetHoleChunk.t] -> unit Lwt.t)
+    -> (unit, Protocol.Error.t) result Lwt.t
 
-  val write_zeroes : t -> int64 -> int32 -> (unit, error) result Lwt.t
+  val write_zeroes : t -> int64 -> int32 -> (unit, write_error) result Lwt.t
 end
 
 module type SERVER = sig
@@ -130,6 +135,8 @@ module type SERVER = sig
       NBD_FLAG_READ_ONLY transmission flag, and if the client issues a write
       command, the server will send an EPERM error to the client and will
       terminate the session. *)
+
+  val proxy : t -> ?read_only:bool -> (module CLIENT with type t = 'b) -> 'b -> unit Lwt.t
 
   val close: t -> unit Lwt.t
   (** [close t] shuts down the connection [t] and frees any allocated resources *)

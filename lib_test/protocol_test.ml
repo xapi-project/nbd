@@ -443,7 +443,7 @@ module ServerTests = struct
       `Client, "export1";
 
       `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
-      `Server, "\000\003"; (* transmission flags: NBD_FLAG_READ_ONLY (bit 1) + NBD_FLAG_HAS_FLAGS (bit 0) *)
+      `Server, "\000\067"; (* transmission flags: NBD_FLAG_READ_ONLY (bit 1) + NBD_FLAG_HAS_FLAGS (bit 0) + NBD_FLAG_SEND_WRITE_ZEROES (bit 6) *)
       `Server, (String.make 124 '\000');
       (* Now we've entered transmission mode *)
 
@@ -515,7 +515,7 @@ module ServerTests = struct
       `Client, "export1";
 
       `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
-      `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+      `Server, "\000\065"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) + NBD_FLAG_SEND_WRITE_ZEROES (bit 6) *)
       `Server, (String.make 124 '\000');
       (* Now we've entered transmission mode *)
 

@@ -249,13 +249,55 @@ let read_error t handle code =
   | None -> error t handle code
   | Some structured_reply ->
     let error = StructuredReplyChunk.ErrorChunk.{ error = code; message = "" } in
-    let length = StructuredReplyChunk.ErrorChunk.sizeof error |> Int32.of_int in
-    StructuredReplyChunk.(marshal structured_reply {flags = [StructuredReplyFlag.Done]; reply_type = StructuredReplyType.Error; handle; length});
-    Lwt_mutex.with_lock t.m (fun () -> t.channel.write t.reply)
+    let length = StructuredReplyChunk.ErrorChunk.sizeof error  in
+    StructuredReplyChunk.(marshal structured_reply {flags = [StructuredReplyFlag.Done]; reply_type = StructuredReplyType.Error; handle; length = Int32.of_int length});
+    let buf = Cstruct.create length in
+    StructuredReplyChunk.ErrorChunk.marshal buf error;
+    Lwt_mutex.with_lock t.m
+      (fun () ->
+         t.channel.write t.reply >>= fun () ->
+         t.channel.write buf
+      )
 
-let serve t (type t) ?(read_only=true) block (b:t) =
+module type COMMON = sig
+  (* Subset of Mirage_block_wt.S used by the server: *)
+
+  type t
+
+  (* with competely abstract error types: *)
+  type error
+  val pp_error: error Fmt.t
+  type write_error
+  val pp_write_error: write_error Fmt.t
+
+  val get_info: t -> Mirage_block.info Lwt.t
+  val read: t -> int64 -> Cstruct.t list -> (unit, error) result Lwt.t
+  val write: t -> int64 -> Cstruct.t list -> (unit, write_error) result Lwt.t
+
+  (* functions from the NBD client: *)
+  val read_chunked : (t -> int64 -> int32
+    -> ([`Data of Channel.generic_channel * size * int32 | `Hole of Protocol.StructuredReplyChunk.OffsetHoleChunk.t] -> unit Lwt.t)
+    -> (unit, Protocol.Error.t) result Lwt.t) option
+  val write_zeroes : (t -> int64 -> int32 -> (unit, S.write_error) result Lwt.t) option
+end
+
+module FromMirage(B : Mirage_block_lwt.S) = struct
+  include B
+
+  let read_chunked = None
+  let write_zeroes = None
+end
+
+module FromNbd(C : S.CLIENT) = struct
+  include C
+
+  let read_chunked = Some C.read_chunked
+  let write_zeroes = Some C.write_zeroes
+end
+
+let serve_internal t (type t) ?(read_only=true) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
-  let module Block = (val block: Mirage_block_lwt.S with type t = t) in
+  let module Block = (val block: COMMON with type t = t) in
 
   Lwt_log_core.notice_f ~section "Serving new client, read_only = %b" read_only >>= fun () ->
 
@@ -269,7 +311,10 @@ let serve t (type t) ?(read_only=true) block (b:t) =
      Lwt_log_core.error ~section "Read-write access was requested, but block is read-only, sending NBD_FLAG_READ_ONLY transmission flag" >>= fun () ->
      Lwt.return true)
   >>= fun read_only ->
-  let flags = if read_only then [ PerExportFlag.Read_only ] else [] in
+  let flags =
+    [ PerExportFlag.Send_write_zeroes ] @
+    (if read_only then [ PerExportFlag.Read_only ] else [])
+  in
   negotiate_end t size flags
   >>= fun () ->
 
@@ -278,9 +323,7 @@ let serve t (type t) ?(read_only=true) block (b:t) =
   let rec loop () =
     next t
     >>= fun request ->
-    let open Request in
-    match request with
-    | { ty = Command.Write; from; len; handle } ->
+    let write_data from len handle block ~get_data =
       if read_only
       then error t handle `EPERM
       else if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
@@ -289,7 +332,7 @@ let serve t (type t) ?(read_only=true) block (b:t) =
         let rec copy offset remaining =
           let n = min block_size remaining in
           let subblock = Cstruct.sub block 0 n in
-          t.channel.Channel.read subblock
+          get_data subblock
           >>= fun () ->
           Block.write b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
           >>= function
@@ -303,41 +346,109 @@ let serve t (type t) ?(read_only=true) block (b:t) =
             else ok t handle None >>= fun () -> loop () in
         copy from (Int32.to_int request.Request.len)
       end
-    | { ty = Command.Read; from; len; handle } ->
-      (* It is okay to disconnect here in case of errors. The NBD protocol
-         documentation says about NBD_CMD_READ:
-         "If an error occurs, the server SHOULD set the appropriate error code
-         in the error field. The server MAY then initiate a hard disconnect.
-         If it chooses not to, it MUST NOT send any payload for this request.
-         If an error occurs while reading after the server has already sent out
-         the reply header with an error field set to zero (i.e., signalling no
-         error), the server MUST immediately initiate a hard disconnect; it
-         MUST NOT send any further data to the client." *)
-      if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
-      then read_error t handle `EINVAL
-      else begin
-        read_ok t handle ~offset:from ~length:len
-        >>= fun () ->
-        let rec copy offset remaining =
-          let n = min block_size remaining in
-          let subblock = Cstruct.sub block 0 n in
-          Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
-          >>= function
-          | Error e ->
-            Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Fmt.to_to_string Block.pp_error e))
-          | Ok () ->
-            t.channel.write subblock
-            >>= fun () ->
-            let remaining = remaining - n in
-            if remaining > 0
-            then copy Int64.(add offset (of_int n)) remaining
-            else loop () in
-        copy from (Int32.to_int request.Request.len)
+    in
+    let open Request in
+    match request with
+    | { ty = Command.Write; from; len; handle } ->
+      write_data from len handle block ~get_data:t.channel.Channel.read
+    | { ty = Command.WriteZeroes; from; len; handle } ->
+      begin match Block.write_zeroes with
+        | Some write_zeroes ->
+          write_zeroes b from len >>=
+          (function
+            | Ok () -> ok t handle None
+            | Error `Disconnected -> error t handle `EIO
+            | Error `Is_read_only -> error t handle `EPERM
+            | Error `Unimplemented -> error t handle `EINVAL
+            | Error (`Protocol_error e) -> error t handle e
+          ) >>= loop
+        | None ->
+          Cstruct.memset block 0;
+          write_data from len handle block ~get_data:(fun _ -> Lwt.return_unit)
       end
+    | { ty = Command.Read; from; len; handle } -> begin
+        match t.structured_reply, Block.read_chunked with
+        | Some structured_reply, Some read_chunked ->
+          read_chunked b from len
+            (function
+              | `Data (client_chan, offset, len) ->
+                let header_len = StructuredReplyChunk.OffsetDataChunk.sizeof in
+                let rep_length = Int32.add (header_len |> Int32.of_int) len in
+                StructuredReplyChunk.(marshal structured_reply {flags = []; reply_type = StructuredReplyType.OffsetData; handle; length = rep_length});
+                t.channel.write structured_reply >>= fun () ->
+                let buf = Cstruct.create header_len in
+                StructuredReplyChunk.OffsetDataChunk.marshal buf offset;
+                t.channel.write buf >>= fun () ->
+                let rec copy = function
+                  | 0l -> Lwt.return_unit
+                  | remaining ->
+                    let n = min block_size (Int32.to_int remaining) in
+                    let subblock = Cstruct.sub block 0 n in
+                    client_chan.read subblock >>= fun () ->
+                    t.channel.write subblock >>= fun () ->
+                    copy (Int32.sub remaining (Int32.of_int n))
+                in
+                copy len
+              | `Hole h ->
+                let len = StructuredReplyChunk.OffsetHoleChunk.sizeof in
+                StructuredReplyChunk.(marshal structured_reply {flags = []; reply_type = StructuredReplyType.OffsetHole; handle; length = Int32.of_int len});
+                t.channel.write structured_reply >>= fun () ->
+                let buf = Cstruct.create len in
+                StructuredReplyChunk.OffsetHoleChunk.marshal buf h;
+                t.channel.write buf
+            )
+          >>=
+          (function
+            | Error error -> read_error t handle error
+            | Ok () ->
+              StructuredReplyChunk.(marshal structured_reply {flags = [StructuredReplyFlag.Done]; reply_type = StructuredReplyType.None; handle; length=0l});
+              t.channel.write structured_reply
+          )
+        | _ ->
+          (* It is okay to disconnect here in case of errors. The NBD protocol
+             documentation says about NBD_CMD_READ:
+             "If an error occurs, the server SHOULD set the appropriate error code
+             in the error field. The server MAY then initiate a hard disconnect.
+             If it chooses not to, it MUST NOT send any payload for this request.
+             If an error occurs while reading after the server has already sent out
+             the reply header with an error field set to zero (i.e., signalling no
+             error), the server MUST immediately initiate a hard disconnect; it
+             MUST NOT send any further data to the client." *)
+          if Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L || Int64.(rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
+          then read_error t handle `EINVAL
+          else begin
+            read_ok t handle ~offset:from ~length:len
+            >>= fun () ->
+            let rec copy offset remaining =
+              let n = min block_size remaining in
+              let subblock = Cstruct.sub block 0 n in
+              Block.read b Int64.(div offset (of_int info.Mirage_block.sector_size)) [ subblock ]
+              >>= function
+              | Error e ->
+                Lwt.fail_with (Printf.sprintf "Partial failure during a Block.read: %s; terminating the session" (Fmt.to_to_string Block.pp_error e))
+              | Ok () ->
+                t.channel.write subblock
+                >>= fun () ->
+                let remaining = remaining - n in
+                if remaining > 0
+                then copy Int64.(add offset (of_int n)) remaining
+                else Lwt.return_unit in
+            copy from (Int32.to_int request.Request.len)
+          end
+      end >>= loop
     | { ty = Command.Disc; _ } ->
       Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting" >>= fun () ->
       Lwt.return_unit
-    | { ty = Command.(Flush | Trim | WriteZeroes | BlockStatus | Unknown _); _ } ->
+    | { ty = Command.(Flush | Trim | BlockStatus | Unknown _); _ } ->
       Lwt_log_core.warning ~section "Received unknown command, returning EINVAL" >>= fun () ->
-      error t request.Request.handle `EINVAL in
+      error t request.Request.handle `EINVAL
+  in
   loop ()
+
+let serve t (type t) ?(read_only=true) block (b:t) =
+  let module Block = (val block: Mirage_block_lwt.S with type t = t) in
+  serve_internal t ~read_only (module FromMirage(Block) : COMMON with type t = t) b
+
+let proxy t (type t) ?(read_only=true) client (c:t) =
+  let module Client = (val client: S.CLIENT with type t = t) in
+  serve_internal t ~read_only (module FromNbd(Client) : COMMON with type t = Client.t) c

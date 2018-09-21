@@ -65,6 +65,7 @@ module PerExportFlag: sig
     | Send_fua    (** server supports NBD_CMD_FLAG_FUA *)
     | Rotational  (** let the client schedule I/O for a rotational medium *)
     | Send_trim   (** server supports Command.Trim *)
+    | Send_write_zeroes (** server supports Command.WriteZeroes *)
  
   (** Per-export flags *)
 
@@ -200,6 +201,7 @@ module AllocationMetadataFlag : sig
 end
 
 (** {2 Unmarshalling and marshalling messages} *)
+(** The input buffers do not need to be prezeroed. *)
 
 (** {3 Handshake} *)
 

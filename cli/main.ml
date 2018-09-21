@@ -252,6 +252,12 @@ module Impl = struct
     in
     Lwt_main.run t
 
+  let try_negotiate_structured_reply c =
+    Nbd.Client.negotiate_structured_reply c >>=
+    (function
+      | Ok () -> Lwt_io.eprintl "Using structured replies"
+      | Error e -> Lwt_io.eprintf "Could not negotiate structured replies: %s" (Protocol.OptionError.to_string e))
+
   let download _common (connection, export) offset length output =
     let t =
       let export = get_exportname export in
@@ -259,15 +265,11 @@ module Impl = struct
       Lwt.finalize
         (fun () ->
            Nbd.Client.connect channel >>= fun c ->
-           Nbd.Client.negotiate_structured_reply c >>=
-           (function
-             | Ok () -> Lwt_io.eprintl "Using structured replies"
-             | Error e -> Lwt_io.eprintf "Could not negotiate structured replies: %s" (Protocol.OptionError.to_string e))
-           >>= fun () ->
+           try_negotiate_structured_reply c >>= fun () ->
            Lwt_unix.openfile output Unix.[O_CREAT; O_RDWR; O_EXCL] 0o600 >>= fun fd ->
            (* The file will be prezeroed, and will only use storage space for
             * the onn-null data *)
-           Lwt_unix.ftruncate fd (Int32.to_int length) >>= fun () ->
+           Lwt_unix.LargeFile.ftruncate fd length >>= fun () ->
            require_export c export >>= fun (c, _disk_info, block_sizes) ->
            let block_sizes =
              match block_sizes with
@@ -278,30 +280,32 @@ module Impl = struct
            let buf = Cstruct.create (max_block_size |> Int32.to_int) in
            let download offset length =
              Nbd.Client.read_chunked c offset length
-               (fun channel offset length ->
-                  let rec loop = function
-                    | 0 -> Lwt.return_unit
-                    | length ->
-                      let l = min length (Cstruct.len buf) in
-                      let buf = Cstruct.sub buf 0 l in
-                      channel.read buf >>= fun () ->
-                      Lwt_cstruct.(complete (write fd)) buf >>= fun () ->
-                      loop (length - l)
-                  in
-                  Lwt_unix.LargeFile.lseek fd offset Unix.SEEK_SET >>= fun new_offs ->
-                  (if new_offs <> offset then Lwt.fail_with "seek failed" else Lwt.return_unit) >>= fun () ->
-                  loop (Int32.to_int length)
+               (function
+                 | `Data (channel, offset, length) ->
+                   let rec loop = function
+                     | 0 -> Lwt.return_unit
+                     | length ->
+                       let l = min length (Cstruct.len buf) in
+                       let buf = Cstruct.sub buf 0 l in
+                       channel.read buf >>= fun () ->
+                       Lwt_cstruct.(complete (write fd)) buf >>= fun () ->
+                       loop (length - l)
+                   in
+                   Lwt_unix.LargeFile.lseek fd offset Unix.SEEK_SET >>= fun new_offs ->
+                   (if new_offs <> offset then Lwt.fail_with "seek failed" else Lwt.return_unit) >>= fun () ->
+                   loop (Int32.to_int length)
+                 | `Hole _ -> Lwt.return_unit
                ) >>= function
              | Error e -> Lwt.fail_with (Protocol.Error.to_string e)
              | Ok () -> Lwt.return_unit
            in
            (* We need to read in chunks because the max request length is limited *)
            let rec loop offset length =
-             if length <= max_block_size then
-               download offset length
+             if length <= (Int64.of_int32 max_block_size) then
+               download offset (Int64.to_int32 length)
              else
                download offset max_block_size >>= fun () ->
-               let length = Int32.sub length max_block_size in
+               let length = Int64.sub length (Int64.of_int32 max_block_size) in
                let offset = Int64.add offset (Int64.of_int32 max_block_size) in
                loop offset length
            in
@@ -326,9 +330,8 @@ module Impl = struct
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-  let serve _common filename port exportname certfile curve ciphersuites no_tls =
+  let serve_common serve_export port exportname certfile curve ciphersuites no_tls =
     let tls_role = init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls in
-    let filename = require "filename" filename in
     let validate ~client_exportname =
       match exportname with
       | Some exportname when exportname <> client_exportname ->
@@ -350,8 +353,7 @@ module Impl = struct
                   clearchan
                   (fun client_exportname svr ->
                      validate ~client_exportname >>= fun () ->
-                     Nbd_lwt_unix.with_block filename
-                       (Server.serve svr ~read_only:false (module Block))
+                     serve_export svr client_exportname
                   )
              )
         )
@@ -381,6 +383,35 @@ module Impl = struct
         (ignore_exn (fun () -> Lwt_unix.close sock))
     in
     Lwt_main.run t
+
+  let serve _common filename =
+    let filename = require "filename" filename in
+    let serve_export svr _exportname =
+      Nbd_lwt_unix.with_block filename
+        (Server.serve svr ~read_only:false (module Block))
+    in
+    serve_common serve_export
+
+  let proxy _common (connection, export) =
+    let serve_export svr _exportname =
+      let export = get_exportname export in
+      channel_of_connection connection >>= fun channel ->
+      Lwt.finalize
+        (fun () ->
+           Nbd.Client.connect channel >>= fun c ->
+           try_negotiate_structured_reply c >>= fun () ->
+           Nbd.Client.request_export c export >>=
+           (function
+             | Ok (c, _disk_info, _block_sizes) ->
+               Server.proxy svr ~read_only:false (module Nbd.Client) c
+             | Error e ->
+               Lwt.fail_with ("Failed to connect to export: " ^ (Protocol.OptionError.to_string e)))
+           >>= fun () ->
+           Nbd.Client.abort c
+        )
+        channel.close
+    in
+    serve_common serve_export
 
   let mirror _common filename port secondary certfile curve ciphersuites no_tls =
     let tls_role = init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls in
@@ -432,6 +463,16 @@ let size_cmd =
   Term.(ret (pure Impl.size $ host $ port $ export)),
   Term.info "size" ~version:"1.0.0" ~doc
 
+(* Used by both server and proxy cmds *)
+let exportname =
+  let doc = {|Export name to use when serving the file. If specified, clients
+              will be able to list this export, and only this export name
+              will be accepted. If unspecified, listing the exports will not
+              be allowed, and all export names will be accepted when
+              connecting.|}
+  in
+  Arg.(value & opt (some string) None & info ["exportname"] ~doc)
+
 (* Used by both serve and mirror cmds *)
 let certfile =
   let doc = "Path to file containing TLS certificate." in
@@ -442,6 +483,26 @@ let ciphersuites =
 let curve =
   let doc = "EC curve to use" in
   Arg.(value & opt string "secp384r1" & info ["curve"] ~doc)
+let no_tls =
+  let doc = "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
+  Arg.(value & flag & info ["no-tls"] ~doc)
+let port =
+  let doc = "Local port to listen for connections on" in
+  Arg.(value & opt int 10809 & info [ "port" ] ~doc)
+
+let uri_t i =
+  let uri =
+    let doc = {|NBD uri of the form
+                "nbd:unix:<domain-socket>[:exportname=<export>]" or
+                "nbd:<server>:<port>[:exportname=<export>]"|}
+    in
+    Arg.(required & pos i (some string) None & info [] ~doc ~docv:"uri") in
+  let parse_uri uri =
+    match Nbd.Nbd_uri.parse uri with
+    | Ok _ as r -> r
+    | Error () -> Error (`Msg ("Invalid NBD URI: " ^ uri))
+  in
+  Term.(term_result ~usage:true (const parse_uri $ uri))
 
 let serve_cmd =
   let doc = "serve a disk over NBD" in
@@ -452,23 +513,17 @@ let serve_cmd =
   let filename =
     let doc = "Disk (file or block device) to expose" in
     Arg.(value & pos 0 (some file) None & info [] ~doc) in
-  let port =
-    let doc = "Local port to listen for connections on" in
-    Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
-  let exportname =
-    let doc = {|Export name to use when serving the file. If specified, clients
-                will be able to list this export, and only this export name
-                will be accepted. If unspecified, listing the exports will not
-                be allowed, and all export names will be accepted when
-                connecting.|}
-    in
-    Arg.(value & opt (some string) None & info ["exportname"] ~doc)
-  in
-  let no_tls =
-    let doc = "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
-    Arg.(value & flag & info ["no-tls"] ~doc) in
   Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ exportname $ certfile $ curve $ ciphersuites $ no_tls)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
+
+let proxy_cmd =
+  let doc = "proxy an NBD export" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Create a server which allows a client to access a given NBD export.";
+  ] @ help in
+  Term.(ret(pure Impl.proxy $ common_options_t $ uri_t 0 $ port $ exportname $ certfile $ ciphersuites $ curve $ no_tls)),
+  Term.info "proxy" ~sdocs:_common_options ~doc ~man
 
 let mirror_cmd =
   let doc = "serve a disk over NBD while mirroring" in
@@ -484,12 +539,6 @@ let mirror_cmd =
   let secondary =
     let doc = "URI naming the secondary disk" in
     Arg.(value & pos 1 (some string) None & info [] ~doc) in
-  let port =
-    let doc = "Local port to listen for connections on" in
-    Arg.(value & opt int 10809 & info [ "port" ] ~doc) in
-  let no_tls =
-    let doc = "Serve using NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
-    Arg.(value & flag & info ["no-tls"] ~doc) in
   Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary $ certfile $ curve $ ciphersuites $ no_tls)),
   Term.info "mirror" ~sdocs:_common_options ~doc ~man
 
@@ -507,20 +556,6 @@ let list_cmd =
     Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port") in
   Term.(ret(pure Impl.list $ common_options_t $ host $ port)),
   Term.info "list" ~sdocs:_common_options ~doc ~man
-
-let uri_t i =
-  let uri =
-    let doc = {|NBD uri of the form
-                "nbd:unix:<domain-socket>[:exportname=<export>]" or
-                "nbd:<server>:<port>[:exportname=<export>]"|}
-    in
-    Arg.(required & pos i (some string) None & info [] ~doc ~docv:"uri") in
-  let parse_uri uri =
-    match Nbd.Nbd_uri.parse uri with
-    | Ok _ as r -> r
-    | Error () -> Error (`Msg ("Invalid NBD URI: " ^ uri))
-  in
-  Term.(term_result ~usage:true (const parse_uri $ uri))
 
 let queries_t i =
   let doc = "Possibly empty list of meta context queries" in
@@ -593,7 +628,7 @@ let download_cmd =
   in
   let length =
     let doc = "The length of the region to download" in
-    Arg.(required & pos 2 (some int32) None & info [] ~doc ~docv:"length")
+    Arg.(required & pos 2 (some int64) None & info [] ~doc ~docv:"length")
   in
   let output =
     let doc = "The output file" in
@@ -608,7 +643,7 @@ let default_cmd =
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [serve_cmd; list_cmd; size_cmd; list_meta_contexts_cmd; query_block_status_cmd; query_info_cmd; download_cmd; mirror_cmd]
+let cmds = [serve_cmd; proxy_cmd; list_cmd; size_cmd; list_meta_contexts_cmd; query_block_status_cmd; query_info_cmd; download_cmd; mirror_cmd]
 
 let () =
   match Term.eval_choice default_cmd cmds with

@@ -183,9 +183,9 @@ let list channel =
             let buf' = Cstruct.create (Int32.to_int length) in
             channel.read buf'
             >>= fun () ->
-            begin match Server.unmarshal buf' with
+            begin match Protocol.Server.unmarshal buf' with
               | Ok server ->
-                loop (server.Server.name :: acc)
+                loop (server.Protocol.Server.name :: acc)
               | Error e -> Lwt.fail e
             end
           | Ok _ ->
@@ -462,7 +462,7 @@ let read_chunked t from len read_callback =
     (fun _ -> Lwt.return_unit)
     (fun res chan -> function
        | Simple { error = Ok (); _ } ->
-         read_callback chan from len >>= fun () ->
+         read_callback (`Data (chan, from, len)) >>= fun () ->
          Lwt.return (Ok ())
        | Simple { error = Error _ as e; _ } ->
          Lwt.return e
@@ -477,12 +477,13 @@ let read_chunked t from len read_callback =
          chan.read buf >>= fun () ->
          let offset = StructuredReplyChunk.OffsetDataChunk.unmarshal buf in
          let data_len = Int32.sub length 8l in
-         read_callback chan offset data_len >>= fun () ->
+         read_callback (`Data (chan, offset, data_len)) >>= fun () ->
          Lwt.return (Ok ())
        | Structured { reply_type = StructuredReplyType.OffsetHole; length = 12l; _ } ->
          let buf = Cstruct.create StructuredReplyChunk.OffsetHoleChunk.sizeof in
          chan.read buf >>= fun () ->
-         let _t = StructuredReplyChunk.OffsetHoleChunk.unmarshal buf in
+         let t = StructuredReplyChunk.OffsetHoleChunk.unmarshal buf in
+         read_callback (`Hole t) >>= fun () ->
          Lwt.return (Ok ())
        | Structured { reply_type = StructuredReplyType.Error; length; _ } when length >= 6l ->
          handle_error_chunk chan length
@@ -500,25 +501,31 @@ let read t from buffers =
   then Lwt.return_error `Disconnected
   else begin
     let len = Int32.of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len buffers in
-    let rec read_into_buffers buffers chan offset (length:int32) =
-      let offset = Int64.sub offset from in
-      match offset, length, buffers with
-      | _, 0l, _ -> Lwt.return_unit
-      | _, _l, [] -> Lwt.fail_with "Received too much data"
-      | 0L, l, b::buffers ->
-        if (Int32.to_int l) > Cstruct.len b then
-          chan.read b >>= fun () ->
-          read_into_buffers buffers chan 0L (Int32.sub l (Cstruct.len b |> Int32.of_int))
-        else
-          let b = Cstruct.sub b 0 (Int32.to_int l) in
-          chan.read b
-      | offset, l, b::buffers ->
-        if offset > Int64.of_int (Cstruct.len b) then
-          let offset = Int64.sub offset (Int64.of_int (Cstruct.len b)) in
-          read_into_buffers buffers chan offset l
-        else
-          let b = Cstruct.shift b (Int64.to_int offset) in
-          read_into_buffers (b::buffers) chan 0L l
+    let read_into_buffers buffers = function
+      | `Data (chan, offset, length) -> begin
+          let rec loop buffers offset length =
+            let offset = Int64.sub offset from in
+            match offset, length, buffers with
+            | _, 0l, _ -> Lwt.return_unit
+            | _, _l, [] -> Lwt.fail_with "Received too much data"
+            | 0L, l, b::buffers ->
+              if (Int32.to_int l) > Cstruct.len b then
+                chan.read b >>= fun () ->
+                loop buffers 0L (Int32.sub l (Cstruct.len b |> Int32.of_int))
+              else
+                let b = Cstruct.sub b 0 (Int32.to_int l) in
+                chan.read b
+            | offset, l, b::buffers ->
+              if offset > Int64.of_int (Cstruct.len b) then
+                let offset = Int64.sub offset (Int64.of_int (Cstruct.len b)) in
+                loop buffers offset l
+              else
+                let b = Cstruct.shift b (Int64.to_int offset) in
+                loop (b::buffers) 0L l
+          in
+          loop buffers offset length
+        end
+      | `Hole _ -> Lwt.return_unit
     in
     read_chunked t from len (read_into_buffers buffers)
     >>= function

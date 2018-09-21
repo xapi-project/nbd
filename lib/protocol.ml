@@ -40,6 +40,7 @@ let nbd_flag_send_flush = 4
 let nbd_flag_send_fua = 8
 let nbd_flag_rotational = 16
 let nbd_flag_send_trim = 32
+let nbd_flag_send_write_zeroes = 64
 
 let nbd_flag_fixed_newstyle = 1
 let nbd_flag_no_zeroes = 2
@@ -65,6 +66,7 @@ module PerExportFlag = struct
     | Send_fua
     | Rotational
     | Send_trim
+    | Send_write_zeroes
   [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
@@ -78,7 +80,9 @@ module PerExportFlag = struct
            nbd_flag_send_flush, Send_flush;
            nbd_flag_send_fua, Send_fua;
            nbd_flag_rotational, Rotational;
-           nbd_flag_send_trim, Send_trim; ])
+           nbd_flag_send_trim, Send_trim;
+           nbd_flag_send_write_zeroes, Send_write_zeroes;
+         ])
 
   let to_int flags =
     let one = function
@@ -86,7 +90,9 @@ module PerExportFlag = struct
       | Send_flush -> nbd_flag_send_flush
       | Send_fua -> nbd_flag_send_fua
       | Rotational -> nbd_flag_rotational
-      | Send_trim -> nbd_flag_send_trim in
+      | Send_trim -> nbd_flag_send_trim
+      | Send_write_zeroes -> nbd_flag_send_write_zeroes
+    in
     List.fold_left (lor) nbd_flag_has_flags (List.map one flags)
 
   let to_int32 flags = Int32.of_int (to_int flags)
