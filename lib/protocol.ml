@@ -49,6 +49,10 @@ let nbd_flag_c_no_zeroes = 2
 
 let nbd_reply_flag_done = 1
 
+(* Flags for the base:allocation metadata context *)
+let nbd_state_hole = 1l
+let nbd_state_zero = 3l
+
 let zero buf =
   for i = 0 to Cstruct.len buf - 1 do
     Cstruct.set_uint8 buf i 0
@@ -395,6 +399,31 @@ module StructuredReplyFlag = struct
       | Done -> nbd_reply_flag_done
     in
     List.fold_left (lor) 0 (List.map one flags)
+end
+
+module AllocationMetadataFlag = struct
+  type t =
+    | Hole
+    | Zero
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int32 flags =
+    let is_set mask = Int32.logand mask flags <> 0l in
+    List.filter
+      (fun (mask,_) -> is_set mask)
+      [ nbd_state_hole, Hole
+      ; nbd_state_zero, Zero
+      ]
+    |> List.map snd
+
+  let to_int32 flags =
+    let one = function
+      | Hole -> nbd_state_hole
+      | Zero -> nbd_state_zero
+    in
+    List.fold_left (Int32.logor) 0l (List.map one flags)
 end
 
 

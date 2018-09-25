@@ -190,6 +190,15 @@ module StructuredReplyFlag : sig
   val to_string : t -> string
 end
 
+module AllocationMetadataFlag : sig
+  type t =
+    | Hole
+    | Zero
+  val to_string : t -> string
+  val of_int32 : int32 -> t list
+  val to_int32 : t list -> int32
+end
+
 (** {2 Unmarshalling and marshalling messages} *)
 
 (** {3 Handshake} *)
