@@ -19,11 +19,13 @@ open Nbd
 open Channel
 
 let return = Lwt.return
-let (>>=) = Lwt.(>>=)
+open Lwt.Infix
 
 type tls_role =
   | TlsClient of Ssl.context
   | TlsServer of Ssl.context
+
+let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
 (* XXX Consider moving this function into a library also used by vhd-tool. *)
 (* Also the read/write/close functions that are inside tls_channel_of_fd. *)
@@ -105,6 +107,22 @@ let connect hostname port =
   >>= fun () ->
   (generic_channel_of_fd socket None)
 
+let with_channel_of_connection conn f =
+  (match conn with
+   | Nbd_uri.Tcp (host, port) -> connect host port
+   | Nbd_uri.UnixDomainSocket path ->
+     let socket = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+     Lwt.catch
+       (fun () -> Lwt_unix.connect socket (Lwt_unix.ADDR_UNIX path))
+       (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
+     >|= fun () ->
+     cleartext_channel_of_fd socket None
+     |> Channel.generic_of_cleartext_channel)
+  >>= fun chan ->
+  Lwt.finalize
+    (fun () -> f chan)
+    chan.close
+
 let init_tls_get_ctx ?curve ~certfile ~ciphersuites =
   Ssl_threads.init ();
   Ssl.init ();
@@ -124,8 +142,6 @@ let with_block filename f =
   Lwt.finalize
     (fun () -> f b)
     (fun () -> Block.disconnect b)
-
-let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
 let with_channel fd tls_role f =
   let clearchan = cleartext_channel_of_fd fd tls_role in

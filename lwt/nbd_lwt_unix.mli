@@ -24,6 +24,11 @@ val connect: string -> int -> Channel.channel Lwt.t
 (** [connect hostname port] connects to host:port and returns
     a [generic_channel] with no TLS ability or potential. *)
 
+val with_channel_of_connection: Nbd_uri.connection -> (Channel.channel -> 'a Lwt.t) -> 'a Lwt.t
+(** [with_channel uri f] connects to the given NBD server and passes
+    a [generic_channel] with no TLS ability or potential to [f].
+    The channel will be closed automatically, [f] must not close it. *)
+
 val cleartext_channel_of_fd: Lwt_unix.file_descr -> tls_role option -> Channel.cleartext_channel
 (** [cleartext_channel_of_fd fd role] returns a channel from an existing file descriptor.
     The channel will have a [make_tls_channel] value that corresponds to [role]. *)

@@ -160,17 +160,6 @@ module Impl = struct
         exit 2 in
     `Ok (Lwt_main.run t)
 
-  let channel_of_connection = function
-    | `Tcp (host, port) -> Nbd_lwt_unix.connect host port
-    | `UnixDomainSocket path ->
-      let socket = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-      Lwt.catch
-        (fun () -> Lwt_unix.connect socket (Lwt_unix.ADDR_UNIX path))
-        (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
-      >|= fun () ->
-      Nbd_lwt_unix.cleartext_channel_of_fd socket None
-      |> Channel.generic_of_cleartext_channel
-
   let get_exportname = function Some e -> e | None -> ""
 
   let fail_on_option_error msg p =
@@ -189,9 +178,8 @@ module Impl = struct
   let list_meta_contexts _common (connection, export) queries =
     let t =
       let export = get_exportname export in
-      channel_of_connection connection >>= fun channel ->
-      Lwt.finalize
-        (fun () ->
+      Nbd_lwt_unix.with_channel_of_connection connection
+        (fun channel ->
            Nbd.Client.connect channel >>= fun c ->
            require_structured_reply c >>= fun () ->
            Nbd.Client.list_meta_contexts c export queries |> fail_on_option_error "Failed to list meta contexts" >>= fun l ->
@@ -199,16 +187,14 @@ module Impl = struct
            Lwt_list.iter_s Lwt_io.printl l >>= fun () ->
            Nbd.Client.abort c
         )
-        channel.close
     in
     Lwt_main.run t
 
   let query_block_status _common (connection, export) offset length queries =
     let t =
       let export = get_exportname export in
-      channel_of_connection connection >>= fun channel ->
-      Lwt.finalize
-        (fun () ->
+      Nbd_lwt_unix.with_channel_of_connection connection
+        (fun channel ->
            Nbd.Client.connect channel >>= fun c ->
            require_structured_reply c >>= fun () ->
            Nbd.Client.set_meta_contexts c export queries |> fail_on_option_error "Failed to set meta contexts" >>= fun l ->
@@ -226,16 +212,14 @@ module Impl = struct
            end >>= fun () ->
            Nbd.Client.disconnect c
         )
-        channel.close
     in
     Lwt_main.run t
 
   let query_info _common (connection, export) infos =
     let t =
       let export = get_exportname export in
-      channel_of_connection connection >>= fun channel ->
-      Lwt.finalize
-        (fun () ->
+      Nbd_lwt_unix.with_channel_of_connection connection
+        (fun channel ->
            Nbd.Client.connect channel >>= fun c ->
            Nbd.Client.query_info c export infos >>= fun res ->
            begin match res with
@@ -248,7 +232,6 @@ module Impl = struct
            end >>= fun () ->
            Nbd.Client.abort c
         )
-        channel.close
     in
     Lwt_main.run t
 
@@ -261,9 +244,8 @@ module Impl = struct
   let download _common (connection, export) offset length output =
     let t =
       let export = get_exportname export in
-      channel_of_connection connection >>= fun channel ->
-      Lwt.finalize
-        (fun () ->
+      Nbd_lwt_unix.with_channel_of_connection connection
+        (fun channel ->
            Nbd.Client.connect channel >>= fun c ->
            try_negotiate_structured_reply c >>= fun () ->
            Lwt_unix.openfile output Unix.[O_CREAT; O_RDWR; O_EXCL] 0o600 >>= fun fd ->
@@ -313,7 +295,6 @@ module Impl = struct
            Lwt_unix.close fd >>= fun () ->
            Nbd.Client.disconnect c
         )
-        channel.close
     in
     Lwt_main.run t
 
@@ -395,9 +376,8 @@ module Impl = struct
   let proxy _common (connection, export) =
     let serve_export svr _exportname =
       let export = get_exportname export in
-      channel_of_connection connection >>= fun channel ->
-      Lwt.finalize
-        (fun () ->
+      Nbd_lwt_unix.with_channel_of_connection connection
+        (fun channel ->
            Nbd.Client.connect channel >>= fun c ->
            try_negotiate_structured_reply c >>= fun () ->
            Nbd.Client.request_export c export >>=
@@ -409,7 +389,6 @@ module Impl = struct
            >>= fun () ->
            Nbd.Client.abort c
         )
-        channel.close
     in
     serve_common serve_export
 
