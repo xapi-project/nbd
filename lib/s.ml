@@ -87,8 +87,30 @@ module type CLIENT = sig
   (** {2 Transmission phase} *)
 
   val query_block_status: t -> int64 -> int32 -> (Protocol.StructuredReplyChunk.BlockStatusChunk.t list, error) result Lwt.t
-  (** [query_block_status client offset length] the block status descriptors
-      for each of the metadata contexts selected by [set_meta_contexts]. *)
+  (** [query_block_status client offset length] returns a list of block status
+      descriptors for the specified area, for each of the metadata contexts
+      selected by [set_meta_contexts].
+
+      The returned descriptors describe non-overlapping, consecutive portions
+      of the export, starting at the specified [offset]. Thus the offset of a
+      given descriptor can be obtained by summing the lengths of all the
+      descriptors before it.
+
+      The server will return at least one descriptor, and the length of every
+      descriptor will be an integer multiple of the minimum block size, if it
+      has been advertised by the server.
+
+      The server may return less data than requested: the sum of the
+      descriptors' lengths might be smaller than the specified [length].
+      On the other hand, the server may also return more data than requested:
+      the final descriptor may extend beyond the original requested size - the
+      sum of the [length] fields of the first N-1 desriptors will always be
+      less than the requested [length], while the length of the final extent
+      may result in a larger sum.
+
+      In case the [base:allocation] metadata context has been selected, the
+      {!Protocol.AllocationMetadataFlag.of_int32} function can be used to
+      decode the status flags. *)
 
   val read_chunked : t -> int64 -> int32
     -> ([`Data of Channel.generic_channel * size * int32 | `Hole of Protocol.StructuredReplyChunk.OffsetHoleChunk.t] -> unit Lwt.t)

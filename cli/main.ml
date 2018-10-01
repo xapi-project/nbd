@@ -250,7 +250,7 @@ module Impl = struct
            try_negotiate_structured_reply c >>= fun () ->
            Lwt_unix.openfile output Unix.[O_CREAT; O_RDWR; O_EXCL] 0o600 >>= fun fd ->
            (* The file will be prezeroed, and will only use storage space for
-            * the onn-null data *)
+            * the non-null data *)
            Lwt_unix.LargeFile.ftruncate fd length >>= fun () ->
            require_export c export >>= fun (c, _disk_info, block_sizes) ->
            let block_sizes =
@@ -281,7 +281,7 @@ module Impl = struct
              | Error e -> Lwt.fail_with (Protocol.Error.to_string e)
              | Ok () -> Lwt.return_unit
            in
-           (* We need to read in chunks because the max request length is limited *)
+           (* We need to download in chunks because the max request length is limited *)
            let rec loop offset length =
              if length <= (Int64.of_int32 max_block_size) then
                download offset (Int64.to_int32 length)
