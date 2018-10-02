@@ -16,6 +16,7 @@
   ./test-qemu.sh
   ./test-nbd-client.sh
   ./random_data.sh
+  ./test-qemu-proxy.sh
  )
  (action (run %{suite} --cli %{cli}))
 )

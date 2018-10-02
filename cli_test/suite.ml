@@ -37,6 +37,7 @@ let () =
     opts
     [ ("NBD CLI interoperability tests",
        [ "data copying with qemu-img", `Quick, script "./test-qemu.sh" ~requires:"qemu-img"
+       ; "proxying qemu's server", `Quick, script "./test-qemu-proxy.sh" ~requires:"qemu-nbd"
        ; "listing exports with nbd-client", `Quick, script "./test-nbd-client.sh" ~requires:"nbd-client"
        ]
       )
