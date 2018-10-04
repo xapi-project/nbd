@@ -383,7 +383,8 @@ module Impl = struct
            Nbd.Client.request_export c export >>=
            (function
              | Ok (c, _disk_info, _block_sizes) ->
-               Server.proxy svr ~read_only:false (module Nbd.Client) c
+               Server.proxy svr ~read_only:false (module Nbd.Client) c >>= fun () ->
+               Nbd.Client.disconnect c
              | Error e ->
                Lwt.fail_with ("Failed to connect to export: " ^ (Protocol.OptionError.to_string e)))
            >>= fun () ->

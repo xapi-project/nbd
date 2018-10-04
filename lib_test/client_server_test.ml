@@ -44,19 +44,7 @@ let test ~server ~client () =
   Lwt_log.add_rule "*" Lwt_log.Debug;
   with_channels (fun client_channel server_channel ->
       let test_server = server server_channel in
-      let cancel, _ = Lwt.task () in
-      let test_server =
-        Lwt.catch
-          (fun () -> Lwt.pick [test_server; cancel])
-          (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
-      in
-      let test_client =
-        client client_channel
-        (* TODO: because Client.disconnect does not send NBD_CMD_DISC,
-           the server loop will not stop - we have to stop it manually.
-           Once this is fixed, this cancel mechanism should be removed. *)
-        >|= fun () -> Lwt.cancel cancel
-      in
+      let test_client = client client_channel in
       Lwt.join [test_server; test_client]
     )
 

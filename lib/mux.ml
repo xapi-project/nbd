@@ -45,6 +45,8 @@ module Make (R : RPC) : sig
 
   val rpc : client -> R.request_hdr -> send_request_body -> 'a recv_response_body -> 'a -> 'a Lwt.t
 
+  val rpc_no_response : client -> R.request_hdr -> send_request_body -> unit Lwt.t
+
   val create : R.transport -> client Lwt.t
 
 end = struct
@@ -107,6 +109,17 @@ end = struct
         )
       >>= fun () ->
       sleeper
+    end
+
+  let rpc_no_response t request_hdr send_request_body =
+    if t.dispatcher_shutting_down
+    then Lwt.fail Shutdown
+    else begin
+      Lwt_mutex.with_lock t.outgoing_mutex
+        (fun () ->
+           R.send_hdr t.transport request_hdr >>= fun () ->
+           send_request_body t.transport
+        )
     end
 
   let create transport =

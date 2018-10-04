@@ -577,5 +577,13 @@ let query_block_status t from len =
   end
 
 let disconnect t =
+  let handle = get_handle () in
+  let req_hdr = {
+    Request.ty = Command.Disc;
+    handle; from = 0L;
+    len = 0l
+  } in
+  (* There is no reply to an NBD_CMD_DISC *)
+  Rpc.rpc_no_response t.client req_hdr (fun _chan -> Lwt.return_unit) >>= fun () ->
   t.disconnected <- true;
   Lwt.return ()
