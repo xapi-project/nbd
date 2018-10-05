@@ -48,6 +48,11 @@ let nbd_flag_no_zeroes = 2
 let nbd_flag_c_fixed_newstyle = 1
 let nbd_flag_c_no_zeroes = 2
 
+let nbd_cmd_flag_fua = 1
+let nbd_cmd_flag_no_hole = 2
+let nbd_cmd_flag_df = 4
+let nbd_cmd_flag_req_one = 8
+
 let nbd_reply_flag_done = 1
 
 (* Flags for the base:allocation metadata context *)
@@ -189,30 +194,64 @@ module Command = struct
     | Trim
     | WriteZeroes
     | BlockStatus
-    | Unknown of int32
+    | Unknown of int
   [@@deriving sexp]
 
   let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 
-  let of_int32 = function
-    | 0l -> Read
-    | 1l -> Write
-    | 2l -> Disc
-    | 3l -> Flush
-    | 4l -> Trim
-    | 6l -> WriteZeroes
-    | 7l -> BlockStatus
+  let of_int = function
+    | 0 -> Read
+    | 1 -> Write
+    | 2 -> Disc
+    | 3 -> Flush
+    | 4 -> Trim
+    | 6 -> WriteZeroes
+    | 7 -> BlockStatus
     | c  -> Unknown c
 
-  let to_int32 = function
-    | Read -> 0l
-    | Write -> 1l
-    | Disc -> 2l
-    | Flush -> 3l
-    | Trim -> 4l
-    | WriteZeroes -> 6l
-    | BlockStatus -> 7l
+  let to_int = function
+    | Read -> 0
+    | Write -> 1
+    | Disc -> 2
+    | Flush -> 3
+    | Trim -> 4
+    | WriteZeroes -> 6
+    | BlockStatus -> 7
     | Unknown c -> c
+
+end
+
+module CommandFlag = struct
+  type t =
+    | Fua
+    | NoHole
+    | Df
+    | ReqOne
+  [@@deriving sexp]
+
+  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+
+  let of_int flags =
+    let is_set mask = mask land flags <> 0 in
+    List.map
+      snd
+      (List.filter
+         (fun (mask,_) -> is_set mask)
+         [ nbd_cmd_flag_fua, Fua
+         ; nbd_cmd_flag_no_hole, NoHole
+         ; nbd_cmd_flag_df, Df
+         ; nbd_cmd_flag_req_one, ReqOne
+         ]
+      )
+
+  let to_int flags =
+    let one = function
+      | Fua -> nbd_cmd_flag_fua
+      | NoHole -> nbd_cmd_flag_no_hole
+      | Df -> nbd_cmd_flag_df
+      | ReqOne -> nbd_cmd_flag_req_one
+    in
+    List.fold_left (lor) 0 (List.map one flags)
 
 end
 
@@ -807,6 +846,7 @@ let default_client_blocksize =
 
 module Request = struct
   type t = {
+    command_flags : CommandFlag.t list;
     ty : Command.t;
     handle : int64;
     from : int64;
@@ -820,7 +860,8 @@ module Request = struct
   [%%cstruct
     type t = {
       magic:  uint32_t;
-      ty:     uint32_t;
+      flags:  uint16_t;
+      ty:     uint16_t;
       handle: uint64_t;
       from:   uint64_t;
       len:    uint32_t;
@@ -832,17 +873,19 @@ module Request = struct
     ( if nbd_request_magic <> magic
       then Error (Failure (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic nbd_request_magic))
       else Ok () ) >>= fun () ->
-    let ty = Command.of_int32 (get_t_ty buf) in
+    let command_flags = CommandFlag.of_int (get_t_flags buf) in
+    let ty = Command.of_int (get_t_ty buf) in
     let handle = get_t_handle buf in
     let from = get_t_from buf in
     let len = get_t_len buf in
-    Ok { ty; handle; from; len }
+    Ok { command_flags; ty; handle; from; len }
 
   let sizeof = sizeof_t
 
   let marshal (buf: Cstruct.t) t =
     set_t_magic buf nbd_request_magic;
-    set_t_ty buf (Command.to_int32 t.ty);
+    set_t_flags buf (CommandFlag.to_int t.command_flags);
+    set_t_ty buf (Command.to_int t.ty);
     set_t_handle buf t.handle;
     set_t_from buf t.from;
     set_t_len buf t.len

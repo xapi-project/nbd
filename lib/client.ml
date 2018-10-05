@@ -390,7 +390,8 @@ let handle_error_offset_chunk chan length =
 let write_cmd t ty ~from ~len ~writefn =
   let handle = get_handle () in
   let req_hdr = {
-    Request.ty = ty;
+    Request.command_flags = [];
+    ty = ty;
     handle; from;
     len
   } in
@@ -453,7 +454,8 @@ let write_zeroes t from len =
 let read_chunked t from len read_callback =
   let handle = get_handle () in
   let req_hdr = {
-    Request.ty = Command.Read;
+    Request.command_flags = [];
+    ty = Command.Read;
     handle; from; len
   } in
   Rpc.rpc
@@ -539,7 +541,8 @@ let query_block_status t from len =
   else begin
     let handle = get_handle () in
     let req_hdr = {
-      Request.ty = Command.BlockStatus;
+      Request.command_flags = [];
+      ty = Command.BlockStatus;
       handle; from; len;
     } in
     Rpc.rpc
@@ -579,7 +582,8 @@ let query_block_status t from len =
 let disconnect t =
   let handle = get_handle () in
   let req_hdr = {
-    Request.ty = Command.Disc;
+    Request.command_flags = [];
+    ty = Command.Disc;
     handle; from = 0L;
     len = 0l
   } in

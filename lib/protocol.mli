@@ -49,10 +49,31 @@ module Command: sig
                 discarded. *)
     | WriteZeroes (** A write request with no payload to zero out data on disk *)
     | BlockStatus (** A block status query request. *)
-    | Unknown of int32 (** A command which this protocol implementation doesn't
+    | Unknown of int (** A command which this protocol implementation doesn't
                            support. *)
 
   val to_string: t -> string
+end
+
+module CommandFlag : sig
+	(** Flags that provide additional information to the server to execute the
+      command *)
+
+  type t =
+		| Fua (** NBD_CMD_FLAG_FUA: All write operations must be persisted to
+							non-volatile storage before the server responds.
+							NBD_FLAG_SEND_FUA must have been negotiated. *)
+		| NoHole (** NBD_CMD_FLAG_NO_HOLE: Client wants to ensure that the server
+								 does not create a hole.
+                 Valid during NBD_CMD_WRITE_ZEROES. *)
+		| Df (** NBD_CMD_FLAG_DF: Don't fragment structured reply to NBD_CMD_READ:
+						 send at most one content chunk. Valid during NBD_CMD_READ. *)
+		| ReqOne (** NBD_CMD_FLAG_REQ_ONE: Client is interested in only one extent
+								 per metadata context. Valid during NBD_CMD_BLOCK_STATUS. *)
+
+	val to_string : t -> string
+	val of_int : int -> t list
+	val to_int : t list -> int
 end
 
 module PerExportFlag: sig
@@ -404,6 +425,7 @@ module Request: sig
   (** After the negotation phase, clients send I/O requests to the server. *)
 
   type t = {
+    command_flags : CommandFlag.t list; (** Provides additional information to the server to execute the command *)
     ty : Command.t; (** The command type *)
     handle : int64; (** A unique handle used to match requests with responses.*)
     from : int64;   (** The start of the data region *)
