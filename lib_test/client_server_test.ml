@@ -6,9 +6,10 @@
 
 open Lwt.Infix
 
-let with_channels f =
+let pipe pipe_name =
   let section = Lwt_log_core.Section.make("with_channels") in
-  let make_channel name (ic, oc) =
+  let make_channel channel_name (ic, oc) =
+    let name = "<" ^ pipe_name ^ "> " ^ channel_name in
     let read c =
       let len = Cstruct.len c in
       Lwt_log.debug_f ~section "%s read: %d" name len >>= fun () ->
@@ -36,17 +37,7 @@ let with_channels f =
   let server_channel =
     Nbd.Channel.{ read_clear=server_read; write_clear=server_write; close_clear=noop; make_tls_channel=None }
   in
-  Lwt_unix.with_timeout 0.5 (fun () -> f client_channel server_channel)
-
-(** Run the given server and client test sequences concurrently with channels
-    connecting the server and the client together. *)
-let test ~server ~client () =
-  Lwt_log.add_rule "*" Lwt_log.Debug;
-  with_channels (fun client_channel server_channel ->
-      let test_server = server server_channel in
-      let test_client = client client_channel in
-      Lwt.join [test_server; test_client]
-    )
+  client_channel, server_channel
 
 (** We fail the test if an error occurs *)
 let check msg =
@@ -54,70 +45,129 @@ let check msg =
   | Result.Ok a -> Lwt.return a
   | Result.Error _ -> Lwt.fail_with msg
 
-let test_connect_disconnect _switch =
-  let test_block = (Cstruct.of_string "asdf") in
-  test
-    ~server:(fun server_channel ->
-        Nbd.Server.connect server_channel () >>= fun (export_name, svr) ->
-        Alcotest.(check string) "export name received by server"
-          "export1" export_name;
-        Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
-      )
-    ~client:(fun client_channel ->
-        Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, _flags) ->
-        Alcotest.(check int64) "size received by client"
-          (Int64.of_int (Cstruct.len test_block))
-          size;
-        Nbd.Client.disconnect t
-      )
+module ServerTests = struct
 
-let test_list_exports _switch =
-  test
-    ~server:(fun server_channel ->
-        Lwt.catch
-          (fun () ->
-             Nbd.Server.connect ~offer:["export1";"export2"] server_channel () >>= fun _ ->
-             Alcotest.fail "Server should not enter transmission mode")
-          (function
-            | Nbd.Server.Client_requested_abort -> Lwt.return_unit
-            | e -> Lwt.fail e)
-      )
-    ~client:(fun client_channel ->
-        Nbd.Client.list client_channel >|= fun exports ->
-        Alcotest.(check (result (slist string String.compare) reject))
-          "Received correct export names"
-          (Ok ["export1";"export2"])
-          exports
-      )
+  (** Run the given server and client test sequences concurrently with channels
+      connecting the server and the client together. *)
+  let test ~server ~client () =
+    Lwt_log.add_rule "*" Lwt_log.Debug;
+    Lwt_unix.with_timeout 0.5 @@ fun () ->
+    let client_channel, server_channel = pipe "client<->server" in
+    let test_server = server server_channel in
+    let test_client = client client_channel in
+    Lwt.join [test_server; test_client]
 
-let test_read_write _switch =
-  let test_block = (Cstruct.of_string "asdf") in
-  test
-    ~server:(fun server_channel ->
-        Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
-        Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
-      )
-    ~client:(fun client_channel ->
-        Nbd.Client.negotiate client_channel "export1" >>= fun (t, _size, _flags) ->
+  let test_connect_disconnect _switch =
+    let test_block = (Cstruct.of_string "asdf") in
+    test
+      ~server:(fun server_channel ->
+          Nbd.Server.connect server_channel () >>= fun (export_name, svr) ->
+          Alcotest.(check string) "export name received by server"
+            "export1" export_name;
+          Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
+        )
+      ~client:(fun client_channel ->
+          Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, _flags) ->
+          Alcotest.(check int64) "size received by client"
+            (Int64.of_int (Cstruct.len test_block))
+            size;
+          Nbd.Client.disconnect t
+        )
 
-        let buf = Cstruct.create 2 in
-        Nbd.Client.read t 1L [buf] >>= check "1st read failed" >>= fun () ->
-        Alcotest.(check string) "2 bytes at offset 1" "sd" (Cstruct.to_string buf);
+  let test_list_exports _switch =
+    test
+      ~server:(fun server_channel ->
+          Lwt.catch
+            (fun () ->
+               Nbd.Server.connect ~offer:["export1";"export2"] server_channel () >>= fun _ ->
+               Alcotest.fail "Server should not enter transmission mode")
+            (function
+              | Nbd.Server.Client_requested_abort -> Lwt.return_unit
+              | e -> Lwt.fail e)
+        )
+      ~client:(fun client_channel ->
+          Nbd.Client.list client_channel >|= fun exports ->
+          Alcotest.(check (result (slist string String.compare) reject))
+            "Received correct export names"
+            (Ok ["export1";"export2"])
+            exports
+        )
 
-        let buf = Cstruct.of_string "12" in
-        Nbd.Client.write t 2L [buf] >>= check "Write failed" >>= fun () ->
+  let test_read_write _switch =
+    let test_block = (Cstruct.of_string "asdf") in
+    test
+      ~server:(fun server_channel ->
+          Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
+          Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
+        )
+      ~client:(fun client_channel ->
+          Nbd.Client.negotiate client_channel "export1" >>= fun (t, _size, _flags) ->
 
-        let buf = Cstruct.create 2 in
-        Nbd.Client.read t 2L [buf] >>= check "2nd read failed" >>= fun () ->
-        Alcotest.(check string) "2 modified bytes at offset 2" "12" (Cstruct.to_string buf);
+          let buf = Cstruct.create 2 in
+          Nbd.Client.read t 1L [buf] >>= check "1st read failed" >>= fun () ->
+          Alcotest.(check string) "2 bytes at offset 1" "sd" (Cstruct.to_string buf);
 
-        Nbd.Client.disconnect t
-      )
+          let buf = Cstruct.of_string "12" in
+          Nbd.Client.write t 2L [buf] >>= check "Write failed" >>= fun () ->
+
+          let buf = Cstruct.create 2 in
+          Nbd.Client.read t 2L [buf] >>= check "2nd read failed" >>= fun () ->
+          Alcotest.(check string) "2 modified bytes at offset 2" "12" (Cstruct.to_string buf);
+
+          Nbd.Client.disconnect t
+        )
+end
+
+module ProxyTests = struct
+
+  (** Run the given server, proxy, and client test sequences concurrently with channels
+      connecting the server, proxy, and client together. *)
+  let test ~server ~proxy ~client () =
+    Lwt_log.add_rule "*" Lwt_log.Debug;
+    Lwt_unix.with_timeout 0.5 @@ fun () ->
+    let proxy_client_channel, proxy_server_channel = pipe "proxy<->server" in
+    let client_channel, server_channel = pipe "client<->proxy" in
+    let test_server = server proxy_server_channel in
+    let test_proxy = proxy proxy_client_channel server_channel in
+    let test_client = client client_channel in
+    Lwt.join [test_server; test_proxy; test_client]
+
+  let test_read_write _switch =
+    let test_block = (Cstruct.of_string "asdf") in
+    test
+      ~server:(fun proxy_server_channel ->
+          Nbd.Server.connect proxy_server_channel () >>= fun (_export_name, svr) ->
+          Nbd.Server.serve svr ~read_only:false (module Cstruct_block.Block) test_block
+        )
+      ~proxy:(fun proxy_client_channel server_channel ->
+          Nbd.Client.negotiate proxy_client_channel "" >>= fun (client, _size, _flags) ->
+          Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
+          Nbd.Server.proxy svr ~read_only:false (module Nbd.Client) client >>= fun () ->
+          Nbd.Client.disconnect client
+        )
+      ~client:(fun client_channel ->
+          Nbd.Client.negotiate client_channel "export1" >>= fun (t, _size, _flags) ->
+
+          let buf = Cstruct.create 2 in
+          Nbd.Client.read t 1L [buf] >>= check "1st read failed" >>= fun () ->
+          Alcotest.(check string) "2 bytes at offset 1" "sd" (Cstruct.to_string buf);
+
+          let buf = Cstruct.of_string "12" in
+          Nbd.Client.write t 2L [buf] >>= check "Write failed" >>= fun () ->
+
+          let buf = Cstruct.create 2 in
+          Nbd.Client.read t 2L [buf] >>= check "2nd read failed" >>= fun () ->
+          Alcotest.(check string) "2 modified bytes at offset 2" "12" (Cstruct.to_string buf);
+
+          Nbd.Client.disconnect t
+        )
+end
 
 let tests =
   let t = Alcotest_lwt.test_case in
   "Nbd client-server connection tests",
-  [ t "test_connect_disconnect" `Quick test_connect_disconnect
-  ; t "test_list_exports" `Quick test_list_exports
-  ; t "test_read_write" `Quick test_read_write
+  [ t "test_connect_disconnect" `Quick ServerTests.test_connect_disconnect
+  ; t "test_list_exports" `Quick ServerTests.test_list_exports
+  ; t "test_read_write" `Quick ServerTests.test_read_write
+  ; t "proxy_test_read_write" `Quick ProxyTests.test_read_write
   ]
