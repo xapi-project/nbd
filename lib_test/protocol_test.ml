@@ -35,82 +35,98 @@ let transmission =
     other side. *)
 exception Failed_to_read_empty_stream
 
-(** [make_channel role test_sequence] creates a channel for use by the NBD library
+(** [with_channel name role test_sequence f] creates a channel for use by the NBD library
     from a test sequence containing the expected communication between the
     client and the server. Reads and writes will verify that the communication
     matches exactly what is in [test_sequence], which is a list of data
     transmission tuples, each specifying whether the client or the server is
     sending the data, and the actual data sent. [role] specifies whether the
     client or the server will use the created channel, the other side will be
-    simulated by taking the responses from [test_sequence]. *)
-let make_channel role test_sequence =
+    simulated by taking the responses from [test_sequence].
+    When [f] has returned, this function will verify that it has processed the
+    complete [test_sequence]. *)
+let with_channel name role test_sequence f =
   let next = ref test_sequence in
-  let rec read buf =
-    Lwt_io.printlf "Reading %d bytes" (Cstruct.len buf) >>= fun () ->
-    (* Ignore reads and writes of length 0 and treat them as a no-op *)
-    if Cstruct.len buf = 0 then Lwt.return_unit else
-      match !next with
-      | (source, x) :: rest ->
-        if source = role then failwith "Tried to read but should have written";
+  let next_lock = Lwt_mutex.create () in
+  let can_read = Lwt_condition.create () in
+  let read buf =
+    Lwt_io.printlf "<%s> Reading %d bytes" name (Cstruct.len buf) >>= fun () ->
+    let rec loop buf =
+      (* Ignore reads and writes of length 0 and treat them as a no-op *)
+      if Cstruct.len buf = 0 then Lwt.return_unit else
+        Lwt_io.printlf "<%s> Remaining: %d" name (Cstruct.len buf) >>= fun () ->
+        Lwt_io.flush_all () >>= fun () -> (* Ensure all debug messages get logged *)
+        let rec read_next_input () =
+          Lwt_mutex.with_lock next_lock @@ fun () ->
+          match !next with
+          | (source, x) :: rest when source <> role -> Lwt.return ((source, x), rest)
+          | (_source, x) :: _ ->
+            Lwt_io.printlf "<%s> Tried to read but data not yet available - has to write %s first" name x >>= fun () ->
+            Lwt_io.flush_all () >>= fun () -> (* Ensure all debug messages get logged *)
+            Lwt_condition.wait ~mutex:next_lock can_read >>= fun () ->
+            read_next_input ()
+          | [] -> Lwt.fail Failed_to_read_empty_stream
+        in
+        Lwt_unix.with_timeout 0.1 read_next_input >>= fun ((source, x), rest) ->
         let available = min (Cstruct.len buf) (String.length x) in
         Cstruct.blit_from_string x 0 buf 0 available;
         next := if available = String.length x then rest else (source, (String.sub x available (String.length x - available))) :: rest;
-        Lwt_io.printlf "Read: %s" (x |> String.escaped) >>= fun () ->
+        Lwt_io.printlf "<%s> Read: %s" name (x |> String.escaped) >>= fun () ->
         Lwt_io.flush_all () >>= fun () -> (* Ensure all debug messages get logged *)
         let buf = Cstruct.shift buf available in
         if Cstruct.len buf = 0
         then Lwt.return ()
-        else read buf
-      | [] -> Lwt.fail Failed_to_read_empty_stream in
-  let rec write buf =
-    Lwt_io.printlf "Writing: %s" (buf |> Cstruct.to_string |> String.escaped) >>= fun () ->
-    (* Ignore reads and writes of length 0 and treat them as a no-op *)
-    if Cstruct.len buf = 0 then Lwt.return_unit else
-      match !next with
-      | (source, x) :: rest ->
-        if source <> role then failwith "Tried to write but should have read";
-        let available = min (Cstruct.len buf) (String.length x) in
-        let written = String.sub (Cstruct.to_string buf) 0 available in
-        let expected = String.sub x 0 available in
-        Alcotest.(check (of_pp (Fmt.of_to_string String.escaped))) "Wrote expected data" expected written;
-        Lwt_io.printlf "Wrote %s" (written |> String.escaped) >>= fun () ->
+        else loop buf
+    in
+    loop buf
+  in
+  let write buf =
+    Lwt_io.printlf "<%s> Writing: %s" name (buf |> Cstruct.to_string |> String.escaped) >>= fun () ->
+    let rec loop buf =
+      (* Ignore reads and writes of length 0 and treat them as a no-op *)
+      if Cstruct.len buf = 0 then Lwt.return_unit else
+        Lwt_io.printlf "<%s> Remaining: %d" name (Cstruct.len buf) >>= fun () ->
         Lwt_io.flush_all () >>= fun () -> (* Ensure all debug messages get logged *)
-        next := if available = String.length x then rest else (source, (String.sub x available (String.length x - available))) :: rest;
-        let buf = Cstruct.shift buf available in
-        if Cstruct.len buf = 0
-        then Lwt.return ()
-        else write buf
-      | [] ->
-        Lwt.fail_with
-          (Printf.sprintf
-             "Tried to write %s but the stream was empty"
-             (buf |> Cstruct.to_string |> String.escaped))
+        match !next with
+        | (source, x) :: rest ->
+          if source <> role then failwith ("<" ^ name ^ "> Tried to write but should have read");
+          let available = min (Cstruct.len buf) (String.length x) in
+          let written = String.sub (Cstruct.to_string buf) 0 available in
+          let expected = String.sub x 0 available in
+          Lwt_io.printlf "<%s> Wrote %s" name (written |> String.escaped) >>= fun () ->
+          Lwt_io.flush_all () >>= fun () -> (* Ensure all debug messages get logged *)
+          Alcotest.(check (of_pp (Fmt.of_to_string String.escaped))) ("<" ^ name ^ "> Wrote expected data") expected written;
+          next := if available = String.length x then rest else (source, (String.sub x available (String.length x - available))) :: rest;
+          Lwt_mutex.with_lock next_lock (fun () -> Lwt_condition.broadcast can_read () |> Lwt.return) >>= fun () ->
+          let buf = Cstruct.shift buf available in
+          if Cstruct.len buf = 0
+          then Lwt.return ()
+          else loop buf
+        | [] ->
+          Lwt.fail_with
+            (Printf.sprintf
+               "<%s> Tried to write %s but the stream was empty" name
+               (buf |> Cstruct.to_string |> String.escaped))
+    in
+    loop buf
   in
   let close () = Lwt.return () in
-  let assert_processed_complete_sequence () = Alcotest.(check (list transmission)) "did not process complete sequence" !next [] in
-  (assert_processed_complete_sequence, (read, write, close))
+  f (read, write, close) >|= fun () ->
+  Alcotest.(check (list transmission)) ("<" ^ name ^ "> did not process complete sequence") !next []
 
 (** Passes a channel for use by the NBD client to the given function, verifying
     that all communcation matches the given test sequence and that the complete
-    sequence has been processed after the function returns.
-    Returns a function that can be passed to create a Alcotest_lwt.test_case *)
-let with_client_channel s f =
-  fun _switch () ->
-    let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Client s in
-    f Nbd.Channel.{read; write; close; is_tls=false} >>= fun () ->
-    assert_processed_complete_sequence ();
-    Lwt.return_unit
+    sequence has been processed after the function returns. *)
+let with_client_channel name sequence f =
+  with_channel name `Client sequence @@ fun (read, write, close) ->
+  f Nbd.Channel.{read; write; close; is_tls=false}
 
 (** Passes a channel for use by the NBD server to the given function, verifying
     that all communcation matches the given test sequence and that the complete
-    sequence has been processed after the function returns.
-    Returns a function that can be passed to create a Alcotest_lwt.test_case *)
-let with_server_channel s f =
-  fun _switch () ->
-    let (assert_processed_complete_sequence, (read, write, close)) = make_channel `Server s in
-    f Nbd.Channel.{read_clear=read; write_clear=write; close_clear=close; make_tls_channel=None} >>= fun () ->
-    assert_processed_complete_sequence ();
-    Lwt.return_unit
+    sequence has been processed after the function returns. *)
+let with_server_channel name sequence f =
+  with_channel name `Server sequence @@ fun (read, write, close) ->
+  f Nbd.Channel.{read_clear=read; write_clear=write; close_clear=close; make_tls_channel=None}
 
 (* NBD constants used in the test sequences *)
 (* All the flags in the NBD protocol are in network byte order (big-endian) *)
@@ -198,6 +214,8 @@ let list_exports_success = [
 ]
 
 module ClientTests = struct
+  (* Return a function that can be passed to Alcotest_lwt.test_case *)
+  let test sequence f = fun _switch () -> with_client_channel "client<->server sequence" sequence f
 
   let test_v2_negotiation =
     (* The server only sends this extra data after Nbd.Server.connect when we call Nbd.Server.serve *)
@@ -211,18 +229,49 @@ module ClientTests = struct
       "Perform a negotiation using the second version of the protocol from the
      client's side."
       `Quick
-      (with_client_channel v2_negotiation (fun channel ->
+      (test v2_negotiation (fun channel ->
            Nbd.Client.negotiate channel "export1"
            >>= fun _ ->
            Lwt.return ()
          ))
+
+  let test_connect_disconnect =
+    let sequence =
+      [ `Server, "NBDMAGIC"
+      ; `Server, "IHAVEOPT"
+      ; `Server, "\000\001" (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      ; `Client, "\000\000\000\001" (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+      ; `Client, "IHAVEOPT"
+      ; `Client, "\000\000\000\001" (* NBD_OPT_EXPORT_NAME *)
+      ; `Client, "\000\000\000\007" (* length of export name *)
+      ; `Client, "export1"
+
+      ; `Server, "\000\000\000\000\001\000\000\000" (* size *)
+      ; `Server, "\000\001" (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+      ; `Server, (String.make 124 '\000')
+
+      ; `Client, nbd_request_magic
+      ; `Client, "\000\000" (* command flags *)
+      ; `Client, "\000\002" (* request type: NBD_CMD_DISC *)
+      ; `Client, "\000\000\000\000\000\000\000\000" (* handle: 4 bytes *)
+      ; `Client, "\000\000\000\000\000\000\000\000" (* offset *)
+      ; `Client, "\000\000\000\000" (* length *)
+      ]
+    in
+    Alcotest_lwt.test_case
+      "connect/disconnect"
+      `Quick
+      (test sequence @@ fun channel ->
+       Nbd.Client.negotiate channel "export1" >>= fun (c, _, _) ->
+       Nbd.Client.disconnect c)
 
   let test_list_exports_disabled =
     Alcotest_lwt.test_case
       "Check that if we request a list of exports and are denied, the error is
      reported properly."
       `Quick
-      (with_client_channel list_exports_disabled (fun channel ->
+      (test list_exports_disabled (fun channel ->
            Nbd.Client.list channel
            >>= function
            | Error `Policy ->
@@ -258,7 +307,7 @@ module ClientTests = struct
     Alcotest_lwt.test_case
       "Server denies listing exports, and disconnects after abort without sending ack"
       `Quick
-      (with_client_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Nbd.Client.list channel
            >>= function
            | Error `Policy ->
@@ -270,7 +319,7 @@ module ClientTests = struct
     Alcotest_lwt.test_case
       "Client requests a list of exports"
       `Quick
-      (with_client_channel list_exports_success (fun channel ->
+      (test list_exports_success (fun channel ->
            Nbd.Client.list channel >|= fun res ->
            Alcotest.(check (result (slist string String.compare) reject))
              "Returned correct export names"
@@ -315,7 +364,7 @@ module ClientTests = struct
     Alcotest_lwt.test_case
       "List exports with extra data after export name"
       `Quick
-      (with_client_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Nbd.Client.list channel
            >>= function
            | Ok [ "export2" ] ->
@@ -325,12 +374,15 @@ module ClientTests = struct
 end
 
 module ServerTests = struct
+  (* Return a function that can be passed to Alcotest_lwt.test_case *)
+  let test sequence f = fun _switch () -> with_server_channel "client sequence<->server" sequence f
+
   let test_v2_negotiation =
     Alcotest_lwt.test_case
       "Perform a negotiation using the second version of the protocol from the
      server's side."
       `Quick
-      (with_server_channel v2_negotiation_start (fun channel ->
+      (test v2_negotiation_start (fun channel ->
            Nbd.Server.connect channel ()
            >|= fun (export_name, _svr) ->
            Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name
@@ -357,7 +409,7 @@ module ServerTests = struct
     Alcotest_lwt.test_case
       "Client connects then aborts"
       `Quick
-      (with_server_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect channel () >>= fun _ ->
@@ -386,7 +438,7 @@ module ServerTests = struct
     Alcotest_lwt.test_case
       "Client connects then aborts without reading ack"
       `Quick
-      (with_server_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect channel () >>= fun _ ->
@@ -402,7 +454,7 @@ module ServerTests = struct
       "Check that the server denies listing the exports, and the error is
      reported properly."
       `Quick
-      (with_server_channel list_exports_disabled (fun channel ->
+      (test list_exports_disabled (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect channel () >>= fun _ ->
@@ -417,7 +469,7 @@ module ServerTests = struct
     Alcotest_lwt.test_case
       "Client requests a list of exports"
       `Quick
-      (with_server_channel list_exports_success (fun channel ->
+      (test list_exports_success (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect ~offer:["export1";"export2"] channel () >>= fun _ ->
@@ -494,7 +546,7 @@ module ServerTests = struct
     Alcotest_lwt.test_case
       "Serve a read-only export and test that reads and writes are handled correctly."
       `Quick
-      (with_server_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Nbd.Server.connect channel ()
            >>= fun (export_name, svr) ->
            Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
@@ -543,7 +595,7 @@ module ServerTests = struct
     Alcotest_lwt.test_case
       "Serve a read-write export and test that writes are handled correctly."
       `Quick
-      (with_server_channel sequence (fun channel ->
+      (test sequence (fun channel ->
            Nbd.Server.connect channel ()
            >>= fun (export_name, svr) ->
            Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name;
@@ -553,6 +605,71 @@ module ServerTests = struct
              "as12"
              (Cstruct.to_string test_block)
          ))
+end
+
+module ProxyTests = struct
+  (* Return a function that can be passed to Alcotest_lwt.test_case *)
+  let test ~server_sequence ~client_sequence f = fun _switch () ->
+    with_client_channel "proxy<->server sequence" server_sequence @@ fun client_channel ->
+    with_server_channel "client<->proxy" client_sequence @@ fun server_channel ->
+    f ~client_channel ~server_channel
+
+  let test_connect_disconnect =
+    let server_sequence =
+      [ `Server, "NBDMAGIC"
+      ; `Server, "IHAVEOPT"
+      ; `Server, "\000\001" (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      ; `Client, "\000\000\000\001" (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+      ; `Client, "IHAVEOPT"
+      ; `Client, "\000\000\000\001" (* NBD_OPT_EXPORT_NAME *)
+      ; `Client, "\000\000\000\007" (* length of export name *)
+      ; `Client, "export1"
+
+      ; `Server, "\000\000\000\000\001\000\000\000" (* size *)
+      ; `Server, "\000\001" (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+      ; `Server, (String.make 124 '\000')
+
+      ; `Client, nbd_request_magic
+      ; `Client, "\000\000" (* command flags *)
+      ; `Client, "\000\002" (* request type: NBD_CMD_DISC *)
+      ; `Client, "\000\000\000\000\000\000\000\001" (* handle: 4 bytes *)
+      ; `Client, "\000\000\000\000\000\000\000\000" (* offset *)
+      ; `Client, "\000\000\000\000" (* length *)
+      ]
+    in
+    let client_sequence =
+      [ `Server, "NBDMAGIC"
+      ; `Server, "IHAVEOPT"
+      ; `Server, "\000\001" (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      ; `Client, "\000\000\000\001" (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+      ; `Client, "IHAVEOPT"
+      ; `Client, "\000\000\000\001" (* NBD_OPT_EXPORT_NAME *)
+      ; `Client, "\000\000\000\007" (* length of export name *)
+      ; `Client, "export1"
+
+      ; `Server, "\000\000\000\000\001\000\000\000" (* size *)
+      ; `Server, "\000\065" (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) + NBD_FLAG_SEND_WRITE_ZEROES (bit 6) *)
+      ; `Server, (String.make 124 '\000')
+
+      ; `Client, nbd_request_magic
+      ; `Client, "\000\000" (* command flags *)
+      ; `Client, "\000\002" (* request type: NBD_CMD_DISC *)
+      ; `Client, "\000\000\000\000\000\000\000\001" (* handle: 4 bytes *)
+      ; `Client, "\000\000\000\000\000\000\000\000" (* offset *)
+      ; `Client, "\000\000\000\000" (* length *)
+      ]
+    in
+    Alcotest_lwt.test_case
+      "Connect/disconnect to/from export via proxy"
+      `Quick
+      (test ~server_sequence ~client_sequence @@ fun ~client_channel ~server_channel ->
+       Nbd.Client.negotiate client_channel "export1" >>= fun (client, _size, _flags) ->
+       Lwt_io.printl "negotiated" >>= Lwt_io.flush_all >>= fun () ->
+       Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
+       Nbd.Server.proxy svr ~read_only:false (module Nbd.Client) client >>= fun () ->
+       Nbd.Client.disconnect client)
 end
 
 let tests =
@@ -568,6 +685,8 @@ let tests =
   ; ClientTests.test_list_exports_success
   ; ServerTests.test_list_exports_success
   ; ClientTests.test_list_exports_extra_data
+  ; ClientTests.test_connect_disconnect
   ; ServerTests.test_read_only_export
   ; ServerTests.test_read_write_export
+  ; ProxyTests.test_connect_disconnect
   ]
