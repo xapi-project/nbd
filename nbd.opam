@@ -7,14 +7,15 @@ doc: "https://xapi-project.github.io/nbd/nbd/index.html"
 dev-repo: "git+https://github.com/xapi-project/nbd.git"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 
-build: [
-  ["jbuilder" "build" "-p" name "-j" jobs]
-  ["jbuilder" "runtest" "-p" name] {with-test}
-]
+build: ["dune" "build" "-p" name "-j" jobs]
+run-test: ["dune" "runtest" "-p" name "-j" jobs]
+
 depends: [
   "ocaml" {>= "4.03.0"}
-  "jbuilder" {build & >= "1.0+beta10"}
-  "ounit" {with-test}
+  "dune" {build}
+  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
+  "io-page-unix" {with-test}
   "cstruct" {>= "3.1.0"}
   "io-page"
   "mirage-block-lwt"
