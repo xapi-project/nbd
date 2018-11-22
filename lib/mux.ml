@@ -22,6 +22,7 @@ open Result
 
 module type RPC = sig
   type transport
+  (** The transport mechanism used to send and receive messages *)
 
   type id
   (** Each [request_hdr] and [response_hdr] carries an [id] that is used to
@@ -35,11 +36,15 @@ module type RPC = sig
   val recv_hdr : transport -> (id option * response_hdr) Lwt.t
 
   val recv_body : transport -> request_hdr -> response_hdr -> response_body -> (unit, Protocol.Error.t) result Lwt.t
-  (** [recv_body transport request_hdr response_hdr response_body] receives and writes
-      the body of the response into [response_body]. The [request_hdr] parameter
-      is the output of a preceding [recv_hdr] call. *)
+  (** [recv_body transport request_hdr response_hdr response_body] returns [Ok ()]
+      and receives and writes the body of the response into [response_body] if
+      the request has been successful, otherwise returns an [Error]. The
+      [request_hdr] parameter is the output of a preceding [recv_hdr] call. *)
 
   val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
+  (** Send a single request. Invocations of this function will not be interleaved
+      because they are protected by a mutex *)
+
   val id_of_request : request_hdr -> id
   val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
 end
@@ -54,6 +59,10 @@ module Make (R : RPC) : sig
       this request is received from the server. *)
 
   val create : R.transport -> client Lwt.t
+  (** [create transport] creates a new client that manages parallel requests
+      over the given transport channel. All communication over this channel
+      must go through the returned client. *)
+
 end = struct
   exception Unexpected_id of R.id
   exception Shutdown

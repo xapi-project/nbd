@@ -12,7 +12,7 @@ doc: "https://xapi-project.github.io/nbd/nbd-lwt-unix/index.html"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 depends: [
   "ocaml" {>= "4.03.0"}
-  "jbuilder" {build}
+  "dune" {build}
   "cstruct-lwt"
   "io-page"
   "io-page-unix"
@@ -24,7 +24,7 @@ depends: [
   "lwt_ssl"
   "ssl"
 ]
-build: ["jbuilder" "build" "-p" name "-j" jobs]
+build: ["dune" "build" "-p" name "-j" jobs]
 dev-repo: "git+https://github.com/xapi-project/nbd.git"
 url {
   src: "https://github.com/xapi-project/nbd/archive/v4.0.0+beta1.tar.gz"
