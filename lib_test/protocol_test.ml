@@ -31,12 +31,6 @@ let transmission =
   in
   Alcotest.testable fmt (=)
 
-(* All the flags in the NBD protocol are in network byte order (big-endian) *)
-
-let option_reply_magic_number = "\x00\x03\xe8\x89\x04\x55\x65\xa9"
-let nbd_request_magic = "\x25\x60\x95\x13"
-let nbd_reply_magic = "\x67\x44\x66\x98"
-
 (** The client or server wanted to read and there is no more data from the
     other side. *)
 exception Failed_to_read_empty_stream
@@ -118,28 +112,101 @@ let with_server_channel s f =
     assert_processed_complete_sequence ();
     Lwt.return_unit
 
-module V2_negotiation = struct
+(* NBD constants used in the test sequences *)
+(* All the flags in the NBD protocol are in network byte order (big-endian) *)
 
-  let v2_negotiation_start = [
-    `Server, "NBDMAGIC";
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+let option_reply_magic_number = "\x00\x03\xe8\x89\x04\x55\x65\xa9"
+let nbd_request_magic = "\x25\x60\x95\x13"
+let nbd_reply_magic = "\x67\x44\x66\x98"
 
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
-    `Client, "\000\000\000\007"; (* length of export name *)
-    `Client, "export1";
-  ]
+(* Shared test sequences used both for client and server tests *)
 
-  (* The server only sends this extra data after Nbd.Server.connect when we call Nbd.Server.serve *)
-  let v2_negotiation = v2_negotiation_start @ [
-    `Server, "\000\000\000\000\001\000\000\000"; (* size *)
-    `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
-    `Server, (String.make 124 '\000');
-  ]
+let v2_negotiation_start = [
+  `Server, "NBDMAGIC";
+  `Server, "IHAVEOPT";
+  `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-  let test_client =
+  `Client, "IHAVEOPT";
+  `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+  `Client, "\000\000\000\007"; (* length of export name *)
+  `Client, "export1";
+]
+
+let list_exports_disabled = [
+  `Server, "NBDMAGIC"; (* read *)
+  `Server, "IHAVEOPT";
+  `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+  `Client, "IHAVEOPT";
+  `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
+  `Client, "\000\000\000\000";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\003";
+  `Server, "\128\000\000\002"; (* NBD_REP_ERR_POLICY *)
+  `Server, "\000\000\000\000";
+
+  `Client, "IHAVEOPT";
+  `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+  `Client, "\000\000\000\000";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\002";
+  `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+  `Server, "\000\000\000\000";
+]
+
+let list_exports_success = [
+  `Server, "NBDMAGIC"; (* read *)
+  `Server, "IHAVEOPT";
+  `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+  `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+  `Client, "IHAVEOPT";
+  `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
+  `Client, "\000\000\000\000";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\003";
+  `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
+  `Server, "\000\000\000\011";
+  `Server, "\000\000\000\007";
+  `Server, "export1";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\003";
+  `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
+  `Server, "\000\000\000\011";
+  `Server, "\000\000\000\007";
+  `Server, "export2";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\003";
+  `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+  `Server, "\000\000\000\000";
+
+  `Client, "IHAVEOPT";
+  `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+  `Client, "\000\000\000\000";
+
+  `Server, option_reply_magic_number;
+  `Server, "\000\000\000\002";
+  `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+  `Server, "\000\000\000\000";
+]
+
+module ClientTests = struct
+
+  let test_v2_negotiation =
+    (* The server only sends this extra data after Nbd.Server.connect when we call Nbd.Server.serve *)
+    let v2_negotiation = v2_negotiation_start @ [
+        `Server, "\000\000\000\000\001\000\000\000"; (* size *)
+        `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+        `Server, (String.make 124 '\000');
+      ]
+    in
     Alcotest_lwt.test_case
       "Perform a negotiation using the second version of the protocol from the
      client's side."
@@ -150,7 +217,115 @@ module V2_negotiation = struct
            Lwt.return ()
          ))
 
-  let test_server =
+  let test_list_exports_disabled =
+    Alcotest_lwt.test_case
+      "Check that if we request a list of exports and are denied, the error is
+     reported properly."
+      `Quick
+      (with_client_channel list_exports_disabled (fun channel ->
+           Nbd.Client.list channel
+           >>= function
+           | Error `Policy ->
+             Lwt.return ()
+           | _ -> failwith "Expected to receive a Policy error"
+         ))
+
+  (** After a NBD_OPT_LIST, the client sends an abort, but the server
+   * disconnects without sending an ack. The NBD protocol says: "the client
+   * SHOULD gracefully handle the server closing the connection after receiving
+   * an NBD_OPT_ABORT without it sending a reply" *)
+  let test_no_ack_after_abort =
+    let sequence = [
+      `Server, "NBDMAGIC"; (* read *)
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
+      `Client, "\000\000\000\000";
+
+      `Server, option_reply_magic_number;
+      `Server, "\000\000\000\003";
+      `Server, "\128\000\000\002"; (* NBD_REP_ERR_POLICY *)
+      `Server, "\000\000\000\000";
+
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+      `Client, "\000\000\000\000";
+    ]
+    in
+    Alcotest_lwt.test_case
+      "Server denies listing exports, and disconnects after abort without sending ack"
+      `Quick
+      (with_client_channel sequence (fun channel ->
+           Nbd.Client.list channel
+           >>= function
+           | Error `Policy ->
+             Lwt.return ()
+           | _ -> failwith "Expected to receive a Policy error"
+         ))
+
+  let test_list_exports_success =
+    Alcotest_lwt.test_case
+      "Client requests a list of exports"
+      `Quick
+      (with_client_channel list_exports_success (fun channel ->
+           Nbd.Client.list channel >|= fun res ->
+           Alcotest.(check (result (slist string String.compare) reject))
+             "Returned correct export names"
+             (Ok [ "export1"; "export2" ])
+             res
+         ))
+
+
+  let test_list_exports_extra_data =
+    let sequence = [
+      `Server, "NBDMAGIC"; (* read *)
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
+      `Client, "\000\000\000\000";
+
+      `Server, option_reply_magic_number;
+      `Server, "\000\000\000\003";
+      `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
+      `Server, "\000\000\000\018";
+      `Server, "\000\000\000\007";
+      (* The NBD protocol allows for extra implementation-specific data after the export name *)
+      `Server, "export2<extra>";
+
+      `Server, option_reply_magic_number;
+      `Server, "\000\000\000\003";
+      `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+      `Server, "\000\000\000\000";
+
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+      `Client, "\000\000\000\000";
+
+      `Server, option_reply_magic_number;
+      `Server, "\000\000\000\002";
+      `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+      `Server, "\000\000\000\000";
+    ]
+    in
+    Alcotest_lwt.test_case
+      "List exports with extra data after export name"
+      `Quick
+      (with_client_channel sequence (fun channel ->
+           Nbd.Client.list channel
+           >>= function
+           | Ok [ "export2" ] ->
+             Lwt.return ()
+           | _ -> failwith "Expected to receive a list of exports"
+         ))
+end
+
+module ServerTests = struct
+  let test_v2_negotiation =
     Alcotest_lwt.test_case
       "Perform a negotiation using the second version of the protocol from the
      server's side."
@@ -160,26 +335,25 @@ module V2_negotiation = struct
            >|= fun (export_name, _svr) ->
            Alcotest.(check string) "The server did not receive the correct export name" "export1" export_name
          ))
-end
 
-module V2_abort = struct
-  let sequence = [
-    `Server, "NBDMAGIC";
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
+  let test_abort =
+    let sequence = [
+      `Server, "NBDMAGIC";
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\002";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
-  ]
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+      `Client, "\000\000\000\000";
 
-  let test_server =
+      `Server, option_reply_magic_number;
+      `Server, "\000\000\000\002";
+      `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
+      `Server, "\000\000\000\000";
+    ]
+    in
     Alcotest_lwt.test_case
       "Client connects then aborts"
       `Quick
@@ -193,25 +367,22 @@ module V2_abort = struct
                | Nbd.Server.Client_requested_abort -> Lwt.return_unit
                | e -> Lwt.fail e)
          ))
-end
 
-module V2_abort_without_ack = struct
   (** The NBD protocol says: "the server SHOULD gracefully handle the client
    * sending an NBD_OPT_ABORT and closing the connection without waiting for a
    * reply." *)
+  let test_abort_without_ack =
+    let sequence = [
+      `Server, "NBDMAGIC";
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-  let sequence = [
-    `Server, "NBDMAGIC";
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
-  ]
-
-  let test_server =
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
+      `Client, "\000\000\000\000";
+    ]
+    in
     Alcotest_lwt.test_case
       "Client connects then aborts without reading ack"
       `Quick
@@ -225,54 +396,13 @@ module V2_abort_without_ack = struct
                | Nbd.Server.Client_requested_abort -> Lwt.return_unit
                | e -> Lwt.fail e)
          ))
-end
 
-module V2_list_export_disabled = struct
-
-  let sequence = [
-    `Server, "NBDMAGIC"; (* read *)
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
-    `Client, "\000\000\000\000";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\128\000\000\002"; (* NBD_REP_ERR_POLICY *)
-    `Server, "\000\000\000\000";
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\002";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
-  ]
-
-  let test_client =
-    Alcotest_lwt.test_case
-      "Check that if we request a list of exports and are denied, the error is
-     reported properly."
-      `Quick
-      (with_client_channel sequence (fun channel ->
-           Nbd.Client.list channel
-           >>= function
-           | Error `Policy ->
-             Lwt.return ()
-           | _ -> failwith "Expected to receive a Policy error"
-         ))
-
-  let test_server =
+  let test_list_exports_disabled =
     Alcotest_lwt.test_case
       "Check that the server denies listing the exports, and the error is
      reported properly."
       `Quick
-      (with_server_channel sequence (fun channel ->
+      (with_server_channel list_exports_disabled (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect channel () >>= fun _ ->
@@ -282,104 +412,12 @@ module V2_list_export_disabled = struct
                | Nbd.Server.Client_requested_abort -> Lwt.return_unit
                | e -> Lwt.fail e)
          ))
-end
 
-module V2_no_ack_after_abort = struct
-  (** After a NBD_OPT_LIST, the client sends an abort, but the server
-   * disconnects without sending an ack. The NBD protocol says: "the client
-   * SHOULD gracefully handle the server closing the connection after receiving
-   * an NBD_OPT_ABORT without it sending a reply" *)
-
-  let sequence = [
-    `Server, "NBDMAGIC"; (* read *)
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
-    `Client, "\000\000\000\000";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\128\000\000\002"; (* NBD_REP_ERR_POLICY *)
-    `Server, "\000\000\000\000";
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
-  ]
-
-  let test_client =
-    Alcotest_lwt.test_case
-      "Server denies listing exports, and disconnects after abort without sending ack"
-      `Quick
-      (with_client_channel sequence (fun channel ->
-           Nbd.Client.list channel
-           >>= function
-           | Error `Policy ->
-             Lwt.return ()
-           | _ -> failwith "Expected to receive a Policy error"
-         ))
-end
-
-module V2_list_export_success = struct
-  let sequence = [
-    `Server, "NBDMAGIC"; (* read *)
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
-    `Client, "\000\000\000\000";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
-    `Server, "\000\000\000\011";
-    `Server, "\000\000\000\007";
-    `Server, "export1";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
-    `Server, "\000\000\000\011";
-    `Server, "\000\000\000\007";
-    `Server, "export2";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
-
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\002";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
-  ]
-
-  let test_client =
+  let test_list_exports_success =
     Alcotest_lwt.test_case
       "Client requests a list of exports"
       `Quick
-      (with_client_channel sequence (fun channel ->
-           Nbd.Client.list channel >|= fun res ->
-           Alcotest.(check (result (slist string String.compare) reject))
-             "Returned correct export names"
-             (Ok [ "export1"; "export2" ])
-             res
-         ))
-
-  let test_server =
-    Alcotest_lwt.test_case
-      "Client requests a list of exports"
-      `Quick
-      (with_server_channel sequence (fun channel ->
+      (with_server_channel list_exports_success (fun channel ->
            Lwt.catch
              (fun () ->
                 Nbd.Server.connect ~offer:["export1";"export2"] channel () >>= fun _ ->
@@ -389,119 +427,70 @@ module V2_list_export_success = struct
                | Nbd.Server.Client_requested_abort -> Lwt.return_unit
                | e -> Lwt.fail e)
          ))
-end
 
-module V2_list_export_extra_data = struct
-  let sequence = [
-    `Server, "NBDMAGIC"; (* read *)
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\003"; (* NBD_OPT_LIST *)
-    `Client, "\000\000\000\000";
 
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\000\000\000\002"; (* NBD_REP_SERVER *)
-    `Server, "\000\000\000\018";
-    `Server, "\000\000\000\007";
-     (* The NBD protocol allows for extra implementation-specific data after the export name *)
-    `Server, "export2<extra>";
+  let test_read_only_export =
+    let test_block = (Cstruct.of_string "asdf") in
+    let sequence = [
+      `Server, "NBDMAGIC";
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\003";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+      `Client, "\000\000\000\007"; (* length of export name *)
+      `Client, "export1";
 
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\002"; (* NBD_OPT_ABORT *)
-    `Client, "\000\000\000\000";
+      `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
+      `Server, "\000\003"; (* transmission flags: NBD_FLAG_READ_ONLY (bit 1) + NBD_FLAG_HAS_FLAGS (bit 0) *)
+      `Server, (String.make 124 '\000');
+      (* Now we've entered transmission mode *)
 
-    `Server, option_reply_magic_number;
-    `Server, "\000\000\000\002";
-    `Server, "\000\000\000\001"; (* NBD_REP_ACK *)
-    `Server, "\000\000\000\000";
-  ]
+      `Client, nbd_request_magic;
+      `Client, "\000\000"; (* command flags *)
+      `Client, "\000\000"; (* request type: NBD_CMD_READ *)
+      `Client, "\000\000\000\000\000\000\000\000"; (* handle: 4 bytes *)
+      `Client, "\000\000\000\000\000\000\000\001"; (* offset *)
+      `Client, "\000\000\000\002"; (* length *)
 
-  let test_client =
-    Alcotest_lwt.test_case
-      "List exports with extra data after export name"
-      `Quick
-      (with_client_channel sequence (fun channel ->
-           Nbd.Client.list channel
-           >>= function
-           | Ok [ "export2" ] ->
-             Lwt.return ()
-           | _ -> failwith "Expected to receive a list of exports"
-         ))
-end
+      (* We're allowed to read from a read-only export *)
+      `Server, nbd_reply_magic;
+      `Server, "\000\000\000\000"; (* error: no error *)
+      `Server, "\000\000\000\000\000\000\000\000"; (* handle *)
+      `Server, "sd"; (* 2 bytes of data *)
 
-module V2_read_only_test = struct
+      `Client, nbd_request_magic;
+      `Client, "\000\000"; (* command flags *)
+      `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
+      `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
+      `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+      `Client, "\000\000\000\004"; (* length *)
+      (* The server should probably return the EPERM error immediately, and not
+         read any data associated with the write request, as the client should
+         recognize the error before transmitting the data, just like for EINVAL,
+         which is sent for unaligned requests. *)
+      (*`Client, "nope"; (* 4 bytes of data *)*)
 
-  let test_block = (Cstruct.of_string "asdf")
+      (* However, we're not allowed to write to it *)
+      `Server, nbd_reply_magic;
+      `Server, "\000\000\000\001"; (* error: EPERM *)
+      `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
 
-  let sequence = [
-    `Server, "NBDMAGIC";
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
-
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
-    `Client, "\000\000\000\007"; (* length of export name *)
-    `Client, "export1";
-
-    `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
-    `Server, "\000\003"; (* transmission flags: NBD_FLAG_READ_ONLY (bit 1) + NBD_FLAG_HAS_FLAGS (bit 0) *)
-    `Server, (String.make 124 '\000');
-    (* Now we've entered transmission mode *)
-
-    `Client, nbd_request_magic;
-    `Client, "\000\000"; (* command flags *)
-    `Client, "\000\000"; (* request type: NBD_CMD_READ *)
-    `Client, "\000\000\000\000\000\000\000\000"; (* handle: 4 bytes *)
-    `Client, "\000\000\000\000\000\000\000\001"; (* offset *)
-    `Client, "\000\000\000\002"; (* length *)
-
-    (* We're allowed to read from a read-only export *)
-    `Server, nbd_reply_magic;
-    `Server, "\000\000\000\000"; (* error: no error *)
-    `Server, "\000\000\000\000\000\000\000\000"; (* handle *)
-    `Server, "sd"; (* 2 bytes of data *)
-
-    `Client, nbd_request_magic;
-    `Client, "\000\000"; (* command flags *)
-    `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
-    `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
-    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
-    `Client, "\000\000\000\004"; (* length *)
-    (* The server should probably return the EPERM error immediately, and not
-       read any data associated with the write request, as the client should
-       recognize the error before transmitting the data, just like for EINVAL,
-       which is sent for unaligned requests. *)
-    (*`Client, "nope"; (* 4 bytes of data *)*)
-
-    (* However, we're not allowed to write to it *)
-    `Server, nbd_reply_magic;
-    `Server, "\000\000\000\001"; (* error: EPERM *)
-    `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
-
-    (* TODO: currently the test fails with the below lines uncommented, because
-       the server disconnects in case of write errors, but according to the NBD
-       protocol it probably shouldn't, it should continue to process the
-       client's requests *)
-    (*
-    `Client, nbd_request_magic;
-    `Client, "\000\000"; (* command flags *)
-    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
-    `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
-    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
-    `Client, "\000\000\000\000"; (* length *)
-    *)
-  ]
-
-  let server_test =
+      (* TODO: currently the test fails with the below lines uncommented, because
+         the server disconnects in case of write errors, but according to the NBD
+         protocol it probably shouldn't, it should continue to process the
+         client's requests *)
+      (*
+      `Client, nbd_request_magic;
+      `Client, "\000\000"; (* command flags *)
+      `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+      `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
+      `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+      `Client, "\000\000\000\000"; (* length *)
+      *)
+    ]
+    in
     Alcotest_lwt.test_case
       "Serve a read-only export and test that reads and writes are handled correctly."
       `Quick
@@ -512,50 +501,45 @@ module V2_read_only_test = struct
            Nbd.Server.serve svr ~read_only:true (module Cstruct_block.Block) test_block
          ))
 
-end
+  let test_read_write_export =
+    let test_block = (Cstruct.of_string "asdf") in
+    let sequence = [
+      `Server, "NBDMAGIC";
+      `Server, "IHAVEOPT";
+      `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
+      `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
 
-module V2_write_test = struct
+      `Client, "IHAVEOPT";
+      `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
+      `Client, "\000\000\000\007"; (* length of export name *)
+      `Client, "export1";
 
-  let test_block = (Cstruct.of_string "asdf")
+      `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
+      `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
+      `Server, (String.make 124 '\000');
+      (* Now we've entered transmission mode *)
 
-  let sequence = [
-    `Server, "NBDMAGIC";
-    `Server, "IHAVEOPT";
-    `Server, "\000\001"; (* handshake flags: NBD_FLAG_FIXED_NEWSTYLE *)
-    `Client, "\000\000\000\001"; (* client flags: NBD_FLAG_C_FIXED_NEWSTYLE *)
+      `Client, nbd_request_magic;
+      `Client, "\000\000"; (* command flags *)
+      `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
+      `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
+      `Client, "\000\000\000\000\000\000\000\002"; (* offset *)
+      `Client, "\000\000\000\002"; (* length *)
+      `Client, "12"; (* 2 bytes of data *)
 
-    `Client, "IHAVEOPT";
-    `Client, "\000\000\000\001"; (* NBD_OPT_EXPORT_NAME *)
-    `Client, "\000\000\000\007"; (* length of export name *)
-    `Client, "export1";
+      (* We're allowed to read from a read-only export *)
+      `Server, nbd_reply_magic;
+      `Server, "\000\000\000\000"; (* error: no error *)
+      `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
 
-    `Server, "\000\000\000\000\000\000\000\004"; (* size: 4 bytes *)
-    `Server, "\000\001"; (* transmission flags: NBD_FLAG_HAS_FLAGS (bit 0) *)
-    `Server, (String.make 124 '\000');
-    (* Now we've entered transmission mode *)
-
-    `Client, nbd_request_magic;
-    `Client, "\000\000"; (* command flags *)
-    `Client, "\000\001"; (* request type: NBD_CMD_WRITE *)
-    `Client, "\000\000\000\000\000\000\000\001"; (* handle: 4 bytes *)
-    `Client, "\000\000\000\000\000\000\000\002"; (* offset *)
-    `Client, "\000\000\000\002"; (* length *)
-    `Client, "12"; (* 2 bytes of data *)
-
-    (* We're allowed to read from a read-only export *)
-    `Server, nbd_reply_magic;
-    `Server, "\000\000\000\000"; (* error: no error *)
-    `Server, "\000\000\000\000\000\000\000\001"; (* handle *)
-
-    `Client, nbd_request_magic;
-    `Client, "\000\000"; (* command flags *)
-    `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
-    `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
-    `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
-    `Client, "\000\000\000\000"; (* length *)
-  ]
-
-  let server_test =
+      `Client, nbd_request_magic;
+      `Client, "\000\000"; (* command flags *)
+      `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
+      `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
+      `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
+      `Client, "\000\000\000\000"; (* length *)
+    ]
+    in
     Alcotest_lwt.test_case
       "Serve a read-write export and test that writes are handled correctly."
       `Quick
@@ -569,21 +553,21 @@ module V2_write_test = struct
              "as12"
              (Cstruct.to_string test_block)
          ))
-
 end
 
 let tests =
   "Nbd protocol tests",
-  [ V2_negotiation.test_client
-  ; V2_negotiation.test_server
-  ; V2_abort.test_server
-  ; V2_abort_without_ack.test_server
-  ; V2_list_export_disabled.test_client
-  ; V2_list_export_disabled.test_server
-  ; V2_no_ack_after_abort.test_client
-  ; V2_list_export_success.test_client
-  ; V2_list_export_success.test_server
-  ; V2_list_export_extra_data.test_client
-  ; V2_read_only_test.server_test
-  ; V2_write_test.server_test
+  [ ClientTests.test_v2_negotiation
+  ; ServerTests.test_v2_negotiation
+  ; ServerTests.test_abort
+  ; ServerTests.test_abort_without_ack
+  ; ClientTests.test_list_exports_disabled
+  ; ServerTests.test_list_exports_disabled
+  ; ClientTests.test_no_ack_after_abort
+  ; ServerTests.test_abort_without_ack
+  ; ClientTests.test_list_exports_success
+  ; ServerTests.test_list_exports_success
+  ; ClientTests.test_list_exports_extra_data
+  ; ServerTests.test_read_only_export
+  ; ServerTests.test_read_write_export
   ]
