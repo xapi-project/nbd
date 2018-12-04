@@ -1,3 +1,31 @@
+4.0.0+beta1 (2017-12-08):
+### Added
+* Server: CP-22631: TLS support
+* Server: support for read-only exports
+* Server: use dedicated exception for NBD_OPT_ABORT
+* Added `Server.with_connection`, `Nbd_lwt_unix.with_channel`,
+	`Nbd_lwt_unix.with_block` functions
+
+### Changed
+* Rename nbd-lwt to nbd-lwt-unix (opam package & ocamlfind library)
+* Rename lib/s.mli to lib/s.ml
+* Server: Use Lwt_log for and enhance logging
+* Port to jbuilder
+* Reorganize tests
+
+### Removed
+* Mux: hide internal values and types behind signature
+* Delete obsolete nbd_test.ml
+* Remove unix/ folder, not compiled since a couple of years
+* Fix marshalling & unmarshalling of client flags
+
+### Fixed
+* Server: handle NBD_CMD_DISC correctly instead of returning EINVAL
+* Server: set SO_REUSEADDR on the server socket
+* Server: don't stop when handling one client fails
+* Server: don't stop after write command
+* CLI: close the open file descriptors
+
 3.0.0 (2017-02-15):
 * Update to Mirage 3 APIs
 * Requires OCaml 4.03+
