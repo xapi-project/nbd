@@ -27,6 +27,6 @@ depends: [
 build: ["dune" "build" "-p" name "-j" jobs]
 dev-repo: "git+https://github.com/xapi-project/nbd.git"
 url {
-  src: "https://github.com/xapi-project/nbd/archive/v4.0.0+beta1.tar.gz"
-  checksum: "md5=3d3b3cfc8193ab9b09a2c4a904e19195"
+  src: "https://github.com/xapi-project/nbd/archive/v4.0.0+beta2.tar.gz"
+  checksum: "md5=d9874a7743c1203dcca73e4853f61def"
 }
