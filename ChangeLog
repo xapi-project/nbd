@@ -1,3 +1,22 @@
+4.0.0+beta2 (2018-12-04):
+### Added
+* CLI: Add exportname option to serve command
+* Server: Add benchmark.sh script for benchmarking
+* Enable coverage & coveralls
+* Add client<->server interop. unit tests
+* Add interop. test with qemu-img and nbd-client
+* Add stress test to test that misbehaving clients do not crash the server
+
+### Changed
+* Make it compatible with Lwt 4
+* Convert tests to Alcotest
+* Update opam files for Opam 2
+* CP-29049: Move from jbuilder to dune
+
+### Fixed
+* Client: CA-289145: close socket if error occurs when using lwt connect
+* Client & server: CP-29049: Fix list and abort behaviour
+
 4.0.0+beta1 (2017-12-08):
 ### Added
 * Server: CP-22631: TLS support
