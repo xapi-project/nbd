@@ -161,20 +161,20 @@ module Impl = struct
     `Ok (Lwt_main.run t)
 
   (* Helper function for use within this module *)
-  let init_tls_get_server_ctx ~certfile ~ciphersuites no_tls =
+  let init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls =
     if no_tls then None
     else (
       let certfile = require_str "certfile" certfile in
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some (Nbd_lwt_unix.TlsServer
-              (Nbd_lwt_unix.init_tls_get_ctx ~certfile ~ciphersuites)
+              (Nbd_lwt_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites)
            )
     )
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
-  let serve _common filename port exportname certfile ciphersuites no_tls =
-    let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
+  let serve _common filename port exportname certfile curve ciphersuites no_tls =
+    let tls_role = init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls in
     let filename = require "filename" filename in
     let validate ~client_exportname =
       match exportname with
@@ -229,8 +229,8 @@ module Impl = struct
     in
     Lwt_main.run t
 
-  let mirror _common filename port secondary certfile ciphersuites no_tls =
-    let tls_role = init_tls_get_server_ctx ~certfile ~ciphersuites no_tls in
+  let mirror _common filename port secondary certfile curve ciphersuites no_tls =
+    let tls_role = init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls in
     let filename = require "filename" filename in
     let secondary = require "secondary" secondary in
     let t =
@@ -285,7 +285,10 @@ let certfile =
   Arg.(value & opt string "" & info ["certfile"] ~doc)
 let ciphersuites =
   let doc = "Set of ciphersuites for TLS (specified in the format accepted by OpenSSL, stunnel etc.)" in
-  Arg.(value & opt string "!EXPORT:RSA+AES128-SHA256" & info ["ciphersuites"] ~doc)
+  Arg.(value & opt string "ECDHE-RSA-AES256-GCM-SHA384" & info ["ciphersuites"] ~doc)
+let curve =
+  let doc = "EC curve to use" in
+  Arg.(value & opt string "secp384r1" & info ["curve"] ~doc)
 
 let serve_cmd =
   let doc = "serve a disk over NBD" in
@@ -311,7 +314,7 @@ let serve_cmd =
   let no_tls =
     let doc = "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
     Arg.(value & flag & info ["no-tls"] ~doc) in
-  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ exportname $ certfile $ ciphersuites $ no_tls)),
+  Term.(ret(pure Impl.serve $ common_options_t $ filename $ port $ exportname $ certfile $ curve $ ciphersuites $ no_tls)),
   Term.info "serve" ~sdocs:_common_options ~doc ~man
 
 let mirror_cmd =
@@ -334,7 +337,7 @@ let mirror_cmd =
   let no_tls =
     let doc = "Serve using NOTLS mode (refusing TLS) instead of the default FORCEDTLS." in
     Arg.(value & flag & info ["no-tls"] ~doc) in
-  Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary $ certfile $ ciphersuites $ no_tls)),
+  Term.(ret(pure Impl.mirror $ common_options_t $ filename $ port $ secondary $ certfile $ curve $ ciphersuites $ no_tls)),
   Term.info "mirror" ~sdocs:_common_options ~doc ~man
 
 let list_cmd =
