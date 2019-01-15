@@ -28,7 +28,7 @@ val cleartext_channel_of_fd: Lwt_unix.file_descr -> tls_role option -> Channel.c
 (** [cleartext_channel_of_fd fd role] returns a channel from an existing file descriptor.
     The channel will have a [make_tls_channel] value that corresponds to [role]. *)
 
-val init_tls_get_ctx: ?curve:string -> certfile:string -> ciphersuites:string -> Ssl.context
+val init_tls_get_ctx: ?curve:string -> certfile:string -> ciphersuites:string -> unit -> Ssl.context
 (** Initialise the Ssl (TLS) library and then create and return a new context. *)
 
 val with_block: string -> (Block.t -> 'a Block.io) -> 'a Block.io

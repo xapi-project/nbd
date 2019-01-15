@@ -167,7 +167,7 @@ module Impl = struct
       let certfile = require_str "certfile" certfile in
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some (Nbd_lwt_unix.TlsServer
-              (Nbd_lwt_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites)
+              (Nbd_lwt_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ())
            )
     )
 
