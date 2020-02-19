@@ -285,7 +285,8 @@ let certfile =
   Arg.(value & opt string "" & info ["certfile"] ~doc)
 let ciphersuites =
   let doc = "Set of ciphersuites for TLS (specified in the format accepted by OpenSSL, stunnel etc.)" in
-  Arg.(value & opt string "ECDHE-RSA-AES256-GCM-SHA384" & info ["ciphersuites"] ~doc)
+  let parse_cipherstring_as_required = (fun s -> if s = "" then (failwith "ciphersuite is required") else `Ok s), Format.pp_print_string in
+  Arg.(value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc) (* cli is only used for debugging, so assume user is providing a good cipherstring *)
 let curve =
   let doc = "EC curve to use" in
   Arg.(value & opt string "secp384r1" & info ["curve"] ~doc)
