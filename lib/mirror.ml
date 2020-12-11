@@ -156,7 +156,7 @@ module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
     let buffer = Io_page.(to_cstruct (get 4096)) in
     (* round to the nearest sector *)
     let block = Cstruct.len buffer / t.info.Mirage_block.sector_size in
-    let buffer = Cstruct.(sub buffer 0 (block * t.info.Mirage_block.sector_size)) in
+    let buffer = Cstruct.sub buffer 0 (block * t.info.Mirage_block.sector_size) in
     (* split into an array of slots *)
     let nr_slots = 8 in
     let block = block / nr_slots in
