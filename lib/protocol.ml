@@ -486,7 +486,7 @@ module Server = struct
   let unmarshal buf =
     let length = Int32.to_int (get_t_length buf) in
     let buf = Cstruct.shift buf sizeof_t in
-    let name = Cstruct.(to_string (sub buf 0 length)) in
+    let name = Cstruct.to_string (Cstruct.sub buf 0 length) in
     Ok { name }
 end
 
