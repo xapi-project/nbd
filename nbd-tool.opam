@@ -18,7 +18,7 @@ depends: [
   "lwt" {>= "2.7.0"}
   "lwt_log"
   "mirage-block-unix"
-  "nbd-lwt-unix"
+  "nbd-unix" {=version}
   "uri"
 ]
 depexts: [

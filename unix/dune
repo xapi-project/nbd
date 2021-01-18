@@ -1,6 +1,6 @@
 (library
- (name nbd_lwt_unix)
- (public_name nbd-lwt-unix)
+ (name nbd_unix)
+ (public_name nbd-unix)
  (libraries
   cstruct-lwt
   io-page

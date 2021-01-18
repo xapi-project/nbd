@@ -19,7 +19,7 @@ open Lwt.Infix
 module Device = struct
   type id = [`Nbd of Uri.t | `Local of string]
 
-  type t = [`Nbd of Nbd_lwt_unix.Client.t | `Local of Block.t]
+  type t = [`Nbd of Nbd_unix.Client.t | `Local of Block.t]
 
   type error = [Mirage_block.error | `Protocol_error of Nbd.Protocol.Error.t]
 
@@ -47,8 +47,8 @@ module Device = struct
       match Uri.host uri with
       | Some host ->
           let port = match Uri.port uri with None -> 10809 | Some x -> x in
-          Nbd_lwt_unix.connect host port >>= fun channel ->
-          Nbd_lwt_unix.Client.negotiate channel (Uri.to_string uri)
+          Nbd_unix.connect host port >>= fun channel ->
+          Nbd_unix.Client.negotiate channel (Uri.to_string uri)
           >>= fun (t, _, _) -> Lwt.return (`Nbd t)
       | None ->
           Lwt.fail_with "Cannot connect to nbd without a host"
@@ -60,14 +60,14 @@ module Device = struct
 
   let get_info = function
     | `Nbd t ->
-        Nbd_lwt_unix.Client.get_info t
+        Nbd_unix.Client.get_info t
     | `Local t ->
         Block.get_info t
 
   let read t off bufs =
     match t with
     | `Nbd t ->
-        Nbd_lwt_unix.Client.read t off bufs
+        Nbd_unix.Client.read t off bufs
     | `Local t -> (
         Block.read t off bufs >>= function
         | Result.Error `Disconnected ->
@@ -83,7 +83,7 @@ module Device = struct
   let write t off bufs =
     match t with
     | `Nbd t ->
-        Nbd_lwt_unix.Client.write t off bufs
+        Nbd_unix.Client.write t off bufs
     | `Local t -> (
         Block.write t off bufs >>= function
         | Result.Error `Disconnected ->
@@ -101,7 +101,7 @@ module Device = struct
   let disconnect t =
     match t with
     | `Nbd t ->
-        Nbd_lwt_unix.Client.disconnect t
+        Nbd_unix.Client.disconnect t
     | `Local t ->
         Block.disconnect t
 end
@@ -151,7 +151,7 @@ module Impl = struct
 
   let size host port export =
     let res =
-      Nbd_lwt_unix.connect host port >>= fun client ->
+      Nbd_unix.connect host port >>= fun client ->
       Client.negotiate client export
     in
     let _, size, _ = Lwt_main.run res in
@@ -160,7 +160,7 @@ module Impl = struct
 
   let list _common host port =
     let t =
-      Nbd_lwt_unix.connect host port >>= fun channel ->
+      Nbd_unix.connect host port >>= fun channel ->
       Client.list channel >>= function
       | Result.Ok disks ->
           List.iter print_endline disks ;
@@ -184,8 +184,8 @@ module Impl = struct
       let certfile = require_str "certfile" certfile in
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some
-        (Nbd_lwt_unix.TlsServer
-           (Nbd_lwt_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites))
+        (Nbd_unix.TlsServer
+           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites))
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
@@ -209,7 +209,7 @@ module Impl = struct
     let handle_connection fd =
       Lwt.finalize
         (fun () ->
-          Nbd_lwt_unix.with_channel fd tls_role (fun clearchan ->
+          Nbd_unix.with_channel fd tls_role (fun clearchan ->
               let offer =
                 match exportname with
                 | None ->
@@ -220,7 +220,7 @@ module Impl = struct
               Server.with_connection ?offer clearchan
                 (fun client_exportname svr ->
                   validate ~client_exportname >>= fun () ->
-                  Nbd_lwt_unix.with_block filename
+                  Nbd_unix.with_block filename
                     (Server.serve svr ~read_only:false (module Block)))))
         (ignore_exn (fun () -> Lwt_unix.close fd))
     in
@@ -278,7 +278,7 @@ module Impl = struct
         Lwt_unix.accept sock >>= fun (fd, _) ->
         (* Background thread per connection *)
         let _ =
-          let channel = Nbd_lwt_unix.cleartext_channel_of_fd fd tls_role in
+          let channel = Nbd_unix.cleartext_channel_of_fd fd tls_role in
           Server.connect channel () >>= fun (_name, t) ->
           Server.serve t (module M) m
         in

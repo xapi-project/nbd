@@ -9,7 +9,7 @@ jobs:
     name: Ocaml tests
     runs-on: ubuntu-20.04
     env:
-      package: "nbd nbd-tool nbd-lwt-unix"
+      package: "nbd nbd-tool nbd-unix"
 
     steps:
       - name: Checkout code
