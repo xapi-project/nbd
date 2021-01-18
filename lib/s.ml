@@ -12,7 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 open Channel
-open Result
 
 (** Common signatures used in the library. *)
 
@@ -20,7 +19,7 @@ module type CLIENT = sig
   (** A Client allows you to list the disks available on a server, connect to
       a specific disk and then issue read and write requests. *)
 
-  include Mirage_block_lwt.S
+  include Mirage_block.S
     with type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
      and type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
 
@@ -70,7 +69,7 @@ module type SERVER = sig
       Raises {!Client_requested_abort} if the client aborts the option haggilng
       phase instead of entering the transmission phase *)
 
-  val serve : t -> ?read_only:bool -> (module Mirage_block_lwt.S with type t = 'b) -> 'b -> unit Lwt.t
+  val serve : t -> ?read_only:bool -> (module Mirage_block.S with type t = 'b) -> 'b -> unit Lwt.t
   (** [serve t read_only block b] runs forever processing requests from [t], using [block]
       device type [b]. If [read_only] is true, which is the default, the
       [block] device [b] is served in read-only mode: the server will set the

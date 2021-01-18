@@ -15,7 +15,6 @@
 open Lwt.Infix
 open Protocol
 open Channel
-open Result
 
 type size = int64
 
@@ -215,10 +214,6 @@ let negotiate channel export =
             Lwt.return (t, x.DiskInfo.size, x.DiskInfo.flags)
         end
     end
-
-type 'a io = 'a Lwt.t
-
-type page_aligned_buffer = Cstruct.t
 
 let get_info t = Lwt.return t.info
 

@@ -15,7 +15,6 @@
 (* NBD client library *)
 
 open Sexplib.Std
-open Result
 
 (* We need to serialise/deserialise result values *)
 type ('a, 'b) _result = [ `Ok of 'a | `Error of 'b ] [@@deriving sexp]

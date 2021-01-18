@@ -12,8 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S): sig
-  include Mirage_block_lwt.S
+module Make(Primary: Mirage_block.S)(Secondary: Mirage_block.S): sig
+  include Mirage_block.S
 
   val connect:
     ?progress_cb:([ `Percent of int | `Complete ]-> unit)

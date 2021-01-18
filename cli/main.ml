@@ -25,8 +25,6 @@ module Device = struct
     | `Nbd of Nbd_lwt_unix.Client.t
     | `Local of Block.t
   ]
-  type 'a io = 'a Lwt.t
-  type page_aligned_buffer = Cstruct.t
   type error = [
       Mirage_block.error
     | `Protocol_error of Nbd.Protocol.Error.t

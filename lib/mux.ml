@@ -18,7 +18,6 @@
     used to match responses to requests. *)
 
 open Lwt.Infix
-open Result
 
 module type RPC = sig
   type transport

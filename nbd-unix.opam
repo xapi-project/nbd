@@ -17,12 +17,16 @@ depends: [
   "io-page"
   "io-page-unix"
   "lwt" {>= "2.7.0"}
-  "mirage-types-lwt" {>= "3.0.0"}
-  "mirage-block-lwt"
+  "mirage-block" {>= "2.0.0"}
   "mirage-block-unix"
   "nbd" {>= "4.0.0"}
   "lwt_ssl"
   "ssl"
 ]
-build: ["dune" "build" "-p" name "-j" jobs]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
+  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
+]
 dev-repo: "git+https://github.com/xapi-project/nbd.git"

@@ -15,7 +15,6 @@
 open Lwt.Infix
 open Protocol
 open Channel
-open Result
 
 exception Client_requested_abort
 
@@ -202,7 +201,7 @@ let error t handle code =
 
 let serve t (type t) ?(read_only=true) block (b:t) =
   let section = Lwt_log_core.Section.make("Server.serve") in
-  let module Block = (val block: Mirage_block_lwt.S with type t = t) in
+  let module Block = (val block: Mirage_block.S with type t = t) in
 
   Lwt_log_core.notice_f ~section "Serving new client, read_only = %b" read_only >>= fun () ->
 

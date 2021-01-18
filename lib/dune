@@ -7,10 +7,7 @@
   io-page
   lwt
   lwt_log
-  mirage-block
-  mirage-block-lwt
-  mirage-types-lwt
-  result
+  mirage-block-unix
   rresult
   sexplib)
  (preprocess (pps ppx_cstruct ppx_sexp_conv -no-check))

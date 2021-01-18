@@ -14,11 +14,7 @@
 open Lwt.Infix
 open Result
 
-module Make(Primary: Mirage_block_lwt.S)(Secondary: Mirage_block_lwt.S) = struct
-  type 'a io = 'a Lwt.t
-
-  type page_aligned_buffer = Cstruct.t
-
+module Make(Primary: Mirage_block.S)(Secondary: Mirage_block.S) = struct
   type error = [
       Mirage_block.error
     | `Primary of Primary.error
