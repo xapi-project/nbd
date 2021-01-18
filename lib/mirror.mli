@@ -12,12 +12,14 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module Make(Primary: Mirage_block.S)(Secondary: Mirage_block.S): sig
+module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) : sig
   include Mirage_block.S
 
-  val connect:
-    ?progress_cb:([ `Percent of int | `Complete ]-> unit)
-    -> Primary.t -> Secondary.t -> t Lwt.t
+  val connect :
+       ?progress_cb:([`Percent of int | `Complete] -> unit)
+    -> Primary.t
+    -> Secondary.t
+    -> t Lwt.t
   (** [connect ?progress primary secondary] creates a block device which performs I/O
       against [primary], while building a mirror of [primary] on top of
       [secondary] in the background. Existing data in [secondary] will be
@@ -34,6 +36,5 @@ module Make(Primary: Mirage_block.S)(Secondary: Mirage_block.S): sig
       It is an error if [secondary] is read-only.
   *)
 
-  val string_of_error: error -> string
-
+  val string_of_error : error -> string
 end

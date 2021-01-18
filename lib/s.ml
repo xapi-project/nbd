@@ -19,20 +19,24 @@ module type CLIENT = sig
   (** A Client allows you to list the disks available on a server, connect to
       a specific disk and then issue read and write requests. *)
 
-  include Mirage_block.S
-    with type error = [ Mirage_block.error | `Protocol_error of Protocol.Error.t ]
-     and type write_error = [ Mirage_block.write_error | `Protocol_error of Protocol.Error.t ]
+  include
+    Mirage_block.S
+      with type error =
+            [Mirage_block.error | `Protocol_error of Protocol.Error.t]
+       and type write_error =
+            [Mirage_block.write_error | `Protocol_error of Protocol.Error.t]
 
-  type size = int64
   (** The size of a remote disk *)
+  type size = int64
 
-  val list: channel -> (string list, [ `Policy | `Unsupported ]) result Lwt.t
+  val list : channel -> (string list, [`Policy | `Unsupported]) result Lwt.t
   (** [list channel] returns a list of exports known by the server.
       [`Error `Policy] means the server has this function disabled deliberately.
       [`Error `Unsupported] means the server is old and does not support the query
       function. *)
 
-  val negotiate: channel -> string -> (t * size * Protocol.PerExportFlag.t list) Lwt.t
+  val negotiate :
+    channel -> string -> (t * size * Protocol.PerExportFlag.t list) Lwt.t
   (** [negotiate channel export] takes an already-connected channel,
       performs the initial protocol negotiation and connects to
       the named export. Returns [disk * remote disk size * flags] *)
@@ -42,20 +46,21 @@ module type SERVER = sig
   (** A Server allows you to expose an existing block device to remote clients
       over NBD. *)
 
-  type t
   (** An open connection to an NBD client *)
+  type t
 
-  type size = int64
   (** The size of a remote disk *)
+  type size = int64
 
-  type name = string
   (** The name of an export. In the 'new style' protocol as used in nbd >= 2.9.17
       the client must select an export by name. *)
+  type name = string
 
-  exception Client_requested_abort
   (** The client terminated the option haggling phase by sending NBD_OPT_ABORT *)
+  exception Client_requested_abort
 
-  val connect : cleartext_channel -> ?offer:name list -> unit -> (name * t) Lwt.t
+  val connect :
+    cleartext_channel -> ?offer:name list -> unit -> (name * t) Lwt.t
   (** [connect cleartext_channel ?offer ()] performs the 'new style' initial
       handshake and options negotiation.
       Note that FORCEDTLS mode will be used in the negotiation unless
@@ -69,7 +74,12 @@ module type SERVER = sig
       Raises {!Client_requested_abort} if the client aborts the option haggilng
       phase instead of entering the transmission phase *)
 
-  val serve : t -> ?read_only:bool -> (module Mirage_block.S with type t = 'b) -> 'b -> unit Lwt.t
+  val serve :
+       t
+    -> ?read_only:bool
+    -> (module Mirage_block.S with type t = 'b)
+    -> 'b
+    -> unit Lwt.t
   (** [serve t read_only block b] runs forever processing requests from [t], using [block]
       device type [b]. If [read_only] is true, which is the default, the
       [block] device [b] is served in read-only mode: the server will set the
@@ -77,16 +87,15 @@ module type SERVER = sig
       command, the server will send an EPERM error to the client and will
       terminate the session. *)
 
-  val close: t -> unit Lwt.t
+  val close : t -> unit Lwt.t
   (** [close t] shuts down the connection [t] and frees any allocated resources *)
 
   val with_connection :
-    Channel.cleartext_channel ->
-    ?offer:name list ->
-    (string -> t -> unit Lwt.t) ->
-    unit Lwt.t
-    (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
+       Channel.cleartext_channel
+    -> ?offer:name list
+    -> (string -> t -> unit Lwt.t)
+    -> unit Lwt.t
+  (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
         attempts to apply [f] to the resulting [t], with a guarantee to call
         [close t] afterwards. *)
-
 end
