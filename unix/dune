@@ -1,15 +1,6 @@
 (library
  (name nbd_unix)
  (public_name nbd-unix)
- (libraries
-  cstruct-lwt
-  io-page
-  io-page.unix
-  lwt
-  lwt.unix
-  mirage-block
-  mirage-block-unix
-  ssl
-  lwt_ssl
-  nbd)
-)
+ (libraries cstruct-lwt io-page io-page.unix lwt lwt.unix mirage-block
+   mirage-block-unix ssl lwt_ssl nbd)
+ (instrumentation (backend bisect_ppx)))
