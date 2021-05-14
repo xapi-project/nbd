@@ -211,3 +211,5 @@ let tests =
     ; test_memory_leak
     ; test_exception_handling
     ] )
+let () =
+    Alcotest.run "Sync Nbd library test suite" [tests]
