@@ -8,21 +8,26 @@ authors: ["Jonathan Ludlam" "David Scott" "Thomas Sanders"]
 license: "LGPL-2 with OCaml linking exception"
 tags: ["org:mirage" "org:xapi-project"]
 homepage: "https://github.com/xapi-project/nbd"
-doc: "https://xapi-project.github.io/nbd/nbd-lwt-unix/index.html"
+doc: "https://xapi-project.github.io/nbd/nbd-unix/index.html"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 depends: [
-  "ocaml" {>= "4.03.0"}
-  "dune" {>= "1.0"}
+  "ocaml" {>= "4.08.0"}
+  "bisect_ppx" {dev & >= "2.5.0"}
+  "dune" {>= "2.7.0"}
   "cstruct-lwt"
   "io-page"
   "io-page-unix"
   "lwt" {>= "2.7.0"}
-  "mirage-types-lwt" {>= "3.0.0"}
-  "mirage-block-lwt"
+  "mirage-block" {>= "2.0.0"}
   "mirage-block-unix"
-  "nbd" {>= "4.0.0"}
+  "nbd" {=version}
   "lwt_ssl"
   "ssl"
 ]
-build: ["dune" "build" "-p" name "-j" jobs]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
+  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
+]
 dev-repo: "git+https://github.com/xapi-project/nbd.git"

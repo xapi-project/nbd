@@ -10,15 +10,15 @@ tags: ["org:mirage" "org:xapi-project"]
 homepage: "https://github.com/xapi-project/nbd"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 depends: [
-  "ocaml" {>= "4.03.0"}
-  "dune" {>= "1.0"}
+  "ocaml" {>= "4.08.0"}
+  "dune" {>= "2.7.0"}
   "alcotest" {with-test}
   "alcotest-lwt" {with-test}
   "cmdliner"
   "lwt" {>= "2.7.0"}
   "lwt_log"
   "mirage-block-unix"
-  "nbd-lwt-unix"
+  "nbd-unix" {=version}
   "uri"
 ]
 depexts: [

@@ -13,38 +13,34 @@
  *)
 
 type tls_channel = {
-  read_tls: Cstruct.t -> unit Lwt.t;
-  write_tls: Cstruct.t -> unit Lwt.t;
-  close_tls: unit -> unit Lwt.t;
+    read_tls: Cstruct.t -> unit Lwt.t
+  ; write_tls: Cstruct.t -> unit Lwt.t
+  ; close_tls: unit -> unit Lwt.t
 }
 
 type cleartext_channel = {
-  read_clear: Cstruct.t -> unit Lwt.t;
-  write_clear: Cstruct.t -> unit Lwt.t;
-  close_clear: unit -> unit Lwt.t;
-
-  make_tls_channel: (unit -> tls_channel Lwt.t) option;
+    read_clear: Cstruct.t -> unit Lwt.t
+  ; write_clear: Cstruct.t -> unit Lwt.t
+  ; close_clear: unit -> unit Lwt.t
+  ; make_tls_channel: (unit -> tls_channel Lwt.t) option
 }
 
 type generic_channel = {
-  is_tls: bool;
-  read: Cstruct.t -> unit Lwt.t;
-  write: Cstruct.t -> unit Lwt.t;
-  close: unit -> unit Lwt.t;
+    is_tls: bool
+  ; read: Cstruct.t -> unit Lwt.t
+  ; write: Cstruct.t -> unit Lwt.t
+  ; close: unit -> unit Lwt.t
 }
 
 type channel = generic_channel
 
-let generic_of_tls_channel ch = {
-  read = ch.read_tls;
-  write = ch.write_tls;
-  close = ch.close_tls;
-  is_tls = true;
-}
+let generic_of_tls_channel ch =
+  {read= ch.read_tls; write= ch.write_tls; close= ch.close_tls; is_tls= true}
 
-let generic_of_cleartext_channel ch = {
-  read = ch.read_clear;
-  write = ch.write_clear;
-  close = ch.close_clear;
-  is_tls = false;
-}
+let generic_of_cleartext_channel ch =
+  {
+    read= ch.read_clear
+  ; write= ch.write_clear
+  ; close= ch.close_clear
+  ; is_tls= false
+  }

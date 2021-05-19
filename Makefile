@@ -29,8 +29,5 @@ doc:
 gh-pages:
 	bash .docgen.sh
 
-reindent:
-	ocp-indent --syntax cstruct -i lib/*.mli
-	ocp-indent --syntax cstruct -i lib/*.ml
-	ocp-indent --syntax cstruct -i lib_test/*.ml
-	ocp-indent --syntax cstruct -i cli/*.ml
+format:
+	dune build @fmt --auto-promote

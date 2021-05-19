@@ -1,1 +1,4 @@
-(lang dune 1.0)
+(lang dune 2.7)
+
+(formatting
+ (enabled_for ocaml))

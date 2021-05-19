@@ -12,9 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type t = {
-  debug: bool;
-  verb: bool;
-}
+type t = {debug: bool; verb: bool}
 
-let make debug verb = { debug; verb }
+let make debug verb = {debug; verb}
