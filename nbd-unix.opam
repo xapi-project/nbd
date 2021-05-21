@@ -18,10 +18,11 @@ depends: [
   "io-page"
   "io-page-unix"
   "lwt" {>= "2.7.0"}
+  "lwt_ssl"
   "mirage-block" {>= "2.0.0"}
   "mirage-block-unix"
   "nbd" {=version}
-  "lwt_ssl"
+  "odoc" {with-doc}
   "ssl"
 ]
 build: [

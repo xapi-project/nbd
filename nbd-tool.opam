@@ -19,12 +19,17 @@ depends: [
   "lwt_log"
   "mirage-block-unix"
   "nbd-unix" {=version}
+  "odoc" {with-doc}
   "uri"
 ]
 depexts: [
   ["qemu-img" "nbd" "nmap-ncat"] {with-test & os-family = "rhel"}
   ["qemu-utils" "nbd-client" "netcat-openbsd"] {with-test & os-family = "debian"}
 ]
-build: ["dune" "build" "-p" name "-j" jobs]
-run-test: ["dune" "runtest" "-p" name "-j" jobs]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
+  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
+]
 dev-repo: "git+https://github.com/xapi-project/nbd.git"
