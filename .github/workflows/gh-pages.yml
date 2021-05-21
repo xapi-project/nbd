@@ -33,7 +33,7 @@ jobs:
         run: |
           opam pin add . --no-action
           opam depext -u ${{ env.package }}
-          opam install ${{ env.package }} --deps-only --with-docs -v
+          opam install ${{ env.package }} --deps-only --with-doc -v
 
       - name: Docs
         run: opam exec -- make doc
