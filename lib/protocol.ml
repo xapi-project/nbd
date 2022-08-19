@@ -60,7 +60,7 @@ let nbd_flag_c_fixed_newstyle = 1
 let nbd_flag_c_no_zeroes = 2
 
 let zero buf =
-  for i = 0 to Cstruct.len buf - 1 do
+  for i = 0 to Cstruct.length buf - 1 do
     Cstruct.set_uint8 buf i 0
   done
 

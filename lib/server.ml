@@ -237,7 +237,7 @@ let serve t (type t) ?(read_only = true) block (b : t) =
   let flags = if read_only then [PerExportFlag.Read_only] else [] in
   negotiate_end t size flags >>= fun t ->
   let block = Io_page.(to_cstruct (get 128)) in
-  let block_size = Cstruct.len block in
+  let block_size = Cstruct.length block in
   let rec loop () =
     next t >>= fun request ->
     let open Request in

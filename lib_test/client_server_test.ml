@@ -10,7 +10,7 @@ let with_channels f =
   let section = Lwt_log_core.Section.make "with_channels" in
   let make_channel name (ic, oc) =
     let read c =
-      let len = Cstruct.len c in
+      let len = Cstruct.length c in
       Lwt_log.debug_f ~section "%s read: %d" name len >>= fun () ->
       let b = Bytes.create len in
       Lwt_io.read_into_exactly ic b 0 len >>= fun () ->
@@ -19,7 +19,7 @@ let with_channels f =
         (String.escaped (Cstruct.to_string c))
     in
     let write c =
-      let len = Cstruct.len c in
+      let len = Cstruct.length c in
       Lwt_log.debug_f ~section "%s write: %d: %s" name len
         (String.escaped (Cstruct.to_string c))
       >>= fun () ->
@@ -97,7 +97,7 @@ let test_connect_disconnect _switch =
       Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, _flags) ->
       Alcotest.(check int64)
         "size received by client"
-        (Int64.of_int (Cstruct.len test_block))
+        (Int64.of_int (Cstruct.length test_block))
         size ;
       Nbd.Client.disconnect t)
 

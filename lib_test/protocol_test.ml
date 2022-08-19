@@ -47,15 +47,15 @@ exception Failed_to_read_empty_stream
 let make_channel role test_sequence =
   let next = ref test_sequence in
   let rec read buf =
-    Lwt_io.printlf "Reading %d bytes" (Cstruct.len buf) >>= fun () ->
+    Lwt_io.printlf "Reading %d bytes" (Cstruct.length buf) >>= fun () ->
     (* Ignore reads and writes of length 0 and treat them as a no-op *)
-    if Cstruct.len buf = 0 then
+    if Cstruct.length buf = 0 then
       Lwt.return_unit
     else
       match !next with
       | (source, x) :: rest ->
           if source = role then failwith "Tried to read but should have written" ;
-          let available = min (Cstruct.len buf) (String.length x) in
+          let available = min (Cstruct.length buf) (String.length x) in
           Cstruct.blit_from_string x 0 buf 0 available ;
           next :=
             if available = String.length x then
@@ -67,7 +67,7 @@ let make_channel role test_sequence =
           Lwt_io.flush_all () >>= fun () ->
           (* Ensure all debug messages get logged *)
           let buf = Cstruct.shift buf available in
-          if Cstruct.len buf = 0 then
+          if Cstruct.length buf = 0 then
             Lwt.return ()
           else
             read buf
@@ -78,13 +78,13 @@ let make_channel role test_sequence =
     Lwt_io.printlf "Writing: %s" (buf |> Cstruct.to_string |> String.escaped)
     >>= fun () ->
     (* Ignore reads and writes of length 0 and treat them as a no-op *)
-    if Cstruct.len buf = 0 then
+    if Cstruct.length buf = 0 then
       Lwt.return_unit
     else
       match !next with
       | (source, x) :: rest ->
           if source <> role then failwith "Tried to write but should have read" ;
-          let available = min (Cstruct.len buf) (String.length x) in
+          let available = min (Cstruct.length buf) (String.length x) in
           let written = String.sub (Cstruct.to_string buf) 0 available in
           let expected = String.sub x 0 available in
           Alcotest.(check (of_pp (Fmt.of_to_string String.escaped)))
@@ -99,7 +99,7 @@ let make_channel role test_sequence =
               (source, String.sub x available (String.length x - available))
               :: rest ;
           let buf = Cstruct.shift buf available in
-          if Cstruct.len buf = 0 then
+          if Cstruct.length buf = 0 then
             Lwt.return ()
           else
             write buf

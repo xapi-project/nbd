@@ -18,7 +18,7 @@ module Block : Mirage_block.S with type t = Cstruct.t = struct
         {
           read_write= true
         ; sector_size= 1
-        ; size_sectors= Cstruct.len contents |> Int64.of_int
+        ; size_sectors= Cstruct.length contents |> Int64.of_int
         }
 
   let read contents sector_start buffers =
@@ -26,7 +26,7 @@ module Block : Mirage_block.S with type t = Cstruct.t = struct
     List.fold_left
       (fun contents buffer ->
         Cstruct.fillv ~src:[contents] ~dst:buffer |> ignore ;
-        Cstruct.shift contents (Cstruct.len buffer))
+        Cstruct.shift contents (Cstruct.length buffer))
       (Cstruct.shift contents sector_start)
       buffers
     |> ignore ;

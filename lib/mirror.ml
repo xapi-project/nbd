@@ -156,7 +156,7 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
   let start_copy t u =
     let buffer = Io_page.(to_cstruct (get 4096)) in
     (* round to the nearest sector *)
-    let block = Cstruct.len buffer / t.info.Mirage_block.sector_size in
+    let block = Cstruct.length buffer / t.info.Mirage_block.sector_size in
     let buffer =
       Cstruct.sub buffer 0 (block * t.info.Mirage_block.sector_size)
     in
@@ -341,7 +341,7 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
         Lwt.return_ok x
 
   let write t ofs bufs =
-    let total_length_bytes = List.(fold_left ( + ) 0 (map Cstruct.len bufs)) in
+    let total_length_bytes = List.(fold_left ( + ) 0 (map Cstruct.length bufs)) in
     let length = total_length_bytes / t.info.Mirage_block.sector_size in
     let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
     let secondary_ofs = Int64.(mul ofs (of_int t.secondary_block_size)) in

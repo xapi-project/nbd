@@ -251,7 +251,7 @@ let write_one t from buffer =
       Request.ty= Command.Write
     ; handle
     ; from
-    ; len= Int32.of_int (Cstruct.len buffer)
+    ; len= Int32.of_int (Cstruct.length buffer)
     }
   in
   Rpc.rpc req_hdr (Some buffer) [] t.client
@@ -266,7 +266,7 @@ let write t from buffers =
       | b :: bs -> (
           write_one t from b >>= function
           | Ok () ->
-              loop Int64.(add from (of_int (Cstruct.len b))) bs
+              loop Int64.(add from (of_int (Cstruct.length b))) bs
           | Error e ->
               Lwt.return_error e
         )
@@ -283,7 +283,7 @@ let read t from buffers =
   else
     let handle = get_handle () in
     let len =
-      Int32.of_int @@ List.fold_left ( + ) 0 @@ List.map Cstruct.len buffers
+      Int32.of_int @@ List.fold_left ( + ) 0 @@ List.map Cstruct.length buffers
     in
     let req_hdr = {Request.ty= Command.Read; handle; from; len} in
     let req_body = None in
