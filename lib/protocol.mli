@@ -14,8 +14,6 @@
 
 (** Types representing NBD protocol requests and responses. *)
 
-open Result
-
 module Error : sig
   (** Read and write requests can fail with an error response. *)
 

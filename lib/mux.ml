@@ -65,7 +65,7 @@ module Make (R : RPC) : sig
     -> R.request_body
     -> R.response_body
     -> client
-    -> (unit, Protocol.Error.t) Result.result Lwt.t
+    -> (unit, Protocol.Error.t) Result.t Lwt.t
   (** [rpc req_hdr req_body response_body client] sends a request to the server, and
       saves the response into [response_body]. Will block until a response to
       this request is received from the server. *)
