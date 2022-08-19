@@ -185,7 +185,7 @@ module Impl = struct
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some
         (Nbd_unix.TlsServer
-           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites))
+           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ()))
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
