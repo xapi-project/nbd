@@ -71,7 +71,8 @@ module NbdRpc = struct
   let handle_unrequested_packet _t reply =
     Lwt.fail_with
       (Printf.sprintf "Unexpected response from server: %s"
-         (Reply.to_string reply))
+         (Reply.to_string reply)
+      )
 end
 
 module Rpc = Mux.Make (NbdRpc)
@@ -188,10 +189,12 @@ let list channel =
                 ->
                   Lwt.return_unit
               | Ok _ ->
-                  Lwt.fail_with "Server's OptionResponse had an invalid type")
+                  Lwt.fail_with "Server's OptionResponse had an invalid type"
+            )
             (fun exn ->
               Lwt_log_core.warning ~section ~exn
-                "Got exception while reading ack from server")
+                "Got exception while reading ack from server"
+            )
           >|= fun () -> result
     )
 
@@ -226,7 +229,8 @@ let negotiate channel export =
               {
                 ty= Option.ExportName
               ; length= Int32.of_int (String.length export)
-              }) ;
+              }
+          ) ;
           channel.write buf >>= fun () ->
           let buf = Cstruct.create (ExportName.sizeof export) in
           ExportName.marshal buf export ;

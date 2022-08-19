@@ -28,7 +28,8 @@ let transmission =
       | `Server, x ->
           "Server: " ^ String.escaped x
       | `Client, x ->
-          "Client: " ^ String.escaped x)
+          "Client: " ^ String.escaped x
+      )
   in
   Alcotest.testable fmt ( = )
 
@@ -106,7 +107,8 @@ let make_channel role test_sequence =
       | [] ->
           Lwt.fail_with
             (Printf.sprintf "Tried to write %s but the stream was empty"
-               (buf |> Cstruct.to_string |> String.escaped))
+               (buf |> Cstruct.to_string |> String.escaped)
+            )
   in
   let close () = Lwt.return () in
   let assert_processed_complete_sequence () =
@@ -143,6 +145,7 @@ let with_server_channel s f _switch () =
       ; close_clear= close
       ; make_tls_channel= None
       }
+    
   >>= fun () ->
   assert_processed_complete_sequence () ;
   Lwt.return_unit
@@ -263,7 +266,9 @@ module ClientTests = struct
       "Perform a negotiation using the second version of the protocol from the\n\
       \     client's side." `Quick
       (with_client_channel v2_negotiation (fun channel ->
-           Nbd.Client.negotiate channel "export1" >>= fun _ -> Lwt.return ()))
+           Nbd.Client.negotiate channel "export1" >>= fun _ -> Lwt.return ()
+       )
+      )
 
   let test_list_exports_disabled =
     Alcotest_lwt.test_case
@@ -274,7 +279,9 @@ module ClientTests = struct
            | Error `Policy ->
                Lwt.return ()
            | _ ->
-               failwith "Expected to receive a Policy error"))
+               failwith "Expected to receive a Policy error"
+       )
+      )
 
   (** After a NBD_OPT_LIST, the client sends an abort, but the server
    * disconnects without sending an ack. The NBD protocol says: "the client
@@ -314,7 +321,9 @@ module ClientTests = struct
            | Error `Policy ->
                Lwt.return ()
            | _ ->
-               failwith "Expected to receive a Policy error"))
+               failwith "Expected to receive a Policy error"
+       )
+      )
 
   let test_list_exports_success =
     Alcotest_lwt.test_case "Client requests a list of exports" `Quick
@@ -323,7 +332,9 @@ module ClientTests = struct
            Alcotest.(check (result (slist string String.compare) reject))
              "Returned correct export names"
              (Ok ["export1"; "export2"])
-             res))
+             res
+       )
+      )
 
   let test_list_exports_extra_data =
     let sequence =
@@ -370,7 +381,9 @@ module ClientTests = struct
            | Ok ["export2"] ->
                Lwt.return ()
            | _ ->
-               failwith "Expected to receive a list of exports"))
+               failwith "Expected to receive a list of exports"
+       )
+      )
 end
 
 module ServerTests = struct
@@ -382,7 +395,9 @@ module ServerTests = struct
            Nbd.Server.connect channel () >|= fun (export_name, _svr) ->
            Alcotest.(check string)
              "The server did not receive the correct export name" "export1"
-             export_name))
+             export_name
+       )
+      )
 
   let test_abort =
     let sequence =
@@ -409,12 +424,16 @@ module ServerTests = struct
            Lwt.catch
              (fun () ->
                Nbd.Server.connect channel () >>= fun _ ->
-               Alcotest.fail "Server should not enter transmission mode")
+               Alcotest.fail "Server should not enter transmission mode"
+             )
              (function
                | Nbd.Server.Client_requested_abort ->
                    Lwt.return_unit
                | e ->
-                   Lwt.fail e)))
+                   Lwt.fail e
+               )
+       )
+      )
 
   (** The NBD protocol says: "the server SHOULD gracefully handle the client
    * sending an NBD_OPT_ABORT and closing the connection without waiting for a
@@ -440,12 +459,16 @@ module ServerTests = struct
            Lwt.catch
              (fun () ->
                Nbd.Server.connect channel () >>= fun _ ->
-               Alcotest.fail "Server should not enter transmission mode")
+               Alcotest.fail "Server should not enter transmission mode"
+             )
              (function
                | Nbd.Server.Client_requested_abort ->
                    Lwt.return_unit
                | e ->
-                   Lwt.fail e)))
+                   Lwt.fail e
+               )
+       )
+      )
 
   let test_list_exports_disabled =
     Alcotest_lwt.test_case
@@ -455,12 +478,16 @@ module ServerTests = struct
            Lwt.catch
              (fun () ->
                Nbd.Server.connect channel () >>= fun _ ->
-               Alcotest.fail "Server should not enter transmission mode")
+               Alcotest.fail "Server should not enter transmission mode"
+             )
              (function
                | Nbd.Server.Client_requested_abort ->
                    Lwt.return_unit
                | e ->
-                   Lwt.fail e)))
+                   Lwt.fail e
+               )
+       )
+      )
 
   let test_list_exports_success =
     Alcotest_lwt.test_case "Client requests a list of exports" `Quick
@@ -469,12 +496,16 @@ module ServerTests = struct
              (fun () ->
                Nbd.Server.connect ~offer:["export1"; "export2"] channel ()
                >>= fun _ ->
-               Alcotest.fail "Server should not enter transmission mode")
+               Alcotest.fail "Server should not enter transmission mode"
+             )
              (function
                | Nbd.Server.Client_requested_abort ->
                    Lwt.return_unit
                | e ->
-                   Lwt.fail e)))
+                   Lwt.fail e
+               )
+       )
+      )
 
   let test_read_only_export =
     let test_block = Cstruct.of_string "asdf" in
@@ -539,9 +570,7 @@ module ServerTests = struct
         (`Server, nbd_reply_magic)
       ; (`Server, "\000\000\000\001")
       ; (* error: EPERM *)
-        (`Server, "\000\000\000\000\000\000\000\001")
-        (* handle *)
-
+        (`Server, "\000\000\000\000\000\000\000\001") (* handle *)
         (* TODO: currently the test fails with the below lines uncommented, because
            the server disconnects in case of write errors, but according to the NBD
            protocol it probably shouldn't, it should continue to process the
@@ -567,7 +596,9 @@ module ServerTests = struct
              export_name ;
            Nbd.Server.serve svr ~read_only:true
              (module Cstruct_block.Block)
-             test_block))
+             test_block
+       )
+      )
 
   let test_read_write_export =
     let test_block = Cstruct.of_string "asdf" in
@@ -638,7 +669,9 @@ module ServerTests = struct
            >|= fun () ->
            Alcotest.(check string)
              "Data written by server" "as12"
-             (Cstruct.to_string test_block)))
+             (Cstruct.to_string test_block)
+       )
+      )
 end
 
 let tests =
@@ -657,4 +690,5 @@ let tests =
     ; ClientTests.test_list_exports_extra_data
     ; ServerTests.test_read_only_export
     ; ServerTests.test_read_write_export
-    ] )
+    ]
+  )

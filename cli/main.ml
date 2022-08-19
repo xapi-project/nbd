@@ -185,7 +185,8 @@ module Impl = struct
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some
         (Nbd_unix.TlsServer
-           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ()))
+           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ())
+        )
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
@@ -202,7 +203,8 @@ module Impl = struct
             (Printf.sprintf
                "Client requested invalid exportname %s, name of the export is \
                 %s"
-               client_exportname exportname)
+               client_exportname exportname
+            )
       | _ ->
           Lwt.return_unit
     in
@@ -221,7 +223,10 @@ module Impl = struct
                 (fun client_exportname svr ->
                   validate ~client_exportname >>= fun () ->
                   Nbd_unix.with_block filename
-                    (Server.serve svr ~read_only:false (module Block)))))
+                    (Server.serve svr ~read_only:false (module Block))
+              )
+          )
+        )
         (ignore_exn (fun () -> Lwt_unix.close fd))
     in
     let t =
@@ -241,11 +246,13 @@ module Impl = struct
                 (fun e ->
                   Lwt_log.error_f
                     "Caught exception %s while handling connection"
-                    (Printexc.to_string e))
+                    (Printexc.to_string e)
+                )
             in
             loop ()
           in
-          loop ())
+          loop ()
+        )
         (ignore_exn (fun () -> Lwt_unix.close sock))
     in
     Lwt_main.run t
@@ -272,7 +279,8 @@ module Impl = struct
           | `Percent x ->
               Printf.fprintf stderr "Mirror %d %% complete\n%!" x
         in
-        M.connect ~progress_cb primary secondary )
+        M.connect ~progress_cb primary secondary
+      )
       >>= fun m ->
       let rec loop () =
         Lwt_unix.accept sock >>= fun (fd, _) ->
@@ -304,7 +312,8 @@ let size_cmd =
     Arg.(value & opt string "export" & info ["export"] ~doc ~docv:"export")
   in
   ( Term.(ret (const Impl.size $ host $ port $ export))
-  , Cmd.info "size" ~version:"1.0.0" ~doc )
+  , Cmd.info "size" ~version:"1.0.0" ~doc
+  )
 
 (* Used by both serve and mirror cmds *)
 let certfile =
@@ -318,10 +327,12 @@ let ciphersuites =
   in
   let parse_cipherstring_as_required =
     ( (fun s -> if s = "" then failwith "ciphersuite is required" else `Ok s)
-    , Format.pp_print_string )
+    , Format.pp_print_string
+    )
   in
   Arg.(
-    value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc)
+    value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc
+  )
 
 (* cli is only used for debugging, so assume user is providing a good cipherstring *)
 
@@ -373,8 +384,10 @@ let serve_cmd =
         $ curve
         $ ciphersuites
         $ no_tls
-        ))
-  , Cmd.info "serve" ~sdocs:common_options ~doc ~man )
+        )
+    )
+  , Cmd.info "serve" ~sdocs:common_options ~doc ~man
+  )
 
 let mirror_cmd =
   let doc = "serve a disk over NBD while mirroring" in
@@ -418,8 +431,10 @@ let mirror_cmd =
         $ curve
         $ ciphersuites
         $ no_tls
-        ))
-  , Cmd.info "mirror" ~sdocs:common_options ~doc ~man )
+        )
+    )
+  , Cmd.info "mirror" ~sdocs:common_options ~doc ~man
+  )
 
 let list_cmd =
   let doc = "list the disks exported by an NBD server" in
@@ -442,8 +457,8 @@ let list_cmd =
     Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port")
   in
   ( Term.(ret (const Impl.list $ common_options_t $ host $ port))
-  , Cmd.info "list" ~sdocs:common_options ~doc ~man )
-
+  , Cmd.info "list" ~sdocs:common_options ~doc ~man
+  )
 
 let cmds =
   [serve_cmd; list_cmd; size_cmd; mirror_cmd]
@@ -455,6 +470,7 @@ let () =
   in
   let doc = "manipulate NBD clients and servers" in
   let info =
-    Cmd.info "nbd-tool" ~version:"1.0.0" ~sdocs:common_options ~doc ~man:help in
+    Cmd.info "nbd-tool" ~version:"1.0.0" ~sdocs:common_options ~doc ~man:help
+  in
   let cmd = Cmd.group ~default info cmds in
   exit (Cmd.eval cmd)

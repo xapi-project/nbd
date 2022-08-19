@@ -50,7 +50,8 @@ let connect channel ?offer () =
           if String.length name > 4096 then
             Lwt.fail_with "export name must be no longer than 4096 bytes"
           else
-            Lwt.return_unit)
+            Lwt.return_unit
+        )
         offers
   | None ->
       Lwt.return_unit
@@ -73,7 +74,8 @@ let connect channel ?offer () =
   let respond ?(len = 0) opt resp writefn =
     OptionResponseHeader.(
       marshal res
-        {request_type= opt; response_type= resp; length= Int32.of_int len}) ;
+        {request_type= opt; response_type= resp; length= Int32.of_int len}
+    ) ;
     writefn res
   in
   let send_ack opt writefn = respond opt OptionResponse.Ack writefn in
@@ -106,7 +108,8 @@ let connect channel ?offer () =
             (fun () -> send_ack opt chan.write)
             (fun exn ->
               Lwt_log_core.warning ~section ~exn
-                "Failed to send ack after receiving abort")
+                "Failed to send ack after receiving abort"
+            )
           >>= fun () -> Lwt.fail Client_requested_abort
       | Option.Unknown _ ->
           respond opt OptionResponse.Unsupported chan.write >>= loop
@@ -205,12 +208,14 @@ let ok t handle payload =
       | None ->
           Lwt.return ()
       | Some data ->
-          t.channel.write data)
+          t.channel.write data
+  )
 
 let error t handle code =
   Lwt_mutex.with_lock t.m (fun () ->
       Reply.marshal t.reply {Reply.handle; error= Error code} ;
-      t.channel.write t.reply)
+      t.channel.write t.reply
+  )
 
 let serve t (type t) ?(read_only = true) block (b : t) =
   let section = Lwt_log_core.Section.make "Server.serve" in
@@ -220,7 +225,8 @@ let serve t (type t) ?(read_only = true) block (b : t) =
   Block.get_info b >>= fun info ->
   let size =
     Int64.(
-      mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size))
+      mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)
+    )
   in
   ( match (read_only, info.Mirage_block.read_write) with
   | true, _ ->
@@ -248,7 +254,8 @@ let serve t (type t) ?(read_only = true) block (b : t) =
         else if
           Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L
           || Int64.(
-               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
+               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L
+             )
         then
           error t handle `EINVAL
         else
@@ -286,7 +293,8 @@ let serve t (type t) ?(read_only = true) block (b : t) =
         if
           Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L
           || Int64.(
-               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L)
+               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L
+             )
         then
           error t handle `EINVAL
         else
@@ -303,7 +311,8 @@ let serve t (type t) ?(read_only = true) block (b : t) =
                   (Printf.sprintf
                      "Partial failure during a Block.read: %s; terminating the \
                       session"
-                     (Fmt.to_to_string Block.pp_error e))
+                     (Fmt.to_to_string Block.pp_error e)
+                  )
             | Ok () ->
                 t.channel.write subblock >>= fun () ->
                 let remaining = remaining - n in

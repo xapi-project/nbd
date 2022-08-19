@@ -105,7 +105,8 @@ let connect hostname port =
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
   Lwt.catch
     (fun () ->
-      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)))
+      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
+    )
     (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
   >>= fun () -> generic_channel_of_fd socket None
 

@@ -42,7 +42,9 @@ let with_channels f =
   let client_channel =
     Nbd.Channel.
       {read= client_read; write= client_write; close= noop; is_tls= false}
+    
   in
+
   let server_channel =
     Nbd.Channel.
       {
@@ -51,7 +53,9 @@ let with_channels f =
       ; close_clear= noop
       ; make_tls_channel= None
       }
+    
   in
+
   Lwt_unix.with_timeout 0.5 (fun () -> f client_channel server_channel)
 
 (** Run the given server and client test sequences concurrently with channels
@@ -74,7 +78,8 @@ let test ~server ~client () =
         >|=
         fun () -> Lwt.cancel cancel
       in
-      Lwt.join [test_server; test_client])
+      Lwt.join [test_server; test_client]
+  )
 
 (** We fail the test if an error occurs *)
 let check msg = function
@@ -92,14 +97,16 @@ let test_connect_disconnect _switch =
         "export name received by server" "export1" export_name ;
       Nbd.Server.serve svr ~read_only:false
         (module Cstruct_block.Block)
-        test_block)
+        test_block
+    )
     ~client:(fun client_channel ->
       Nbd.Client.negotiate client_channel "export1" >>= fun (t, size, _flags) ->
       Alcotest.(check int64)
         "size received by client"
         (Int64.of_int (Cstruct.length test_block))
         size ;
-      Nbd.Client.disconnect t)
+      Nbd.Client.disconnect t
+    )
 
 let test_list_exports _switch =
   test
@@ -107,18 +114,22 @@ let test_list_exports _switch =
       Lwt.catch
         (fun () ->
           Nbd.Server.connect ~offer:["export1"; "export2"] server_channel ()
-          >>= fun _ -> Alcotest.fail "Server should not enter transmission mode")
+          >>= fun _ -> Alcotest.fail "Server should not enter transmission mode"
+        )
         (function
           | Nbd.Server.Client_requested_abort ->
               Lwt.return_unit
           | e ->
-              Lwt.fail e))
+              Lwt.fail e
+          )
+    )
     ~client:(fun client_channel ->
       Nbd.Client.list client_channel >|= fun exports ->
       Alcotest.(check (result (slist string String.compare) reject))
         "Received correct export names"
         (Ok ["export1"; "export2"])
-        exports)
+        exports
+    )
 
 let test_read_write _switch =
   let test_block = Cstruct.of_string "asdf" in
@@ -127,7 +138,8 @@ let test_read_write _switch =
       Nbd.Server.connect server_channel () >>= fun (_export_name, svr) ->
       Nbd.Server.serve svr ~read_only:false
         (module Cstruct_block.Block)
-        test_block)
+        test_block
+    )
     ~client:(fun client_channel ->
       Nbd.Client.negotiate client_channel "export1"
       >>= fun (t, _size, _flags) ->
@@ -142,7 +154,8 @@ let test_read_write _switch =
       Alcotest.(check string)
         "2 modified bytes at offset 2" "12" (Cstruct.to_string buf) ;
 
-      Nbd.Client.disconnect t)
+      Nbd.Client.disconnect t
+    )
 
 let tests =
   let t = Alcotest_lwt.test_case in
@@ -151,4 +164,5 @@ let tests =
       t "test_connect_disconnect" `Quick test_connect_disconnect
     ; t "test_list_exports" `Quick test_list_exports
     ; t "test_read_write" `Quick test_read_write
-    ] )
+    ]
+  )

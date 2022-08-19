@@ -4,4 +4,4 @@ let () =
        (* I found that running the protocol tests before the
           client server tests causes the test suite to hang
        *)
-       [Client_server_test.tests; Protocol_test.tests] ;
+       [Client_server_test.tests; Protocol_test.tests]
