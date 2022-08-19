@@ -27,7 +27,8 @@ let opts =
       {|If present, the test will fail when the required program is not
                 installed. Otherwise the test will simply be skipped.|}
     in
-    Cmdliner.Arg.(value & flag & info ["strict"] ~env:(env_var "STRICT") ~doc)
+    let env = Cmdliner.Cmd.Env.info "STRICT" in
+    Cmdliner.Arg.(value & flag & info ["strict"] ~env ~doc)
   in
   Cmdliner.Term.(const (fun cli strict -> (cli, strict)) $ cli $ strict)
 
