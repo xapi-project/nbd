@@ -86,7 +86,8 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
           wait () >>= fun length ->
           t.exclusive_lock <- (fst t.exclusive_lock, length) ;
           Lwt_condition.broadcast t.c () ;
-          Lwt.return ())
+          Lwt.return ()
+      )
 
     (* Release lock up to [offset'] *)
     let release_left t offset' =
@@ -96,11 +97,14 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
               to_int
                 (sub
                    (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock)))
-                   offset'))
+                   offset'
+                )
+            )
           in
           t.exclusive_lock <- (offset', length) ;
           Lwt_condition.broadcast t.c () ;
-          Lwt.return ())
+          Lwt.return ()
+      )
 
     (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
        a region while it is being actively mirrored, which could cause the old data
@@ -128,7 +132,8 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
                 (fun () -> f () >>= fun r -> unlock () ; Lwt.return r)
                 (fun e -> unlock () ; Lwt.fail e)
           in
-          loop ())
+          loop ()
+      )
 
     let make () =
       let exclusive_lock = (0L, 0) in
@@ -156,7 +161,7 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
   let start_copy t u =
     let buffer = Io_page.(to_cstruct (get 4096)) in
     (* round to the nearest sector *)
-    let block = Cstruct.len buffer / t.info.Mirage_block.sector_size in
+    let block = Cstruct.length buffer / t.info.Mirage_block.sector_size in
     let buffer =
       Cstruct.sub buffer 0 (block * t.info.Mirage_block.sector_size)
     in
@@ -265,12 +270,14 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
     let primary_bytes =
       Int64.(
         mul primary_info.Mirage_block.size_sectors
-          (of_int primary_info.Mirage_block.sector_size))
+          (of_int primary_info.Mirage_block.sector_size)
+      )
     in
     let secondary_bytes =
       Int64.(
         mul secondary_info.Mirage_block.size_sectors
-          (of_int secondary_info.Mirage_block.sector_size))
+          (of_int secondary_info.Mirage_block.sector_size)
+      )
     in
 
     (let open Rresult in
@@ -284,7 +291,9 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
                "Incompatible sector sizes: either primary (%d) or secondary \
                 (%d) must be an integer multiple of the other"
                primary_info.Mirage_block.sector_size
-               secondary_info.Mirage_block.sector_size))
+               secondary_info.Mirage_block.sector_size
+            )
+            )
     else
       Ok ()
     )
@@ -295,7 +304,9 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
             (Printf.sprintf
                "Incompatible overall sizes: primary (%Ld bytes) and secondary \
                 (%Ld bytes) must be the same size"
-               primary_bytes secondary_bytes))
+               primary_bytes secondary_bytes
+            )
+            )
     else
       Ok ()
     )
@@ -303,7 +314,8 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
     if not secondary_info.Mirage_block.read_write then
       Error (`Msg "Cannot mirror to a read-only secondary device")
     else
-      Ok ())
+      Ok ()
+    )
     |> Lwt.return
     >>= function
     | Error (`Msg x) ->
@@ -341,7 +353,9 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
         Lwt.return_ok x
 
   let write t ofs bufs =
-    let total_length_bytes = List.(fold_left ( + ) 0 (map Cstruct.len bufs)) in
+    let total_length_bytes =
+      List.(fold_left ( + ) 0 (map Cstruct.length bufs))
+    in
     let length = total_length_bytes / t.info.Mirage_block.sector_size in
     let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
     let secondary_ofs = Int64.(mul ofs (of_int t.secondary_block_size)) in
@@ -355,7 +369,8 @@ module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
                 Lwt.return_error (`Secondary e)
             | Ok () ->
                 Lwt.return_ok ()
-          ))
+          )
+    )
 
   let disconnect t =
     t.disconnected <- true ;

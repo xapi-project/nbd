@@ -105,11 +105,12 @@ let connect hostname port =
   let server_address = host_info.Lwt_unix.h_addr_list.(0) in
   Lwt.catch
     (fun () ->
-      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port)))
+      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
+    )
     (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
   >>= fun () -> generic_channel_of_fd socket None
 
-let init_tls_get_ctx ?curve ~certfile ~ciphersuites =
+let init_tls_get_ctx ?curve ~certfile ~ciphersuites () =
   Ssl_threads.init () ;
   Ssl.init () ;
   let mk_ctx role_ctx = Ssl.create_context Ssl.TLSv1_2 role_ctx in

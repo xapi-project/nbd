@@ -110,11 +110,11 @@ open Cmdliner
 
 (* Help sections common to all commands *)
 
-let _common_options = "COMMON OPTIONS"
+let common_options = "COMMON OPTIONS"
 
 let help =
   [
-    `S _common_options
+    `S common_options
   ; `P "These options are common to all commands."
   ; `S "MORE HELP"
   ; `P "Use `$(mname) $(i,COMMAND) --help' for help on a single command."
@@ -125,7 +125,7 @@ let help =
 
 (* Options common to all commands *)
 let common_options_t =
-  let docs = _common_options in
+  let docs = common_options in
   let debug =
     let doc = "Give only debug output." in
     Arg.(value & flag & info ["debug"] ~docs ~doc)
@@ -135,7 +135,7 @@ let common_options_t =
     let verbose = (true, Arg.info ["v"; "verbose"] ~docs ~doc) in
     Arg.(last & vflag_all [false] [verbose])
   in
-  Term.(pure Common.make $ debug $ verb)
+  Term.(const Common.make $ debug $ verb)
 
 module Impl = struct
   open Nbd
@@ -185,7 +185,8 @@ module Impl = struct
       let ciphersuites = require_str "ciphersuites" ciphersuites in
       Some
         (Nbd_unix.TlsServer
-           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites))
+           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ())
+        )
 
   let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
 
@@ -202,7 +203,8 @@ module Impl = struct
             (Printf.sprintf
                "Client requested invalid exportname %s, name of the export is \
                 %s"
-               client_exportname exportname)
+               client_exportname exportname
+            )
       | _ ->
           Lwt.return_unit
     in
@@ -221,7 +223,10 @@ module Impl = struct
                 (fun client_exportname svr ->
                   validate ~client_exportname >>= fun () ->
                   Nbd_unix.with_block filename
-                    (Server.serve svr ~read_only:false (module Block)))))
+                    (Server.serve svr ~read_only:false (module Block))
+              )
+          )
+        )
         (ignore_exn (fun () -> Lwt_unix.close fd))
     in
     let t =
@@ -241,11 +246,13 @@ module Impl = struct
                 (fun e ->
                   Lwt_log.error_f
                     "Caught exception %s while handling connection"
-                    (Printexc.to_string e))
+                    (Printexc.to_string e)
+                )
             in
             loop ()
           in
-          loop ())
+          loop ()
+        )
         (ignore_exn (fun () -> Lwt_unix.close sock))
     in
     Lwt_main.run t
@@ -272,7 +279,8 @@ module Impl = struct
           | `Percent x ->
               Printf.fprintf stderr "Mirror %d %% complete\n%!" x
         in
-        M.connect ~progress_cb primary secondary )
+        M.connect ~progress_cb primary secondary
+      )
       >>= fun m ->
       let rec loop () =
         Lwt_unix.accept sock >>= fun (fd, _) ->
@@ -303,8 +311,9 @@ let size_cmd =
     let doc = "Name of the export" in
     Arg.(value & opt string "export" & info ["export"] ~doc ~docv:"export")
   in
-  ( Term.(ret (pure Impl.size $ host $ port $ export))
-  , Term.info "size" ~version:"1.0.0" ~doc )
+  ( Term.(ret (const Impl.size $ host $ port $ export))
+  , Cmd.info "size" ~version:"1.0.0" ~doc
+  )
 
 (* Used by both serve and mirror cmds *)
 let certfile =
@@ -318,10 +327,12 @@ let ciphersuites =
   in
   let parse_cipherstring_as_required =
     ( (fun s -> if s = "" then failwith "ciphersuite is required" else `Ok s)
-    , Format.pp_print_string )
+    , Format.pp_print_string
+    )
   in
   Arg.(
-    value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc)
+    value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc
+  )
 
 (* cli is only used for debugging, so assume user is providing a good cipherstring *)
 
@@ -364,7 +375,7 @@ let serve_cmd =
   in
   ( Term.(
       ret
-        (pure Impl.serve
+        (const Impl.serve
         $ common_options_t
         $ filename
         $ port
@@ -373,8 +384,10 @@ let serve_cmd =
         $ curve
         $ ciphersuites
         $ no_tls
-        ))
-  , Term.info "serve" ~sdocs:_common_options ~doc ~man )
+        )
+    )
+  , Cmd.info "serve" ~sdocs:common_options ~doc ~man
+  )
 
 let mirror_cmd =
   let doc = "serve a disk over NBD while mirroring" in
@@ -409,7 +422,7 @@ let mirror_cmd =
   in
   ( Term.(
       ret
-        (pure Impl.mirror
+        (const Impl.mirror
         $ common_options_t
         $ filename
         $ port
@@ -418,8 +431,10 @@ let mirror_cmd =
         $ curve
         $ ciphersuites
         $ no_tls
-        ))
-  , Term.info "mirror" ~sdocs:_common_options ~doc ~man )
+        )
+    )
+  , Cmd.info "mirror" ~sdocs:common_options ~doc ~man
+  )
 
 let list_cmd =
   let doc = "list the disks exported by an NBD server" in
@@ -441,20 +456,21 @@ let list_cmd =
     let doc = "Remote port" in
     Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port")
   in
-  ( Term.(ret (pure Impl.list $ common_options_t $ host $ port))
-  , Term.info "list" ~sdocs:_common_options ~doc ~man )
+  ( Term.(ret (const Impl.list $ common_options_t $ host $ port))
+  , Cmd.info "list" ~sdocs:common_options ~doc ~man
+  )
 
-let default_cmd =
-  let doc = "manipulate NBD clients and servers" in
-  let man = help in
-  ( Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t))
-  , Term.info "nbd-tool" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man )
-
-let cmds = [serve_cmd; list_cmd; size_cmd; mirror_cmd]
+let cmds =
+  [serve_cmd; list_cmd; size_cmd; mirror_cmd]
+  |> List.map (fun (t, i) -> Cmd.v i t)
 
 let () =
-  match Term.eval_choice default_cmd cmds with
-  | `Error _ ->
-      exit 1
-  | _ ->
-      exit 0
+  let default =
+    Term.(ret (const (fun _ -> `Help (`Pager, None)) $ common_options_t))
+  in
+  let doc = "manipulate NBD clients and servers" in
+  let info =
+    Cmd.info "nbd-tool" ~version:"1.0.0" ~sdocs:common_options ~doc ~man:help
+  in
+  let cmd = Cmd.group ~default info cmds in
+  exit (Cmd.eval cmd)

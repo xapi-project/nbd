@@ -65,7 +65,7 @@ module Make (R : RPC) : sig
     -> R.request_body
     -> R.response_body
     -> client
-    -> (unit, Protocol.Error.t) Result.result Lwt.t
+    -> (unit, Protocol.Error.t) Result.t Lwt.t
   (** [rpc req_hdr req_body response_body client] sends a request to the server, and
       saves the response into [response_body]. Will block until a response to
       this request is received from the server. *)
@@ -86,7 +86,8 @@ end = struct
         ( R.id
         , R.request_hdr
           * (unit, Protocol.Error.t) result Lwt.u
-          * R.response_body )
+          * R.response_body
+        )
         Hashtbl.t
     ; mutable dispatcher_thread: unit Lwt.t
     ; mutable dispatcher_shutting_down: bool
@@ -111,13 +112,15 @@ end = struct
                 >>= fun response ->
                 Lwt.wakeup waker response ;
                 Hashtbl.remove t.id_to_wakeup id ;
-                Lwt.return ())
+                Lwt.return ()
+        )
         (fun e ->
           t.dispatcher_shutting_down <- true ;
           Hashtbl.iter
             (fun _ (_, u, _) -> Lwt.wakeup_later_exn u e)
             t.id_to_wakeup ;
-          Lwt.fail e)
+          Lwt.fail e
+        )
     in
     th >>= fun () -> dispatcher t
 
@@ -129,7 +132,8 @@ end = struct
       let id = R.id_of_request req_hdr in
       Hashtbl.add t.id_to_wakeup id (req_hdr, waker, response_body) ;
       Lwt_mutex.with_lock t.outgoing_mutex (fun () ->
-          R.send_one t.transport req_hdr req_body)
+          R.send_one t.transport req_hdr req_body
+      )
       >>= fun () -> sleeper
 
   let create transport =

@@ -71,7 +71,8 @@ module NbdRpc = struct
   let handle_unrequested_packet _t reply =
     Lwt.fail_with
       (Printf.sprintf "Unexpected response from server: %s"
-         (Reply.to_string reply))
+         (Reply.to_string reply)
+      )
 end
 
 module Rpc = Mux.Make (NbdRpc)
@@ -188,10 +189,12 @@ let list channel =
                 ->
                   Lwt.return_unit
               | Ok _ ->
-                  Lwt.fail_with "Server's OptionResponse had an invalid type")
+                  Lwt.fail_with "Server's OptionResponse had an invalid type"
+            )
             (fun exn ->
               Lwt_log_core.warning ~section ~exn
-                "Got exception while reading ack from server")
+                "Got exception while reading ack from server"
+            )
           >|= fun () -> result
     )
 
@@ -226,7 +229,8 @@ let negotiate channel export =
               {
                 ty= Option.ExportName
               ; length= Int32.of_int (String.length export)
-              }) ;
+              }
+          ) ;
           channel.write buf >>= fun () ->
           let buf = Cstruct.create (ExportName.sizeof export) in
           ExportName.marshal buf export ;
@@ -251,7 +255,7 @@ let write_one t from buffer =
       Request.ty= Command.Write
     ; handle
     ; from
-    ; len= Int32.of_int (Cstruct.len buffer)
+    ; len= Int32.of_int (Cstruct.length buffer)
     }
   in
   Rpc.rpc req_hdr (Some buffer) [] t.client
@@ -266,7 +270,7 @@ let write t from buffers =
       | b :: bs -> (
           write_one t from b >>= function
           | Ok () ->
-              loop Int64.(add from (of_int (Cstruct.len b))) bs
+              loop Int64.(add from (of_int (Cstruct.length b))) bs
           | Error e ->
               Lwt.return_error e
         )
@@ -283,7 +287,7 @@ let read t from buffers =
   else
     let handle = get_handle () in
     let len =
-      Int32.of_int @@ List.fold_left ( + ) 0 @@ List.map Cstruct.len buffers
+      Int32.of_int @@ List.fold_left ( + ) 0 @@ List.map Cstruct.length buffers
     in
     let req_hdr = {Request.ty= Command.Read; handle; from; len} in
     let req_body = None in

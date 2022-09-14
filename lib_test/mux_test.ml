@@ -33,7 +33,8 @@ module TestPacket = struct
         loop () >>= fun () ->
         let res = Queue.pop t.recv_queue in
         if !record_sequence then t.seq <- Response res :: t.seq ;
-        Lwt.return (res.res_id, res))
+        Lwt.return (res.res_id, res)
+    )
 
   let recv_body _t _req_hdr rsp_hdr rsp_body =
     Bytes.blit rsp_hdr.res_payload 0 rsp_body 0
@@ -43,7 +44,8 @@ module TestPacket = struct
   let send_one t x _ =
     Lwt_mutex.with_lock t.mutex (fun () ->
         if !record_sequence then t.seq <- Request x :: t.seq ;
-        Lwt.return ())
+        Lwt.return ()
+    )
 
   let id_of_request r = r.req_id
 
@@ -65,7 +67,8 @@ module TestPacket = struct
     Lwt_mutex.with_lock t.mutex (fun () ->
         Queue.push res t.recv_queue ;
         Lwt_condition.broadcast t.recv_cond () ;
-        Lwt.return ())
+        Lwt.return ()
+    )
 end
 
 module T = Nbd.Mux.Make (TestPacket)
@@ -101,7 +104,8 @@ let test_rpc =
         TestPacket.queue_response r1 transport >>= fun () ->
         t1 >>|= fun () -> Lwt.return (response = r1.res_payload)
       in
-      Alcotest.(check bool) "RPC response correct" true (Lwt_main.run t) )
+      Alcotest.(check bool) "RPC response correct" true (Lwt_main.run t)
+  )
 
 let test_multi_rpc =
   ( "Test queuing of rpc calls in the mux"
@@ -121,7 +125,8 @@ let test_multi_rpc =
         t2 >>|= fun () ->
         Lwt.return (response1 = r1.res_payload && response2 = r2.res_payload)
       in
-      Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t) )
+      Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t)
+  )
 
 let test_out_of_order_responses =
   ( "Test RPC functions work when responses are received out of order"
@@ -141,7 +146,8 @@ let test_out_of_order_responses =
         t2 >>|= fun () ->
         Lwt.return (response1 = r1.res_payload && response2 = r2.res_payload)
       in
-      Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t) )
+      Alcotest.(check bool) "Both responses correct" true (Lwt_main.run t)
+  )
 
 let test_memory_leak =
   ( "Check the mux does not have a memory leak"
@@ -172,7 +178,8 @@ let test_memory_leak =
         in
         megaqueue 0
       in
-      Alcotest.(check bool) "Memory leak" true (Lwt_main.run t) )
+      Alcotest.(check bool) "Memory leak" true (Lwt_main.run t)
+  )
 
 let test_exception_handling =
   ( "Check that exceptions raised are handled correctly"
@@ -195,12 +202,15 @@ let test_exception_handling =
             | Ok _ ->
                 Lwt.return false
             | Error _ ->
-                Lwt.return true)
+                Lwt.return true
+          )
           (fun e ->
             Printf.printf "Exception: %s\n%!" (Printexc.to_string e) ;
-            Lwt.return true)
+            Lwt.return true
+          )
       in
-      Alcotest.(check bool) "Exception handled" true (Lwt_main.run t) )
+      Alcotest.(check bool) "Exception handled" true (Lwt_main.run t)
+  )
 
 let tests =
   ( "Mux tests"
@@ -210,6 +220,7 @@ let tests =
     ; test_out_of_order_responses
     ; test_memory_leak
     ; test_exception_handling
-    ] )
-let () =
-    Alcotest.run "Sync Nbd library test suite" [tests]
+    ]
+  )
+
+let () = Alcotest.run "Sync Nbd library test suite" [tests]

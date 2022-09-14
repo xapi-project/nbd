@@ -60,7 +60,7 @@ let nbd_flag_c_fixed_newstyle = 1
 let nbd_flag_c_no_zeroes = 2
 
 let zero buf =
-  for i = 0 to Cstruct.len buf - 1 do
+  for i = 0 to Cstruct.length buf - 1 do
     Cstruct.set_uint8 buf i 0
   done
 
@@ -82,7 +82,8 @@ module PerExportFlag = struct
          ; (nbd_flag_send_fua, Send_fua)
          ; (nbd_flag_rotational, Rotational)
          ; (nbd_flag_send_trim, Send_trim)
-         ])
+         ]
+      )
 
   let to_int flags =
     let one = function
@@ -115,7 +116,8 @@ module GlobalFlag = struct
          [
            (nbd_flag_fixed_newstyle, Fixed_newstyle)
          ; (nbd_flag_no_zeroes, No_zeroes)
-         ])
+         ]
+      )
 
   let to_int flags =
     let one = function
@@ -141,7 +143,8 @@ module ClientFlag = struct
          [
            (nbd_flag_c_fixed_newstyle, Fixed_newstyle)
          ; (nbd_flag_c_no_zeroes, No_zeroes)
-         ])
+         ]
+      )
 
   let to_int32 flags =
     let one = function
@@ -340,7 +343,9 @@ module Announcement = struct
         Error
           (Failure
              (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic
-                v2_magic magic))
+                v2_magic magic
+             )
+          )
 end
 
 module Negotiate = struct
@@ -415,7 +420,9 @@ module OptionRequestHeader = struct
         Error
           (Failure
              (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld"
-                Announcement.v2_magic magic))
+                Announcement.v2_magic magic
+             )
+          )
     else
       Ok ()
     )
@@ -491,7 +498,9 @@ module OptionResponseHeader = struct
         Error
           (Failure
              (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld"
-                expected_magic magic))
+                expected_magic magic
+             )
+          )
     else
       Ok ()
     )
@@ -547,7 +556,9 @@ module Request = struct
         Error
           (Failure
              (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic
-                nbd_request_magic))
+                nbd_request_magic
+             )
+          )
     else
       Ok ()
     )
@@ -583,7 +594,9 @@ module Reply = struct
         Error
           (Failure
              (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic
-                nbd_reply_magic))
+                nbd_reply_magic
+             )
+          )
     else
       Ok ()
     )
