@@ -12,11 +12,11 @@ doc: "https://xapi-project.github.io/nbd/nbd-unix/index.html"
 bug-reports: "https://github.com/xapi-project/nbd/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
+  "bigarray-compat"
   "bisect_ppx" {dev & >= "2.5.0"}
   "dune" {>= "2.7.0"}
   "cstruct-lwt"
-  "io-page"
-  "io-page-unix"
+  "io-page" {>= "2.4.0"}
   "lwt" {>= "2.7.0"}
   "lwt_ssl"
   "mirage-block" {>= "2.0.0"}

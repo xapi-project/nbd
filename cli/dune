@@ -3,4 +3,15 @@
  (name main)
  (public_name nbd-tool)
  (package nbd-tool)
- (libraries cmdliner lwt lwt.unix mirage-block-unix nbd-unix ssl uri))
+ (libraries
+   cmdliner
+   fmt
+   lwt
+   lwt.unix
+   lwt_log
+   mirage-block
+   mirage-block-unix
+   nbd
+   nbd-unix
+   ssl
+   uri))

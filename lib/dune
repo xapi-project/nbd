@@ -3,7 +3,18 @@
  (public_name nbd)
  (flags
   (:standard -w -34-32))
- (libraries cstruct io-page lwt lwt_log mirage-block-unix rresult sexplib)
+ (libraries
+   cstruct
+   fmt
+   io-page
+   lwt
+   lwt_log
+   lwt_log.core
+   mirage-block
+   rresult
+   sexplib
+   sexplib0
+ )
  (instrumentation (backend bisect_ppx))
  (preprocess
   (pps ppx_cstruct ppx_sexp_conv -no-check)))
