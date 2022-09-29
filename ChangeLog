@@ -1,3 +1,6 @@
+# 6.0.1 (2022-09-16):
+* Require mirage-block 3.0.0, drop io-page-unix.
+
 # 6.0.0 (2022-08-19):
 * Use Stdlib's Result type
 * BREAKING: Avoid unerasable optional arguments in init_tls_get_ctx

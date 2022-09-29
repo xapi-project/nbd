@@ -1,3 +1,4 @@
 (tests
  (names suite mux_test)
- (libraries alcotest alcotest-lwt io-page-unix lwt.unix lwt_log nbd))
+ (package nbd)
+ (libraries alcotest alcotest-lwt io-page lwt.unix lwt_log nbd))
