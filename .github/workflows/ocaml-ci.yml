@@ -9,9 +9,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ocaml-compiler:
-          - 4.08.1
-          - 4.14.0
+        include:
+          - ocaml-compiler: 4.08.1
+            publish-docs: false
+          - ocaml-compiler: 4.14.0
+            publish-docs: true
 
     name: Ocaml tests
     runs-on: ubuntu-20.04
@@ -26,10 +28,13 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
-        run: opam install . --deps-only --with-test -v
+        run: opam install . --deps-only --with-test --with-doc -v
 
       - name: Build
         run: opam exec -- make build
+
+      - name: Build Docs
+        run: opam exec -- make doc
 
       - name: Run tests
         run: opam exec -- dune runtest --instrument-with bisect_ppx --force
@@ -38,3 +43,11 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
+
+      - name: Deploy Docs
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.event_name == 'push' && github.ref_name == 'master' && matrix.publish-docs == true }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _build/default/_doc/_html/
+          publish_branch: gh-pages
