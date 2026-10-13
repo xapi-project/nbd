@@ -249,7 +249,7 @@ let serve t (type t) ?(read_only = true) block (b : t) =
      but perform disk I/O in parallel.
      Re-use allocated buffers *)
   let depth = 8 in
-  let buffers = Array.init depth (fun _ -> Io_page.(to_cstruct (get 128))) in
+  let buffers = Array.init depth (fun _ -> Io_page.(to_cstruct (get 512))) in
   let buffer_size = Cstruct.length buffers.(0) in
   let free = ref (List.init depth Fun.id) in
   let available = Lwt_condition.create () in
