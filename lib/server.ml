@@ -242,92 +242,197 @@ let serve t (type t) ?(read_only = true) block (b : t) =
   >>= fun read_only ->
   let flags = if read_only then [PerExportFlag.Read_only] else [] in
   negotiate_end t size flags >>= fun t ->
-  let block = Io_page.(to_cstruct (get 128)) in
-  let block_size = Cstruct.length block in
+  let sector_size = info.Mirage_block.sector_size in
+  let sector_of_offset offset = Int64.(div offset (of_int sector_size)) in
+  (* Pipeline several NBD requests at the same time.
+     Only take the mutex to write the requests out,
+     but perform disk I/O in parallel.
+     Re-use allocated buffers *)
+  let depth = 8 in
+  let buffers = Array.init depth (fun _ -> Io_page.(to_cstruct (get 128))) in
+  let buffer_size = Cstruct.length buffers.(0) in
+  let free = ref (List.init depth Fun.id) in
+  let available = Lwt_condition.create () in
+  let acquire () =
+    let rec loop () =
+      match !free with
+      | i :: rest ->
+          free := rest ;
+          Lwt.return i
+      | [] ->
+          Lwt_condition.wait available >>= loop
+    in
+    loop ()
+  in
+  let release i =
+    free := i :: !free ;
+    Lwt_condition.broadcast available ()
+  in
+  (* Track in-flight requests so that we can wait for them before closing the
+     connection, and remember the first error so that it can be propagated
+     to the caller. *)
+  let inflight = ref 0 in
+  let idle = Lwt_condition.create () in
+  let first_error = ref None in
+  let spawn th =
+    incr inflight ;
+    Lwt.async (fun () ->
+        Lwt.finalize
+          (fun () ->
+            Lwt.catch
+              (fun () -> th)
+              (fun e ->
+                ( match !first_error with
+                | None ->
+                    first_error := Some e
+                | Some _ ->
+                    ()
+                ) ;
+                Lwt.return_unit
+              )
+          )
+          (fun () ->
+            decr inflight ;
+            Lwt_condition.broadcast idle () ;
+            Lwt.return_unit
+          )
+    ) ;
+    Lwt.return ()
+  in
+  let rec drain () =
+    if !inflight = 0 then
+      Lwt.return_unit
+    else
+      Lwt_condition.wait idle >>= drain
+  in
+  let[@warning "-27"] handle_write Request.{ty; from; len; handle} =
+    let len = Int32.to_int len in
+    if read_only then
+      error t handle `EPERM
+    else if
+      Int64.(rem from (of_int sector_size)) <> 0L
+      || Int64.(rem (of_int len) (of_int sector_size)) <> 0L
+    then
+      error t handle `EINVAL
+    else
+      let write_error e =
+        Lwt_log_core.debug_f ~section
+          "Error while writing: %s; returning EIO error"
+          (Fmt.to_to_string Block.pp_write_error e)
+        >>= fun () -> error t handle `EIO
+      in
+      acquire () >>= fun i ->
+      let subblock = Cstruct.sub buffers.(i) 0 (min buffer_size len) in
+      if len <= buffer_size then
+        (* Request reads need to be synchronous, while disk I/O can
+           happen in the background *)
+        t.channel.read subblock >>= fun () ->
+        let th () =
+          Block.write b (sector_of_offset from) [subblock] >>= function
+          | Error e ->
+              write_error e
+          | Ok () ->
+              ok t handle None
+        in
+        spawn (Lwt.finalize th (fun () -> release i ; Lwt.return_unit))
+      else
+        (* Reading chunks of a large write needs to be synchronous.
+           Only the final reply needs the reply mutex. *)
+        Lwt.finalize
+          (fun () ->
+            let rec copy offset remaining =
+              let n = min buffer_size remaining in
+              let subblock = Cstruct.sub buffers.(i) 0 n in
+              t.channel.read subblock >>= fun () ->
+              Block.write b (sector_of_offset offset) [subblock] >>= function
+              | Error e ->
+                  write_error e
+              | Ok () ->
+                  let remaining = remaining - n in
+                  if remaining > 0 then
+                    copy Int64.(add offset (of_int n)) remaining
+                  else
+                    ok t handle None
+            in
+            copy from len
+          )
+          (fun () -> release i ; Lwt.return_unit)
+  in
+  let[@warning "-27"] handle_read Request.{ty; from; len; handle} =
+    (* It is okay to disconnect here in case of errors. The NBD protocol
+       documentation says about NBD_CMD_READ:
+       "If an error occurs, the server SHOULD set the appropriate error code
+       in the error field. The server MAY then initiate a hard disconnect.
+       If it chooses not to, it MUST NOT send any payload for this request.
+       If an error occurs while reading after the server has already sent out
+       the reply header with an error field set to zero (i.e., signalling no
+       error), the server MUST immediately initiate a hard disconnect; it
+       MUST NOT send any further data to the client." *)
+    let len = Int32.to_int len in
+    if
+      Int64.(rem from (of_int sector_size)) <> 0L
+      || Int64.(rem (of_int len) (of_int sector_size)) <> 0L
+    then
+      error t handle `EINVAL
+    else
+      acquire () >>= fun i ->
+      let subblock = Cstruct.sub buffers.(i) 0 (min buffer_size len) in
+      let read_error e =
+        Lwt.fail_with
+          (Printf.sprintf
+             "Partial failure during a Block.read: %s; terminating the session"
+             (Fmt.to_to_string Block.pp_error e)
+          )
+      in
+      let th () =
+        if len <= buffer_size then
+          Block.read b (sector_of_offset from) [subblock] >>= function
+          | Error e ->
+              read_error e
+          | Ok () ->
+              ok t handle (Some subblock)
+        else
+          (* Requests larger than a single buffer are sent while holding the
+             reply mutex, so that the header and its data stay contiguous. *)
+            Lwt_mutex.with_lock t.m (fun () ->
+              Reply.marshal t.reply {Reply.handle; error= Ok ()} ;
+              t.channel.write t.reply >>= fun () ->
+              let rec copy offset remaining =
+                let n = min buffer_size remaining in
+                let subblock = Cstruct.sub buffers.(i) 0 n in
+                Block.read b (sector_of_offset offset) [subblock] >>= function
+                | Error e ->
+                    read_error e
+                | Ok () ->
+                    t.channel.write subblock >>= fun () ->
+                    let remaining = remaining - n in
+                    if remaining > 0 then
+                      copy Int64.(add offset (of_int n)) remaining
+                    else
+                      Lwt.return_unit
+              in
+              copy from len
+          )
+      in
+      spawn (Lwt.finalize th (fun () -> release i ; Lwt.return_unit))
+  in
   let rec loop () =
-    next t >>= fun request ->
-    let open Request in
-    match request with
-    | {ty= Command.Write; from; len; handle} ->
-        if read_only then
-          error t handle `EPERM
-        else if
-          Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L
-          || Int64.(
-               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L
-             )
-        then
-          error t handle `EINVAL
-        else
-          let rec copy offset remaining =
-            let n = min block_size remaining in
-            let subblock = Cstruct.sub block 0 n in
-            t.channel.Channel.read subblock >>= fun () ->
-            Block.write b
-              Int64.(div offset (of_int info.Mirage_block.sector_size))
-              [subblock]
-            >>= function
-            | Error e ->
-                Lwt_log_core.debug_f ~section
-                  "Error while writing: %s; returning EIO error"
-                  (Fmt.to_to_string Block.pp_write_error e)
-                >>= fun () -> error t handle `EIO
-            | Ok () ->
-                let remaining = remaining - n in
-                if remaining > 0 then
-                  copy Int64.(add offset (of_int n)) remaining
-                else
-                  ok t handle None >>= fun () -> loop ()
-          in
-          copy from (Int32.to_int request.Request.len)
-    | {ty= Command.Read; from; len; handle} ->
-        (* It is okay to disconnect here in case of errors. The NBD protocol
-           documentation says about NBD_CMD_READ:
-           "If an error occurs, the server SHOULD set the appropriate error code
-           in the error field. The server MAY then initiate a hard disconnect.
-           If it chooses not to, it MUST NOT send any payload for this request.
-           If an error occurs while reading after the server has already sent out
-           the reply header with an error field set to zero (i.e., signalling no
-           error), the server MUST immediately initiate a hard disconnect; it
-           MUST NOT send any further data to the client." *)
-        if
-          Int64.(rem from (of_int info.Mirage_block.sector_size)) <> 0L
-          || Int64.(
-               rem (of_int32 len) (of_int info.Mirage_block.sector_size) <> 0L
-             )
-        then
-          error t handle `EINVAL
-        else
-          ok t handle None >>= fun () ->
-          let rec copy offset remaining =
-            let n = min block_size remaining in
-            let subblock = Cstruct.sub block 0 n in
-            Block.read b
-              Int64.(div offset (of_int info.Mirage_block.sector_size))
-              [subblock]
-            >>= function
-            | Error e ->
-                Lwt.fail_with
-                  (Printf.sprintf
-                     "Partial failure during a Block.read: %s; terminating the \
-                      session"
-                     (Fmt.to_to_string Block.pp_error e)
-                  )
-            | Ok () ->
-                t.channel.write subblock >>= fun () ->
-                let remaining = remaining - n in
-                if remaining > 0 then
-                  copy Int64.(add offset (of_int n)) remaining
-                else
-                  loop ()
-          in
-          copy from (Int32.to_int request.Request.len)
-    | {ty= Command.Disc; _} ->
+    (match !first_error with Some e -> Lwt.fail e | None -> next t)
+    >>= fun request ->
+    match request.Request.ty with
+    | Command.Write ->
+        handle_write request >>= loop
+    | Command.Read ->
+        handle_read request >>= loop
+    | Command.Disc -> (
         Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting"
-        >>= fun () -> Lwt.return_unit
+        >>= fun () ->
+        drain () >>= fun () ->
+        match !first_error with Some e -> Lwt.fail e | None -> Lwt.return_unit
+      )
     | _ ->
         Lwt_log_core.warning ~section
           "Received unknown command, returning EINVAL"
-        >>= fun () -> error t request.Request.handle `EINVAL
+        >>= fun () -> error t request.Request.handle `EINVAL >>= loop
   in
   loop ()
