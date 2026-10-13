@@ -46,19 +46,31 @@ exception Failed_to_read_empty_stream
     client or the server will use the created channel, the other side will be
     simulated by taking the responses from [test_sequence]. *)
 let make_channel role test_sequence =
-  let next = ref test_sequence in
+  (* A channel is full-duplex: reads are independent from writes.
+     Split the sequence into two directions, this  lets the server under
+     test pipeline requests
+     *)
+  let readable =
+    List.filter (fun (source, _) -> source <> role) test_sequence
+  in
+  let writeable =
+    List.filter (fun (source, _) -> source = role) test_sequence
+  in
+  let next_read = ref readable in
+  let next_write = ref writeable in
   let rec read buf =
     Lwt_io.printlf "Reading %d bytes" (Cstruct.length buf) >>= fun () ->
     (* Ignore reads and writes of length 0 and treat them as a no-op *)
     if Cstruct.length buf = 0 then
       Lwt.return_unit
     else
-      match !next with
+      match
+        !next_read
+      with
       | (source, x) :: rest ->
-          if source = role then failwith "Tried to read but should have written" ;
           let available = min (Cstruct.length buf) (String.length x) in
           Cstruct.blit_from_string x 0 buf 0 available ;
-          next :=
+          next_read :=
             if available = String.length x then
               rest
             else
@@ -82,9 +94,10 @@ let make_channel role test_sequence =
     if Cstruct.length buf = 0 then
       Lwt.return_unit
     else
-      match !next with
+      match
+        !next_write
+      with
       | (source, x) :: rest ->
-          if source <> role then failwith "Tried to write but should have read" ;
           let available = min (Cstruct.length buf) (String.length x) in
           let written = String.sub (Cstruct.to_string buf) 0 available in
           let expected = String.sub x 0 available in
@@ -93,7 +106,7 @@ let make_channel role test_sequence =
           Lwt_io.printlf "Wrote %s" (written |> String.escaped) >>= fun () ->
           Lwt_io.flush_all () >>= fun () ->
           (* Ensure all debug messages get logged *)
-          next :=
+          next_write :=
             if available = String.length x then
               rest
             else
@@ -113,7 +126,9 @@ let make_channel role test_sequence =
   let close () = Lwt.return () in
   let assert_processed_complete_sequence () =
     Alcotest.(check (list transmission))
-      "did not process complete sequence" !next []
+      "did not process the complete sequence of bytes to read" !next_read [] ;
+    Alcotest.(check (list transmission))
+      "did not process the complete sequence of bytes to write" !next_write []
   in
   (assert_processed_complete_sequence, (read, write, close))
 
@@ -570,19 +585,14 @@ module ServerTests = struct
         (`Server, nbd_reply_magic)
       ; (`Server, "\000\000\000\001")
       ; (* error: EPERM *)
-        (`Server, "\000\000\000\000\000\000\000\001") (* handle *)
-        (* TODO: currently the test fails with the below lines uncommented, because
-           the server disconnects in case of write errors, but according to the NBD
-           protocol it probably shouldn't, it should continue to process the
-           client's requests *)
-        (*
-      `Client, nbd_request_magic;
-      `Client, "\000\000"; (* command flags *)
-      `Client, "\000\002"; (* request type: NBD_CMD_DISC *)
-      `Client, "\000\000\000\000\000\000\000\002"; (* handle: 4 bytes *)
-      `Client, "\000\000\000\000\000\000\000\000"; (* offset *)
-      `Client, "\000\000\000\000"; (* length *)
-      *)
+        (`Server, "\000\000\000\000\000\000\000\001")
+        (* handle *)
+      ; (`Client, nbd_request_magic)
+      ; (`Client, "\000\000") (* command flags *)
+      ; (`Client, "\000\002") (* request type: NBD_CMD_DISC *)
+      ; (`Client, "\000\000\000\000\000\000\000\002") (* handle: 4 bytes *)
+      ; (`Client, "\000\000\000\000\000\000\000\000") (* offset *)
+      ; (`Client, "\000\000\000\000") (* length *)
       ]
     in
     Alcotest_lwt.test_case
@@ -651,8 +661,7 @@ module ServerTests = struct
       ; (* handle: 4 bytes *)
         (`Client, "\000\000\000\000\000\000\000\000")
       ; (* offset *)
-        (`Client, "\000\000\000\000")
-        (* length *)
+        (`Client, "\000\000\000\000") (* length *)
       ]
     in
     Alcotest_lwt.test_case
